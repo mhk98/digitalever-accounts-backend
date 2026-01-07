@@ -1,0 +1,57 @@
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const db = require("../db/db");
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { DataTypes } = require("sequelize");
+
+// Define models
+db.user = require("../app/modules/user/user.model")(db.sequelize, DataTypes);
+db.product = require("../app/modules/product/product.model")(
+  db.sequelize,
+  DataTypes
+);
+db.receivedProduct = require("../app/modules/receivedProduct/receivedProduct.model")(db.sequelize, DataTypes);
+db.inTransitProduct = require("../app/modules/inTransitProduct/inTransitProduct.model")(db.sequelize, DataTypes);
+db.returnProduct = require("../app/modules/returnProduct/returnProduct.model")(db.sequelize, DataTypes);
+db.confirmOrder = require("../app/modules/confirmOrder/confirmOrder.model")(db.sequelize, DataTypes);
+db.meta = require("../app/modules/meta/meta.model")(db.sequelize, DataTypes);
+db.assetsPurchase = require("../app/modules/assetsPurchase/assetsPurchase.model")(db.sequelize, DataTypes);
+db.assetsSale = require("../app/modules/assetsSale/assetsSale.model")(db.sequelize, DataTypes);
+db.cashIn = require("../app/modules/cashIn/cashIn.model")(db.sequelize, DataTypes);
+db.pettyCash = require("../app/modules/pettyCash/pettyCash.model")(db.sequelize, DataTypes);
+db.expense = require("../app/modules/expense/expense.model")(db.sequelize, DataTypes);
+
+
+
+
+// // Define associations
+// db.purchase.hasOne(db.accounting, { foreignKey: "purchaseId" });
+// db.accounting.belongsTo(db.purchase, { foreignKey: "purchaseId" });
+
+// db.sale.hasOne(db.accounting, { foreignKey: "saleId" });
+// db.accounting.belongsTo(db.sale, { foreignKey: "saleId" });
+
+db.product.hasMany(db.receivedProduct, { foreignKey: "productId" });
+db.receivedProduct.belongsTo(db.product, { foreignKey: "productId" });
+db.product.hasMany(db.returnProduct, { foreignKey: "productId" });
+db.returnProduct.belongsTo(db.product, { foreignKey: "productId" });
+db.product.hasMany(db.inTransitProduct, { foreignKey: "productId" });
+db.inTransitProduct.belongsTo(db.product, { foreignKey: "productId" });
+db.product.hasMany(db.confirmOrder, { foreignKey: "productId" });
+db.confirmOrder.belongsTo(db.product, { foreignKey: "productId" });
+
+// db.product.hasMany(db.sale, { foreignKey: "productId" });
+// db.sale.belongsTo(db.product, { foreignKey: "productId" });
+
+
+
+// Sync the database
+db.sequelize
+  .sync({ force: false })
+  .then(() => {
+    console.log("Connection re-synced successfully");
+  })
+  .catch((err) => {
+    console.error("Error on re-sync:", err);
+  });
+
+module.exports = db;
