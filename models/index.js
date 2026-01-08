@@ -19,6 +19,8 @@ db.assetsSale = require("../app/modules/assetsSale/assetsSale.model")(db.sequeli
 db.cashIn = require("../app/modules/cashIn/cashIn.model")(db.sequelize, DataTypes);
 db.pettyCash = require("../app/modules/pettyCash/pettyCash.model")(db.sequelize, DataTypes);
 db.expense = require("../app/modules/expense/expense.model")(db.sequelize, DataTypes);
+db.book = require("../app/modules/book/book.model")(db.sequelize, DataTypes);
+db.cashInOut = require("../app/modules/cashInOut/cashInOut.model")(db.sequelize, DataTypes);
 
 
 
@@ -38,6 +40,8 @@ db.product.hasMany(db.inTransitProduct, { foreignKey: "productId" });
 db.inTransitProduct.belongsTo(db.product, { foreignKey: "productId" });
 db.product.hasMany(db.confirmOrder, { foreignKey: "productId" });
 db.confirmOrder.belongsTo(db.product, { foreignKey: "productId" });
+db.book.hasMany(db.cashInOut, { foreignKey: "bookId" });
+db.cashInOut.belongsTo(db.book, { foreignKey: "bookId" });
 
 // db.product.hasMany(db.sale, { foreignKey: "productId" });
 // db.sale.belongsTo(db.product, { foreignKey: "productId" });

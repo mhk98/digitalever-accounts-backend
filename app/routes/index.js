@@ -11,6 +11,8 @@ const ConfirmOrderRoutes = require('../modules/confirmOrder/confirmOrder.routes'
 const CashInRoutes = require('../modules/cashIn/cashIn.routes');
 const PettyCashRoutes = require('../modules/pettyCash/pettyCash.routes');
 const ExpenseRoutes = require('../modules/expense/expense.routes');
+const BookRoutes = require('../modules/book/book.routes');
+const CashInOutRoutes = require('../modules/cashInOut/cashInOut.routes');
 
 
 
@@ -67,6 +69,18 @@ const moduleRoutes = [
   {
     path: "/expense",
     route: ExpenseRoutes
+  },
+  {
+    path: "/book",
+    route: BookRoutes
+  },
+  {
+    path: "/book",
+    route: CashInRoutes
+  },
+  {
+    path: "/cash-in-out",
+    route: CashInOutRoutes
   },
  
  

@@ -1,6 +1,6 @@
- const InTransitProductFilterAbleFileds = ['searchTerm', 'startDate', 'endDate', 'productId'];
+ const InTransitProductFilterAbleFileds = ['searchTerm', 'startDate', 'endDate', 'name'];
 
- const InTransitProductSearchableFields = ['searchTerm', 'productId'];
+ const InTransitProductSearchableFields = ['searchTerm', 'name'];
 
 
 module.exports = {

@@ -12,7 +12,8 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  const fileTypes = /jpeg|jpg|png|gif|webp/;
+  const fileTypes = /jpeg|jpg|png|gif|webp|pdf/;
+
   const mimeType = fileTypes.test(file.mimetype);
   const extname = fileTypes.test(path.extname(file.originalname));
   if (mimeType && extname) {
@@ -25,6 +26,18 @@ const fileFilter = (req, file, cb) => {
     );
   }
 };
+
+const uploadFile = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter,
+}).single("file"); // Use "file" as the field name for PDF uploads
+
+const uploadPdf = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter,
+}).single("file"); // Use "file" as the field name for PDF uploads
 
 // Configure upload for single and multiple file uploads
 const uploadSingle = multer({
@@ -40,6 +53,7 @@ const uploadMultiple = multer({
 }).array("gallery_images", 10); // Allow up to 10 files
 
 module.exports = {
+  uploadFile,
   uploadSingle,
   uploadMultiple,
 };
