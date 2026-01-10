@@ -9,21 +9,56 @@ db.product = require("../app/modules/product/product.model")(
   db.sequelize,
   DataTypes
 );
-db.receivedProduct = require("../app/modules/receivedProduct/receivedProduct.model")(db.sequelize, DataTypes);
-db.inTransitProduct = require("../app/modules/inTransitProduct/inTransitProduct.model")(db.sequelize, DataTypes);
-db.returnProduct = require("../app/modules/returnProduct/returnProduct.model")(db.sequelize, DataTypes);
-db.confirmOrder = require("../app/modules/confirmOrder/confirmOrder.model")(db.sequelize, DataTypes);
+db.receivedProduct =
+  require("../app/modules/receivedProduct/receivedProduct.model")(
+    db.sequelize,
+    DataTypes
+  );
+db.inTransitProduct =
+  require("../app/modules/inTransitProduct/inTransitProduct.model")(
+    db.sequelize,
+    DataTypes
+  );
+db.returnProduct = require("../app/modules/returnProduct/returnProduct.model")(
+  db.sequelize,
+  DataTypes
+);
+db.purchaseReturnProduct =
+  require("../app/modules/purchaseReturnProduct/purchaseReturnProduct.model")(
+    db.sequelize,
+    DataTypes
+  );
+db.confirmOrder = require("../app/modules/confirmOrder/confirmOrder.model")(
+  db.sequelize,
+  DataTypes
+);
 db.meta = require("../app/modules/meta/meta.model")(db.sequelize, DataTypes);
-db.assetsPurchase = require("../app/modules/assetsPurchase/assetsPurchase.model")(db.sequelize, DataTypes);
-db.assetsSale = require("../app/modules/assetsSale/assetsSale.model")(db.sequelize, DataTypes);
-db.cashIn = require("../app/modules/cashIn/cashIn.model")(db.sequelize, DataTypes);
-db.pettyCash = require("../app/modules/pettyCash/pettyCash.model")(db.sequelize, DataTypes);
-db.expense = require("../app/modules/expense/expense.model")(db.sequelize, DataTypes);
+db.assetsPurchase =
+  require("../app/modules/assetsPurchase/assetsPurchase.model")(
+    db.sequelize,
+    DataTypes
+  );
+db.assetsSale = require("../app/modules/assetsSale/assetsSale.model")(
+  db.sequelize,
+  DataTypes
+);
+db.cashIn = require("../app/modules/cashIn/cashIn.model")(
+  db.sequelize,
+  DataTypes
+);
+db.pettyCash = require("../app/modules/pettyCash/pettyCash.model")(
+  db.sequelize,
+  DataTypes
+);
+db.expense = require("../app/modules/expense/expense.model")(
+  db.sequelize,
+  DataTypes
+);
 db.book = require("../app/modules/book/book.model")(db.sequelize, DataTypes);
-db.cashInOut = require("../app/modules/cashInOut/cashInOut.model")(db.sequelize, DataTypes);
-
-
-
+db.cashInOut = require("../app/modules/cashInOut/cashInOut.model")(
+  db.sequelize,
+  DataTypes
+);
 
 // // Define associations
 // db.purchase.hasOne(db.accounting, { foreignKey: "purchaseId" });
@@ -34,19 +69,24 @@ db.cashInOut = require("../app/modules/cashInOut/cashInOut.model")(db.sequelize,
 
 db.product.hasMany(db.receivedProduct, { foreignKey: "productId" });
 db.receivedProduct.belongsTo(db.product, { foreignKey: "productId" });
+
 db.product.hasMany(db.returnProduct, { foreignKey: "productId" });
 db.returnProduct.belongsTo(db.product, { foreignKey: "productId" });
+
 db.product.hasMany(db.inTransitProduct, { foreignKey: "productId" });
 db.inTransitProduct.belongsTo(db.product, { foreignKey: "productId" });
+
 db.product.hasMany(db.confirmOrder, { foreignKey: "productId" });
 db.confirmOrder.belongsTo(db.product, { foreignKey: "productId" });
+
+db.product.hasMany(db.purchaseReturnProduct, { foreignKey: "productId" });
+db.purchaseReturnProduct.belongsTo(db.product, { foreignKey: "productId" });
+
 db.book.hasMany(db.cashInOut, { foreignKey: "bookId" });
 db.cashInOut.belongsTo(db.book, { foreignKey: "bookId" });
 
 // db.product.hasMany(db.sale, { foreignKey: "productId" });
 // db.sale.belongsTo(db.product, { foreignKey: "productId" });
-
-
 
 // Sync the database
 db.sequelize

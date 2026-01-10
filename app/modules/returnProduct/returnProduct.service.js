@@ -6,42 +6,30 @@ const { ReturnProductSearchableFields } = require("./returnProduct.constants");
 const ReturnProduct = db.returnProduct;
 const Product = db.product;
 
-
 const insertIntoDB = async (data) => {
+  const { quantity, productId } = data;
 
-  const { quantity, productId} = data;
+  const productData = await Product.findOne({
+    where: {
+      Id: productId,
+    },
+  });
 
-const productData = await Product.findOne({
-  where:{
-    Id:productId
+  if (!productData) {
+    throw new ApiError(404, "Product not found");
   }
-})
 
-if(!productData){
-  throw new ApiError(404, 'Product not found')
-}
-
-const updatedQuantity = productData.quantity + quantity;
-
-await Product.update({quantity:updatedQuantity},{
-  where:{
-    Id:productId
-  }
-})
-
-const payload = {
-  name: productData.name,
-  quantity,
-  purchase_price:productData.purchase_price * quantity,
-  sale_price:productData.sale_price * quantity,
-  productId
-}
-
+  const payload = {
+    name: productData.name,
+    quantity,
+    purchase_price: productData.purchase_price * quantity,
+    sale_price: productData.sale_price * quantity,
+    productId,
+  };
 
   const result = await ReturnProduct.create(payload);
-  return result
+  return result;
 };
-
 
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
@@ -81,7 +69,9 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
-  const whereConditions = andConditions.length ? { [Op.and]: andConditions } : {};
+  const whereConditions = andConditions.length
+    ? { [Op.and]: andConditions }
+    : {};
 
   const result = await ReturnProduct.findAll({
     where: whereConditions,
@@ -101,58 +91,60 @@ const getAllFromDB = async (filters, options) => {
   };
 };
 
-
-
-
 const getDataById = async (id) => {
-  
   const result = await ReturnProduct.findOne({
-    where:{
-      Id:id
-    }
-  })
+    where: {
+      Id: id,
+    },
+  });
 
-  return result
+  return result;
 };
-
 
 const deleteIdFromDB = async (id) => {
+  const result = await ReturnProduct.destroy({
+    where: {
+      Id: id,
+    },
+  });
 
-  const result = await ReturnProduct.destroy(
-    {
-      where:{
-        Id:id
-      }
-    }
-  )
-
-  return result
+  return result;
 };
 
-
 const updateOneFromDB = async (id, payload) => {
- 
-  const {name} = payload
-  const result = await ReturnProduct.update(payload,{
-    where:{
-      Id:id
-    }
-  })
+  const { quantity, productId } = payload;
 
-  return result
+  const productData = await Product.findOne({
+    where: {
+      Id: productId,
+    },
+  });
 
+  if (!productData) {
+    throw new ApiError(404, "Product not found");
+  }
+
+  const data = {
+    name: productData.name,
+    quantity,
+    purchase_price: productData.purchase_price * quantity,
+    sale_price: productData.sale_price * quantity,
+    productId,
+  };
+  const result = await ReturnProduct.update(data, {
+    where: {
+      Id: id,
+    },
+  });
+
+  return result;
 };
 
 const getAllFromDBWithoutQuery = async () => {
- 
-  const result = await ReturnProduct.findAll()
+  const result = await ReturnProduct.findAll();
 
-  return result
-
+  return result;
 };
-
-
-
 
 const ReturnProductService = {
   getAllFromDB,
@@ -160,7 +152,7 @@ const ReturnProductService = {
   deleteIdFromDB,
   updateOneFromDB,
   getDataById,
-  getAllFromDBWithoutQuery
+  getAllFromDBWithoutQuery,
 };
 
 module.exports = ReturnProductService;

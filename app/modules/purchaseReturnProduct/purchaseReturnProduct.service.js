@@ -2,9 +2,10 @@ const { Op, where } = require("sequelize"); // Ensure Op is imported
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
-const { ConfirmOrderSearchableFields } = require("./confirmOrder.constants");
-
-const ConfirmOrder = db.confirmOrder;
+const {
+  PurchaseReturnProductSearchableFields,
+} = require("./purchaseReturnProduct.constants");
+const PurchaseReturnProduct = db.purchaseReturnProduct;
 const Product = db.product;
 
 const insertIntoDB = async (data) => {
@@ -28,7 +29,7 @@ const insertIntoDB = async (data) => {
     productId,
   };
 
-  const result = await ConfirmOrder.create(payload);
+  const result = await PurchaseReturnProduct.create(payload);
   return result;
 };
 
@@ -42,7 +43,7 @@ const getAllFromDB = async (filters, options) => {
   // ✅ Search (ILIKE on searchable fields)
   if (searchTerm && searchTerm.trim()) {
     andConditions.push({
-      [Op.or]: ConfirmOrderSearchableFields.map((field) => ({
+      [Op.or]: PurchaseReturnProductSearchableFields.map((field) => ({
         [field]: { [Op.iLike]: `%${searchTerm.trim()}%` },
       })),
     });
@@ -74,7 +75,7 @@ const getAllFromDB = async (filters, options) => {
     ? { [Op.and]: andConditions }
     : {};
 
-  const result = await ConfirmOrder.findAll({
+  const result = await PurchaseReturnProduct.findAll({
     where: whereConditions,
     offset: skip,
     limit,
@@ -84,7 +85,7 @@ const getAllFromDB = async (filters, options) => {
         : [["createdAt", "DESC"]],
   });
 
-  const total = await ConfirmOrder.count({ where: whereConditions });
+  const total = await PurchaseReturnProduct.count({ where: whereConditions });
 
   return {
     meta: { total, page, limit },
@@ -93,7 +94,7 @@ const getAllFromDB = async (filters, options) => {
 };
 
 const getDataById = async (id) => {
-  const result = await ConfirmOrder.findOne({
+  const result = await PurchaseReturnProduct.findOne({
     where: {
       Id: id,
     },
@@ -103,7 +104,7 @@ const getDataById = async (id) => {
 };
 
 const deleteIdFromDB = async (id) => {
-  const result = await ConfirmOrder.destroy({
+  const result = await PurchaseReturnProduct.destroy({
     where: {
       Id: id,
     },
@@ -132,8 +133,7 @@ const updateOneFromDB = async (id, payload) => {
     sale_price: productData.sale_price * quantity,
     productId,
   };
-
-  const result = await ConfirmOrder.update(data, {
+  const result = await PurchaseReturnProduct.update(data, {
     where: {
       Id: id,
     },
@@ -143,12 +143,12 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await ConfirmOrder.findAll();
+  const result = await PurchaseReturnProduct.findAll();
 
   return result;
 };
 
-const ConfirmOrderService = {
+const PurchaseReturnProductService = {
   getAllFromDB,
   insertIntoDB,
   deleteIdFromDB,
@@ -157,4 +157,4 @@ const ConfirmOrderService = {
   getAllFromDBWithoutQuery,
 };
 
-module.exports = ConfirmOrderService;
+module.exports = PurchaseReturnProductService;

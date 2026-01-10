@@ -5,12 +5,10 @@ const ApiError = require("../../../error/ApiError");
 const { ProductSearchableFields } = require("./product.constants");
 const Product = db.product;
 
-
 const insertIntoDB = async (data) => {
   const result = await Product.create(data);
-  return result
+  return result;
 };
-
 
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
@@ -50,7 +48,9 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
-  const whereConditions = andConditions.length ? { [Op.and]: andConditions } : {};
+  const whereConditions = andConditions.length
+    ? { [Op.and]: andConditions }
+    : {};
 
   const result = await Product.findAll({
     where: whereConditions,
@@ -70,58 +70,41 @@ const getAllFromDB = async (filters, options) => {
   };
 };
 
-
-
-
 const getDataById = async (id) => {
-  
   const result = await Product.findOne({
-    where:{
-      Id:id
-    }
-  })
+    where: {
+      Id: id,
+    },
+  });
 
-  return result
+  return result;
 };
-
 
 const deleteIdFromDB = async (id) => {
+  const result = await Product.destroy({
+    where: {
+      Id: id,
+    },
+  });
 
-  const result = await Product.destroy(
-    {
-      where:{
-        Id:id
-      }
-    }
-  )
-
-  return result
+  return result;
 };
 
-
 const updateOneFromDB = async (id, payload) => {
- 
-  const {name} = payload
-  const result = await Product.update(payload,{
-    where:{
-      Id:id
-    }
-  })
+  const result = await Product.update(payload, {
+    where: {
+      Id: id,
+    },
+  });
 
-  return result
-
+  return result;
 };
 
 const getAllFromDBWithoutQuery = async () => {
- 
-  const result = await Product.findAll()
+  const result = await Product.findAll();
 
-  return result
-
+  return result;
 };
-
-
-
 
 const ProductService = {
   getAllFromDB,
@@ -129,7 +112,7 @@ const ProductService = {
   deleteIdFromDB,
   updateOneFromDB,
   getDataById,
-  getAllFromDBWithoutQuery
+  getAllFromDBWithoutQuery,
 };
 
 module.exports = ProductService;

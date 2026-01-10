@@ -1,11 +1,13 @@
- const ReturnProductFilterAbleFileds = ['searchTerm', 'startDate', 'endDate', 'productId'];
+const ReturnProductFilterAbleFileds = [
+  "searchTerm",
+  "startDate",
+  "endDate",
+  "name",
+];
 
- const ReturnProductSearchableFields = ['searchTerm', 'productId'];
-
+const ReturnProductSearchableFields = ["searchTerm", "name"];
 
 module.exports = {
-
-    ReturnProductFilterAbleFileds,
-    ReturnProductSearchableFields
-
-}
+  ReturnProductFilterAbleFileds,
+  ReturnProductSearchableFields,
+};

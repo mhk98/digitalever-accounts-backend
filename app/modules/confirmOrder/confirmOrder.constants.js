@@ -1,11 +1,13 @@
- const ConfirmOrderFilterAbleFileds = ['searchTerm', 'startDate', 'endDate', 'productId'];
+const ConfirmOrderFilterAbleFileds = [
+  "searchTerm",
+  "startDate",
+  "endDate",
+  "name",
+];
 
- const ConfirmOrderSearchableFields = ['searchTerm', 'productId'];
-
+const ConfirmOrderSearchableFields = ["searchTerm", "name"];
 
 module.exports = {
-
-    ConfirmOrderFilterAbleFileds,
-    ConfirmOrderSearchableFields
-
-}
+  ConfirmOrderFilterAbleFileds,
+  ConfirmOrderSearchableFields,
+};

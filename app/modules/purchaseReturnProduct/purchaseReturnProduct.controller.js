@@ -1,27 +1,30 @@
 const catchAsync = require("../../../shared/catchAsync");
 const sendResponse = require("../../../shared/sendResponse");
 const pick = require("../../../shared/pick");
-const InTransitProductService = require("./inTransitProduct.service");
+const PurchaseReturnProductService = require("./purchaseReturnProduct.service");
 const {
-  InTransitProductFilterAbleFileds,
-} = require("./inTransitProduct.constants");
+  PurchaseReturnProductFilterAbleFileds,
+} = require("./purchaseReturnProduct.constants");
 
 const insertIntoDB = catchAsync(async (req, res) => {
-  const result = await InTransitProductService.insertIntoDB(req.body);
+  const result = await PurchaseReturnProductService.insertIntoDB(req.body);
 
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "InTransitProduct data created!!",
+    message: "PurchaseReturnProduct data created!!",
     data: result,
   });
 });
 
 const getAllFromDB = catchAsync(async (req, res) => {
-  const filters = pick(req.query, InTransitProductFilterAbleFileds);
+  const filters = pick(req.query, PurchaseReturnProductFilterAbleFileds);
   const options = pick(req.query, ["limit", "page", "sortBy", "sortOrder"]);
 
-  const result = await InTransitProductService.getAllFromDB(filters, options);
+  const result = await PurchaseReturnProductService.getAllFromDB(
+    filters,
+    options
+  );
   sendResponse(res, {
     statusCode: 200,
     success: true,
@@ -32,47 +35,52 @@ const getAllFromDB = catchAsync(async (req, res) => {
 });
 
 const getDataById = catchAsync(async (req, res) => {
-  const result = await InTransitProductService.getDataById(req.params.id);
+  const result = await PurchaseReturnProductService.getDataById(req.params.id);
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "InTransitProduct data fetched!!",
+    message: "PurchaseReturnProduct data fetched!!",
     data: result,
   });
 });
 
 const updateOneFromDB = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const result = await InTransitProductService.updateOneFromDB(id, req.body);
+  const result = await PurchaseReturnProductService.updateOneFromDB(
+    id,
+    req.body
+  );
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "InTransitProduct update successfully!!",
+    message: "PurchaseReturnProduct update successfully!!",
     data: result,
   });
 });
 
 const deleteIdFromDB = catchAsync(async (req, res) => {
-  const result = await InTransitProductService.deleteIdFromDB(req.params.id);
+  const result = await PurchaseReturnProductService.deleteIdFromDB(
+    req.params.id
+  );
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "InTransitProduct delete successfully!!",
+    message: "PurchaseReturnProduct delete successfully!!",
     data: result,
   });
 });
 
 const getAllFromDBWithoutQuery = catchAsync(async (req, res) => {
-  const result = await InTransitProductService.getAllFromDBWithoutQuery();
+  const result = await PurchaseReturnProductService.getAllFromDBWithoutQuery();
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "InTransitProduct data fetch!!",
+    message: "PurchaseReturnProduct data fetch!!",
     data: result,
   });
 });
 
-const InTransitProductController = {
+const PurchaseReturnProductController = {
   getAllFromDB,
   insertIntoDB,
   getDataById,
@@ -81,4 +89,4 @@ const InTransitProductController = {
   getAllFromDBWithoutQuery,
 };
 
-module.exports = InTransitProductController;
+module.exports = PurchaseReturnProductController;
