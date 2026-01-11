@@ -59,6 +59,14 @@ db.cashInOut = require("../app/modules/cashInOut/cashInOut.model")(
   db.sequelize,
   DataTypes
 );
+db.receiveable = require("../app/modules/receiveable/receiveable.model")(
+  db.sequelize,
+  DataTypes
+);
+db.payable = require("../app/modules/payable/payable.model")(
+  db.sequelize,
+  DataTypes
+);
 
 // // Define associations
 // db.purchase.hasOne(db.accounting, { foreignKey: "purchaseId" });

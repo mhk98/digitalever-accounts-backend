@@ -1,28 +1,28 @@
 const { ENUM_USER_ROLE } = require("../../enums/user");
 const auth = require("../../middlewares/auth");
 const { uploadFile } = require("../../middlewares/upload");
-const CashInOutController = require("./cashInOut.controller");
+const ReceiveableController = require("./receiveable.controller");
 const router = require("express").Router();
 
 router.post(
   "/create",
   uploadFile,
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
-  CashInOutController.insertIntoDB
+  ReceiveableController.insertIntoDB
 );
-router.get("/", CashInOutController.getAllFromDB);
-router.get("/all", CashInOutController.getAllFromDBWithoutQuery);
-// router.get("/:id", CashInOutController.getDataById);
+router.get("/", ReceiveableController.getAllFromDB);
+router.get("/all", ReceiveableController.getAllFromDBWithoutQuery);
+// router.get("/:id", ReceiveableController.getDataById);
 router.delete(
   "/:id",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
-  CashInOutController.deleteIdFromDB
+  ReceiveableController.deleteIdFromDB
 );
 router.patch(
   "/:id",
   uploadFile,
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
-  CashInOutController.updateOneFromDB
+  ReceiveableController.updateOneFromDB
 );
-const CashInOutRoutes = router;
-module.exports = CashInOutRoutes;
+const ReceiveableRoutes = router;
+module.exports = ReceiveableRoutes;

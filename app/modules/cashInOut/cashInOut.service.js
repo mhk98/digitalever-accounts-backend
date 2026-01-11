@@ -5,13 +5,10 @@ const ApiError = require("../../../error/ApiError");
 const { CashInOutSearchableFields } = require("./cashInOut.constants");
 const CashInOut = db.cashInOut;
 
-
 const insertIntoDB = async (data) => {
-
   const result = await CashInOut.create(data);
-  return result
+  return result;
 };
-
 
 // const getAllFromDB = async (filters, options) => {
 //   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
@@ -70,7 +67,6 @@ const insertIntoDB = async (data) => {
 //     data: result,
 //   };
 // };
-
 
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
@@ -137,7 +133,9 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
-  const whereConditions = andConditions.length ? { [Op.and]: andConditions } : {};
+  const whereConditions = andConditions.length
+    ? { [Op.and]: andConditions }
+    : {};
 
   const data = await CashInOut.findAll({
     where: whereConditions,
@@ -157,57 +155,42 @@ const getAllFromDB = async (filters, options) => {
   };
 };
 
-
-
 const getDataById = async (id) => {
-  
   const result = await CashInOut.findOne({
-    where:{
-      Id:id
-    }
-  })
+    where: {
+      Id: id,
+    },
+  });
 
-  return result
+  return result;
 };
-
 
 const deleteIdFromDB = async (id) => {
+  const result = await CashInOut.destroy({
+    where: {
+      Id: id,
+    },
+  });
 
-  const result = await CashInOut.destroy(
-    {
-      where:{
-        Id:id
-      }
-    }
-  )
-
-  return result
+  return result;
 };
 
-
 const updateOneFromDB = async (id, payload) => {
- 
-  const {name} = payload
-  const result = await CashInOut.update(payload,{
-    where:{
-      Id:id
-    }
-  })
+  const { name } = payload;
+  const result = await CashInOut.update(payload, {
+    where: {
+      Id: id,
+    },
+  });
 
-  return result
-
+  return result;
 };
 
 const getAllFromDBWithoutQuery = async () => {
- 
-  const result = await CashInOut.findAll()
+  const result = await CashInOut.findAll();
 
-  return result
-
+  return result;
 };
-
-
-
 
 const CashInOutService = {
   getAllFromDB,
@@ -215,7 +198,7 @@ const CashInOutService = {
   deleteIdFromDB,
   updateOneFromDB,
   getDataById,
-  getAllFromDBWithoutQuery
+  getAllFromDBWithoutQuery,
 };
 
 module.exports = CashInOutService;

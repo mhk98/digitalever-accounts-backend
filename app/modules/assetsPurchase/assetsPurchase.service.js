@@ -2,15 +2,23 @@ const { Op, where } = require("sequelize"); // Ensure Op is imported
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
-const { AssetsPurchaseSearchableFields } = require("./assetsPurchase.constants");
+const {
+  AssetsPurchaseSearchableFields,
+} = require("./assetsPurchase.constants");
 const AssetsPurchase = db.assetsPurchase;
 
+const insertIntoDB = async (payload) => {
+  const { name, quantity, price } = payload;
 
-const insertIntoDB = async (data) => {
+  const data = {
+    name,
+    quantity,
+    price,
+    total: Number(price * quantity),
+  };
   const result = await AssetsPurchase.create(data);
-  return result
+  return result;
 };
-
 
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
@@ -50,7 +58,9 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
-  const whereConditions = andConditions.length ? { [Op.and]: andConditions } : {};
+  const whereConditions = andConditions.length
+    ? { [Op.and]: andConditions }
+    : {};
 
   const result = await AssetsPurchase.findAll({
     where: whereConditions,
@@ -70,61 +80,50 @@ const getAllFromDB = async (filters, options) => {
   };
 };
 
-
-
 const getDataById = async (id) => {
-  
   const result = await AssetsPurchase.findOne({
-    where:{
-      Id:id
-    }
-  })
+    where: {
+      Id: id,
+    },
+  });
 
-  return result
+  return result;
 };
-
 
 const deleteIdFromDB = async (id) => {
+  const result = await AssetsPurchase.destroy({
+    where: {
+      Id: id,
+    },
+  });
 
-  const result = await AssetsPurchase.destroy(
-    {
-      where:{
-        Id:id
-      }
-    }
-  )
-
-  return result
+  return result;
 };
 
-
 const updateOneFromDB = async (id, payload) => {
+  const { name, quantity, price } = payload;
 
-  console.log("purchaseId", id)
-  console.log("purchaseData", payload)
- 
-  const result = await AssetsPurchase.update(payload,{
-    where:{
-      Id:id
-    }
-  })
+  const data = {
+    name,
+    quantity,
+    price,
+    total: Number(price * quantity),
+  };
 
- 
+  const result = await AssetsPurchase.update(data, {
+    where: {
+      Id: id,
+    },
+  });
 
-  return result
-
+  return result;
 };
 
 const getAllFromDBWithoutQuery = async () => {
- 
-  const result = await AssetsPurchase.findAll()
+  const result = await AssetsPurchase.findAll();
 
-  return result
-
+  return result;
 };
-
-
-
 
 const AssetsPurchaseService = {
   getAllFromDB,
@@ -132,7 +131,7 @@ const AssetsPurchaseService = {
   deleteIdFromDB,
   updateOneFromDB,
   getDataById,
-  getAllFromDBWithoutQuery
+  getAllFromDBWithoutQuery,
 };
 
 module.exports = AssetsPurchaseService;

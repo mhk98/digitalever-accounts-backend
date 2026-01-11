@@ -2,8 +2,8 @@ const validator = require("validator");
 const bcrypt = require("bcryptjs");
 
 module.exports = (sequelize, DataTypes) => {
-  const AssetsPurchase = sequelize.define(
-    "AssetsPurchase",
+  const Receiveable = sequelize.define(
+    "Receiveable",
     {
       Id: {
         type: DataTypes.INTEGER(10),
@@ -13,30 +13,22 @@ module.exports = (sequelize, DataTypes) => {
       },
       name: {
         type: DataTypes.STRING,
-        allowNull: false,
-        validate: {
-          notEmpty: true, // Ensure name is not empty
-        },
-      },
-      quantity: {
-        type: DataTypes.INTEGER(10),
-        defaultValue: 0,
         allowNull: true,
       },
-      price: {
-        type: DataTypes.INTEGER(10),
+      amount: {
+        type: DataTypes.FLOAT,
         allowNull: false,
         validate: {
           notEmpty: true, // Ensure name is not empty
         },
       },
-
-      total: {
-        type: DataTypes.INTEGER(10),
-        allowNull: false,
-        validate: {
-          notEmpty: true, // Ensure name is not empty
-        },
+      remarks: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      file: {
+        type: DataTypes.STRING,
+        allowNull: true,
       },
     },
     {
@@ -44,5 +36,5 @@ module.exports = (sequelize, DataTypes) => {
     }
   );
 
-  return AssetsPurchase;
+  return Receiveable;
 };

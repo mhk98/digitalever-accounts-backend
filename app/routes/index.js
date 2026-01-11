@@ -14,6 +14,8 @@ const ExpenseRoutes = require("../modules/expense/expense.routes");
 const BookRoutes = require("../modules/book/book.routes");
 const CashInOutRoutes = require("../modules/cashInOut/cashInOut.routes");
 const PurchaseReturnProductRoutes = require("../modules/purchaseReturnProduct/purchaseReturnProduct.routes");
+const ReceiveableRoutes = require("../modules/receiveable/receiveable.routes");
+const PayableRoutes = require("../modules/payable/payable.routes");
 
 const router = express.Router();
 
@@ -83,6 +85,14 @@ const moduleRoutes = [
   {
     path: "/cash-in-out",
     route: CashInOutRoutes,
+  },
+  {
+    path: "/receiveable",
+    route: ReceiveableRoutes,
+  },
+  {
+    path: "/payable",
+    route: PayableRoutes,
   },
 ];
 

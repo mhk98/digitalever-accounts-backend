@@ -1,28 +1,28 @@
 const { ENUM_USER_ROLE } = require("../../enums/user");
 const auth = require("../../middlewares/auth");
 const { uploadFile } = require("../../middlewares/upload");
-const CashInOutController = require("./cashInOut.controller");
+const PayableController = require("./payable.controller");
 const router = require("express").Router();
 
 router.post(
   "/create",
   uploadFile,
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
-  CashInOutController.insertIntoDB
+  PayableController.insertIntoDB
 );
-router.get("/", CashInOutController.getAllFromDB);
-router.get("/all", CashInOutController.getAllFromDBWithoutQuery);
-// router.get("/:id", CashInOutController.getDataById);
+router.get("/", PayableController.getAllFromDB);
+router.get("/all", PayableController.getAllFromDBWithoutQuery);
+// router.get("/:id", PayableController.getDataById);
 router.delete(
   "/:id",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
-  CashInOutController.deleteIdFromDB
+  PayableController.deleteIdFromDB
 );
 router.patch(
   "/:id",
   uploadFile,
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
-  CashInOutController.updateOneFromDB
+  PayableController.updateOneFromDB
 );
-const CashInOutRoutes = router;
-module.exports = CashInOutRoutes;
+const PayableRoutes = router;
+module.exports = PayableRoutes;

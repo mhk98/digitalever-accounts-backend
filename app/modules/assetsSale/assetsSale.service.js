@@ -5,12 +5,18 @@ const ApiError = require("../../../error/ApiError");
 const { AssetsSaleSearchableFields } = require("./assetsSale.constants");
 const AssetsSale = db.assetsSale;
 
+const insertIntoDB = async (payload) => {
+  const { name, quantity, price } = payload;
 
-const insertIntoDB = async (data) => {
+  const data = {
+    name,
+    quantity,
+    price,
+    total: Number(price * quantity),
+  };
   const result = await AssetsSale.create(data);
-  return result
+  return result;
 };
-
 
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
@@ -50,7 +56,9 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
-  const whereConditions = andConditions.length ? { [Op.and]: andConditions } : {};
+  const whereConditions = andConditions.length
+    ? { [Op.and]: andConditions }
+    : {};
 
   const result = await AssetsSale.findAll({
     where: whereConditions,
@@ -70,57 +78,50 @@ const getAllFromDB = async (filters, options) => {
   };
 };
 
-
 const getDataById = async (id) => {
-  
   const result = await AssetsSale.findOne({
-    where:{
-      Id:id
-    }
-  })
+    where: {
+      Id: id,
+    },
+  });
 
-  return result
+  return result;
 };
-
 
 const deleteIdFromDB = async (id) => {
+  const result = await AssetsSale.destroy({
+    where: {
+      Id: id,
+    },
+  });
 
-  const result = await AssetsSale.destroy(
-    {
-      where:{
-        Id:id
-      }
-    }
-  )
-
-  return result
+  return result;
 };
 
-
 const updateOneFromDB = async (id, payload) => {
- 
-  const result = await AssetsSale.update(payload,{
-    where:{
-      Id:id
-    }
-  })
+  const { name, quantity, price } = payload;
 
- 
+  const data = {
+    name,
+    quantity,
+    price,
+    total: Number(price * quantity),
+  };
 
-  return result
+  const result = await AssetsSale.update(data, {
+    where: {
+      Id: id,
+    },
+  });
 
+  return result;
 };
 
 const getAllFromDBWithoutQuery = async () => {
- 
-  const result = await AssetsSale.findAll()
+  const result = await AssetsSale.findAll();
 
-  return result
-
+  return result;
 };
-
-
-
 
 const AssetsSaleService = {
   getAllFromDB,
@@ -128,7 +129,7 @@ const AssetsSaleService = {
   deleteIdFromDB,
   updateOneFromDB,
   getDataById,
-  getAllFromDBWithoutQuery
+  getAllFromDBWithoutQuery,
 };
 
 module.exports = AssetsSaleService;
