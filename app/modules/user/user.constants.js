@@ -1,8 +1,6 @@
- const UserSearchAbleFields = ['name', , 'startMonth', 'endMonth'];
+// app/modules/user/user.constant.js
 
- const UserFilterAbleFileds = ['searchTerm', 'startMonth', 'endMonth'];
+const UserFilterAbleFileds = ["searchTerm", "role"]; // চাইলে আরও add করবেন: "City","Country"
+const UserSearchableFields = ["FirstName", "LastName", "Email", "Phone"]; // ✅ real DB columns
 
- module.exports = {
-    UserSearchAbleFields,
-    UserFilterAbleFileds
- }
+module.exports = { UserFilterAbleFileds, UserSearchableFields };

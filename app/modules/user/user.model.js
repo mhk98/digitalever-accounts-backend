@@ -26,7 +26,7 @@ module.exports = (sequelize, DataTypes, Sequelize) => {
       },
       Password: {
         type: DataTypes.STRING,
-        allowNull: false,   
+        allowNull: false,
       },
       Address: {
         type: DataTypes.STRING(64),
@@ -55,9 +55,20 @@ module.exports = (sequelize, DataTypes, Sequelize) => {
 
       role: {
         type: DataTypes.STRING,
-        defaultValue: "staff",
+        allowNull: false,
         validate: {
-          isIn: [['superAdmin', 'marketer', 'leader', 'inventor', 'accountant', 'staff']],
+          isIn: [
+            [
+              "superAdmin",
+              "admin",
+              "marketer",
+              "leader",
+              "inventor",
+              "accountant",
+              "staff",
+              "user",
+            ],
+          ],
         },
       },
     },
@@ -70,7 +81,7 @@ module.exports = (sequelize, DataTypes, Sequelize) => {
           }
         },
         beforeUpdate: async (user) => {
-          if (user.changed('Password') && user.Password) {
+          if (user.changed("Password") && user.Password) {
             const salt = await bcrypt.genSalt(10);
             user.Password = bcrypt.hashSync(user.Password, salt);
           }
@@ -79,7 +90,7 @@ module.exports = (sequelize, DataTypes, Sequelize) => {
     }
   );
 
-  User.prototype.validPassword = async function(Password) {
+  User.prototype.validPassword = async function (Password) {
     return await bcrypt.compare(Password, this.Password);
   };
 
