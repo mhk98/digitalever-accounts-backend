@@ -2,8 +2,8 @@ const { Op, where } = require("sequelize"); // Ensure Op is imported
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
-const { AssetsSaleSearchableFields } = require("./assetsSale.constants");
-const AssetsSale = db.assetsSale;
+const { AssetsDamageSearchableFields } = require("./assetsDamage.constants");
+const AssetsDamage = db.assetsDamage;
 const AssetsPurchase = db.assetsPurchase;
 
 const insertIntoDB = async (payload) => {
@@ -18,7 +18,7 @@ const insertIntoDB = async (payload) => {
     price,
     total: Number(price * quantity),
   };
-  const result = await AssetsSale.create(data);
+  const result = await AssetsDamage.create(data);
   return result;
 };
 
@@ -32,7 +32,7 @@ const getAllFromDB = async (filters, options) => {
   // ✅ Search (ILIKE on searchable fields)
   if (searchTerm && searchTerm.trim()) {
     andConditions.push({
-      [Op.or]: AssetsSaleSearchableFields.map((field) => ({
+      [Op.or]: AssetsDamageSearchableFields.map((field) => ({
         [field]: { [Op.iLike]: `%${searchTerm.trim()}%` },
       })),
     });
@@ -64,7 +64,7 @@ const getAllFromDB = async (filters, options) => {
     ? { [Op.and]: andConditions }
     : {};
 
-  const result = await AssetsSale.findAll({
+  const result = await AssetsDamage.findAll({
     where: whereConditions,
     offset: skip,
     limit,
@@ -74,7 +74,7 @@ const getAllFromDB = async (filters, options) => {
         : [["createdAt", "DESC"]],
   });
 
-  const total = await AssetsSale.count({ where: whereConditions });
+  const total = await AssetsDamage.count({ where: whereConditions });
 
   return {
     meta: { total, page, limit },
@@ -83,7 +83,7 @@ const getAllFromDB = async (filters, options) => {
 };
 
 const getDataById = async (id) => {
-  const result = await AssetsSale.findOne({
+  const result = await AssetsDamage.findOne({
     where: {
       Id: id,
     },
@@ -93,7 +93,7 @@ const getDataById = async (id) => {
 };
 
 const deleteIdFromDB = async (id) => {
-  const result = await AssetsSale.destroy({
+  const result = await AssetsDamage.destroy({
     where: {
       Id: id,
     },
@@ -115,7 +115,7 @@ const updateOneFromDB = async (id, payload) => {
     total: Number(price * quantity),
   };
 
-  const result = await AssetsSale.update(data, {
+  const result = await AssetsDamage.update(data, {
     where: {
       Id: id,
     },
@@ -125,12 +125,12 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await AssetsSale.findAll();
+  const result = await AssetsDamage.findAll();
 
   return result;
 };
 
-const AssetsSaleService = {
+const AssetsDamageService = {
   getAllFromDB,
   insertIntoDB,
   deleteIdFromDB,
@@ -139,4 +139,4 @@ const AssetsSaleService = {
   getAllFromDBWithoutQuery,
 };
 
-module.exports = AssetsSaleService;
+module.exports = AssetsDamageService;

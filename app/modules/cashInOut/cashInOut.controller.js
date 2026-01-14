@@ -5,13 +5,23 @@ const CashInOutService = require("./cashInOut.service");
 const { CashInOutFilterAbleFields } = require("./cashInOut.constants");
 
 const insertIntoDB = catchAsync(async (req, res) => {
-  const { name, paymentMode, paymentStatus, amount, remarks, bookId } =
-    req.body;
+  const {
+    name,
+    paymentMode,
+    paymentStatus,
+    bankName,
+    bankAccount,
+    amount,
+    remarks,
+    bookId,
+  } = req.body;
   const file = req.file.path.replace(/\\/g, "/");
 
   const data = {
     name,
     paymentMode,
+    bankName,
+    bankAccount,
     paymentStatus,
     amount,
     remarks,
@@ -56,7 +66,31 @@ const getDataById = catchAsync(async (req, res) => {
 
 const updateOneFromDB = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const result = await CashInOutService.updateOneFromDB(id, req.body);
+  const {
+    name,
+    paymentMode,
+    paymentStatus,
+    bankName,
+    bankAccount,
+    amount,
+    remarks,
+    bookId,
+  } = req.body;
+  const file = req.file.path.replace(/\\/g, "/");
+
+  const data = {
+    name,
+    paymentMode,
+    bankName,
+    bankAccount,
+    paymentStatus,
+    amount,
+    remarks,
+    file,
+    bookId,
+  };
+
+  const result = await CashInOutService.updateOneFromDB(id, data);
   sendResponse(res, {
     statusCode: 200,
     success: true,

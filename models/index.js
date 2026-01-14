@@ -42,6 +42,10 @@ db.assetsSale = require("../app/modules/assetsSale/assetsSale.model")(
   db.sequelize,
   DataTypes
 );
+db.assetsDamage = require("../app/modules/assetsDamage/assetsDamage.model")(
+  db.sequelize,
+  DataTypes
+);
 db.cashIn = require("../app/modules/cashIn/cashIn.model")(
   db.sequelize,
   DataTypes

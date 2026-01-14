@@ -11,12 +11,16 @@ module.exports = (sequelize, DataTypes) => {
         autoIncrement: true,
         allowNull: false,
       },
-      name: {
+      paymentMode: {
         type: DataTypes.STRING,
         allowNull: true,
       },
-      paymentMode: {
+      bankName: {
         type: DataTypes.STRING,
+        allowNull: true,
+      },
+      bankAccount: {
+        type: DataTypes.INTEGER,
         allowNull: true,
       },
       paymentStatus: {

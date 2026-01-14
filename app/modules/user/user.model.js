@@ -54,22 +54,18 @@ module.exports = (sequelize, DataTypes, Sequelize) => {
       },
 
       role: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        validate: {
-          isIn: [
-            [
-              "superAdmin",
-              "admin",
-              "marketer",
-              "leader",
-              "inventor",
-              "accountant",
-              "staff",
-              "user",
-            ],
-          ],
-        },
+        type: DataTypes.ENUM(
+          "superAdmin",
+          "admin",
+          "marketer",
+          "leader",
+          "inventor",
+          "accountant",
+          "staff",
+          "user"
+        ),
+        allowNull: true,
+        defaultValue: "user",
       },
     },
     {

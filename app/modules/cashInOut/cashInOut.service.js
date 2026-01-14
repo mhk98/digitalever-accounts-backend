@@ -176,7 +176,6 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { name } = payload;
   const result = await CashInOut.update(payload, {
     where: {
       Id: id,

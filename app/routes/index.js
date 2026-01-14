@@ -16,6 +16,8 @@ const CashInOutRoutes = require("../modules/cashInOut/cashInOut.routes");
 const PurchaseReturnProductRoutes = require("../modules/purchaseReturnProduct/purchaseReturnProduct.routes");
 const ReceiveableRoutes = require("../modules/receiveable/receiveable.routes");
 const PayableRoutes = require("../modules/payable/payable.routes");
+const OverviewRoutes = require("../modules/overview/overview.routes");
+const AssetsDamageRoutes = require("../modules/assetsDamage/assetsDamage.routes");
 
 const router = express.Router();
 
@@ -63,6 +65,10 @@ const moduleRoutes = [
     route: AssetsSaleRoutes,
   },
   {
+    path: "/assets-damage",
+    route: AssetsDamageRoutes,
+  },
+  {
     path: "/cash-in",
     route: CashInRoutes,
   },
@@ -93,6 +99,10 @@ const moduleRoutes = [
   {
     path: "/payable",
     route: PayableRoutes,
+  },
+  {
+    path: "/overview",
+    route: OverviewRoutes,
   },
 ];
 

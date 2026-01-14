@@ -1,26 +1,26 @@
 const catchAsync = require("../../../shared/catchAsync");
 const sendResponse = require("../../../shared/sendResponse");
 const pick = require("../../../shared/pick");
-const { AssetsSaleFilterAbleFileds } = require("./assetsSale.constants");
-const AssetsSaleService = require("./assetsSale.service");
+const { AssetsDamageFilterAbleFileds } = require("./assetsDamage.constants");
+const AssetsDamageService = require("./assetsDamage.service");
 
 const insertIntoDB = catchAsync(async (req, res) => {
-  const result = await AssetsSaleService.insertIntoDB(req.body);
+  const result = await AssetsDamageService.insertIntoDB(req.body);
 
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "AssetsSale data created!!",
+    message: "AssetsDamage data created!!",
     data: result,
   });
 });
 
 const getAllFromDB = catchAsync(async (req, res) => {
-  const filters = pick(req.query, AssetsSaleFilterAbleFileds);
+  const filters = pick(req.query, AssetsDamageFilterAbleFileds);
   const options = pick(req.query, ["limit", "page", "sortBy", "sortOrder"]);
 
   console.log("filters", filters);
-  const result = await AssetsSaleService.getAllFromDB(filters, options);
+  const result = await AssetsDamageService.getAllFromDB(filters, options);
   sendResponse(res, {
     statusCode: 200,
     success: true,
@@ -31,47 +31,47 @@ const getAllFromDB = catchAsync(async (req, res) => {
 });
 
 const getDataById = catchAsync(async (req, res) => {
-  const result = await AssetsSaleService.getDataById(req.params.id);
+  const result = await AssetsDamageService.getDataById(req.params.id);
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "AssetsSale data fetched!!",
+    message: "AssetsDamage data fetched!!",
     data: result,
   });
 });
 
 const updateOneFromDB = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const result = await AssetsSaleService.updateOneFromDB(id, req.body);
+  const result = await AssetsDamageService.updateOneFromDB(id, req.body);
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "AssetsSale update successfully!!",
+    message: "AssetsDamage update successfully!!",
     data: result,
   });
 });
 
 const deleteIdFromDB = catchAsync(async (req, res) => {
-  const result = await AssetsSaleService.deleteIdFromDB(req.params.id);
+  const result = await AssetsDamageService.deleteIdFromDB(req.params.id);
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "AssetsSale delete successfully!!",
+    message: "AssetsDamage delete successfully!!",
     data: result,
   });
 });
 
 const getAllFromDBWithoutQuery = catchAsync(async (req, res) => {
-  const result = await AssetsSaleService.getAllFromDBWithoutQuery();
+  const result = await AssetsDamageService.getAllFromDBWithoutQuery();
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "AssetsSale data fetch!!",
+    message: "AssetsDamage data fetch!!",
     data: result,
   });
 });
 
-const AssetsSaleController = {
+const AssetsDamageController = {
   getAllFromDB,
   insertIntoDB,
   getDataById,
@@ -80,4 +80,4 @@ const AssetsSaleController = {
   getAllFromDBWithoutQuery,
 };
 
-module.exports = AssetsSaleController;
+module.exports = AssetsDamageController;

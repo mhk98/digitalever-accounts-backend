@@ -5,14 +5,11 @@ const ApiError = require("../../../error/ApiError");
 const { pettyCashSearchableFields } = require("./pettyCash.constants");
 const PettyCash = db.pettyCash;
 
-
 const insertIntoDB = async (data) => {
-
-  console.log("PettyCash", data)
+  console.log("PettyCash", data);
   const result = await PettyCash.create(data);
-  return result
+  return result;
 };
-
 
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
@@ -52,7 +49,9 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
-  const whereConditions = andConditions.length ? { [Op.and]: andConditions } : {};
+  const whereConditions = andConditions.length
+    ? { [Op.and]: andConditions }
+    : {};
 
   const result = await PettyCash.findAll({
     where: whereConditions,
@@ -72,57 +71,41 @@ const getAllFromDB = async (filters, options) => {
   };
 };
 
-
-
 const getDataById = async (id) => {
-  
   const result = await PettyCash.findOne({
-    where:{
-      Id:id
-    }
-  })
+    where: {
+      Id: id,
+    },
+  });
 
-  return result
+  return result;
 };
-
 
 const deleteIdFromDB = async (id) => {
+  const result = await PettyCash.destroy({
+    where: {
+      Id: id,
+    },
+  });
 
-  const result = await PettyCash.destroy(
-    {
-      where:{
-        Id:id
-      }
-    }
-  )
-
-  return result
+  return result;
 };
 
-
 const updateOneFromDB = async (id, payload) => {
- 
-  const {name} = payload
-  const result = await PettyCash.update(payload,{
-    where:{
-      Id:id
-    }
-  })
+  const result = await PettyCash.update(payload, {
+    where: {
+      Id: id,
+    },
+  });
 
-  return result
-
+  return result;
 };
 
 const getAllFromDBWithoutQuery = async () => {
- 
-  const result = await PettyCash.findAll()
+  const result = await PettyCash.findAll();
 
-  return result
-
+  return result;
 };
-
-
-
 
 const PettyCashService = {
   getAllFromDB,
@@ -130,7 +113,7 @@ const PettyCashService = {
   deleteIdFromDB,
   updateOneFromDB,
   getDataById,
-  getAllFromDBWithoutQuery
+  getAllFromDBWithoutQuery,
 };
 
 module.exports = PettyCashService;
