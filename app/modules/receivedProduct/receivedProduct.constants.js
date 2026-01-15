@@ -5,7 +5,7 @@ const ReceivedProductFilterAbleFileds = [
   "name",
 ];
 
-const ReceivedProductSearchableFields = ["searchTerm", "name"];
+const ReceivedProductSearchableFields = ["searchTerm"];
 
 module.exports = {
   ReceivedProductFilterAbleFileds,

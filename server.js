@@ -98,29 +98,10 @@ const ApiError = require("./error/ApiError");
 
 const app = express();
 
-// // Apply CORS Middleware
-
-// const allowedOrigins = [
-//   "http://localhost:3000", // Local dev (optional)
-//   "https://eaconsultancy.org/",
-//   "https://login.eaconsultancy.info",
-
-// ];
-
-// const corsOptions = {
-//   origin: (origin, callback) => {
-//     if (!origin || allowedOrigins.includes(origin)) {
-//       callback(null, true);
-//     } else {
-//       callback(new Error("Not allowed by CORS"));
-//     }
-//   },
-// //   credentials: true, // Allow cookies
-// };
-
-// app.use(cors(corsOptions));
-
-const allowedOrigins = ["http://localhost:5173"];
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://accounts.digitalever.com.bd",
+];
 
 const corsOptions = {
   origin: (origin, callback) => {
@@ -160,25 +141,6 @@ app.use("/api/v1", routes);
 app.use((req, res) => {
   res.status(404).json({ error: "API not found" });
 });
-
-// // Global Error Handler Middleware
-// app.use((err, req, res, next) => {
-//   console.error(err);  // Log the error for debugging
-
-//   // Check if the error is an instance of ApiError
-//   if (err instanceof ApiError) {
-//     return res.status(err.statusCode || 500).json({
-//       message: err.message,
-//       stack: process.env.NODE_ENV === 'development' ? err.stack : undefined  // Only include stack trace in development
-//     });
-//   }
-
-//   // If it's any other error, respond with a generic server error
-//   res.status(500).json({
-//     message: "Internal Server Error",
-//     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined // Avoid exposing stack trace in production
-//   });
-// });
 
 // Global error handler
 app.use((err, req, res, next) => {
