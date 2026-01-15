@@ -5,26 +5,21 @@ const ApiError = require("../../../error/ApiError");
 const { BookSearchableFields } = require("./book.constants");
 const Book = db.book;
 
-
 const insertIntoDB = async (data) => {
-
   const result = await Book.create(data);
-  return result
+  return result;
 };
-
-
 
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
 
-  console.log(filters)
+  console.log(filters);
 
   const { searchTerm, ...filterData } = filters;
 
   const andConditions = [];
 
- 
-    // ✅ Search (ILIKE on searchable fields)
+  // ✅ Search (ILIKE on searchable fields)
   // if (searchTerm && searchTerm.trim()) {
   //   andConditions.push({
   //     [Op.or]: BookSearchableFields.map((field) => ({
@@ -32,7 +27,6 @@ const getAllFromDB = async (filters, options) => {
   //     })),
   //   });
   // }
-
 
   // // ✅ Exact filters (e.g. name)
   // if (Object.keys(otherFilters).length) {
@@ -43,7 +37,7 @@ const getAllFromDB = async (filters, options) => {
   //   );
   // }
 
-    // Match `title` starting from the search term
+  // Match `title` starting from the search term
   if (searchTerm) {
     andConditions.push({
       name: { [Op.like]: `${searchTerm}%` },
@@ -58,7 +52,9 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
-  const whereConditions = andConditions.length ? { [Op.and]: andConditions } : {};
+  const whereConditions = andConditions.length
+    ? { [Op.and]: andConditions }
+    : {};
 
   const result = await Book.findAll({
     where: whereConditions,
@@ -78,57 +74,41 @@ const getAllFromDB = async (filters, options) => {
   };
 };
 
-
-
-
 const getDataById = async (id) => {
-  
   const result = await Book.findOne({
-    where:{
-      Id:id
-    }
-  })
+    where: {
+      Id: id,
+    },
+  });
 
-  return result
+  return result;
 };
-
 
 const deleteIdFromDB = async (id) => {
+  const result = await Book.destroy({
+    where: {
+      Id: id,
+    },
+  });
 
-  const result = await Book.destroy(
-    {
-      where:{
-        Id:id
-      }
-    }
-  )
-
-  return result
+  return result;
 };
 
-
 const updateOneFromDB = async (id, payload) => {
- 
-  const result = await Book.update(payload,{
-    where:{
-      Id:id
-    }
-  })
+  const result = await Book.update(payload, {
+    where: {
+      Id: id,
+    },
+  });
 
-  return result
-
+  return result;
 };
 
 const getAllFromDBWithoutQuery = async () => {
- 
-  const result = await Book.findAll()
+  const result = await Book.findAll();
 
-  return result
-
+  return result;
 };
-
-
-
 
 const BookService = {
   getAllFromDB,
@@ -136,7 +116,7 @@ const BookService = {
   deleteIdFromDB,
   updateOneFromDB,
   getDataById,
-  getAllFromDBWithoutQuery
+  getAllFromDBWithoutQuery,
 };
 
 module.exports = BookService;
