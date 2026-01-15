@@ -7,6 +7,7 @@ const ApiError = require("../../../error/ApiError");
 // ✅ তোমার প্রকৃত model নাম অনুযায়ী নিচের নামগুলো ঠিক করে বসাবে
 const AssetsSale = db.assetsSale; // or db.sale
 const AssetsPurchase = db.assetsPurchase; // or db.purchase
+const AssetsDamage = db.assetsDamage; // or db.purchase
 const Marketing = db.meta; // or db.meta
 const Receiveable = db.receiveable;
 const Payable = db.payable;
@@ -61,6 +62,7 @@ const getOverviewSummaryFromDB = async (filters) => {
 
     totalPurchaseAmount,
     totalSaleAmount,
+    totalDamageAmount,
 
     totalReceivedProductAmount,
     totalPurchaseReturnProductAmount,
@@ -79,8 +81,9 @@ const getOverviewSummaryFromDB = async (filters) => {
     sumField(Payable, "amount", dateWhere),
 
     // Assets Purchase / Sale
-    sumField(AssetsPurchase, "total", dateWhere),
-    sumField(AssetsSale, "total", dateWhere),
+    sumField(AssetsPurchase, "quantity", dateWhere),
+    sumField(AssetsSale, "quantity", dateWhere),
+    sumField(AssetsDamage, "quantity", dateWhere),
 
     // Inventory
     sumField(ReceivedProduct, "quantity", dateWhere),
@@ -95,7 +98,9 @@ const getOverviewSummaryFromDB = async (filters) => {
   ]);
 
   // ✅ তোমার UI logic অনুযায়ী হিসাব
-  const remainingAmount = n(totalPurchaseAmount - totalSaleAmount);
+  const remainingAmount = n(
+    totalPurchaseAmount - (totalSaleAmount + totalDamageAmount)
+  );
 
   const totalInventoryExpense = n(
     totalPurchaseReturnProductAmount +
