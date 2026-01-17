@@ -23,7 +23,7 @@ const getAllFromDB = catchAsync(async (req, res) => {
 
   const result = await PurchaseReturnProductService.getAllFromDB(
     filters,
-    options
+    options,
   );
   sendResponse(res, {
     statusCode: 200,
@@ -48,7 +48,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
   const { id } = req.params;
   const result = await PurchaseReturnProductService.updateOneFromDB(
     id,
-    req.body
+    req.body,
   );
   sendResponse(res, {
     statusCode: 200,
@@ -60,7 +60,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
 
 const deleteIdFromDB = catchAsync(async (req, res) => {
   const result = await PurchaseReturnProductService.deleteIdFromDB(
-    req.params.id
+    req.params.id,
   );
   sendResponse(res, {
     statusCode: 200,

@@ -82,10 +82,16 @@ const getAllFromDB = async (filters, options) => {
     order,
   });
 
-  const total = await Payable.count({ where: whereConditions });
+  // const total = await Payable.count({ where: whereConditions });
+
+  // ✅ total count + total quantity (same filters)
+  const [count, totalAmount] = await Promise.all([
+    Meta.count({ where: whereConditions }),
+    Meta.sum("amount", { where: whereConditions }),
+  ]);
 
   return {
-    meta: { total, page, limit },
+    meta: { count, totalAmount: totalAmount || 0, page, limit },
     data,
   };
 };

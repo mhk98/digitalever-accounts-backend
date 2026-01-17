@@ -7,69 +7,77 @@ const { DataTypes } = require("sequelize");
 db.user = require("../app/modules/user/user.model")(db.sequelize, DataTypes);
 db.product = require("../app/modules/product/product.model")(
   db.sequelize,
-  DataTypes
+  DataTypes,
 );
 db.receivedProduct =
   require("../app/modules/receivedProduct/receivedProduct.model")(
     db.sequelize,
-    DataTypes
+    DataTypes,
   );
 db.inTransitProduct =
   require("../app/modules/inTransitProduct/inTransitProduct.model")(
     db.sequelize,
-    DataTypes
+    DataTypes,
   );
 db.returnProduct = require("../app/modules/returnProduct/returnProduct.model")(
   db.sequelize,
-  DataTypes
+  DataTypes,
 );
 db.purchaseReturnProduct =
   require("../app/modules/purchaseReturnProduct/purchaseReturnProduct.model")(
     db.sequelize,
-    DataTypes
+    DataTypes,
   );
 db.confirmOrder = require("../app/modules/confirmOrder/confirmOrder.model")(
   db.sequelize,
-  DataTypes
+  DataTypes,
 );
 db.meta = require("../app/modules/meta/meta.model")(db.sequelize, DataTypes);
 db.assetsPurchase =
   require("../app/modules/assetsPurchase/assetsPurchase.model")(
     db.sequelize,
-    DataTypes
+    DataTypes,
   );
 db.assetsSale = require("../app/modules/assetsSale/assetsSale.model")(
   db.sequelize,
-  DataTypes
+  DataTypes,
 );
 db.assetsDamage = require("../app/modules/assetsDamage/assetsDamage.model")(
   db.sequelize,
-  DataTypes
+  DataTypes,
 );
 db.cashIn = require("../app/modules/cashIn/cashIn.model")(
   db.sequelize,
-  DataTypes
+  DataTypes,
 );
 db.pettyCash = require("../app/modules/pettyCash/pettyCash.model")(
   db.sequelize,
-  DataTypes
+  DataTypes,
 );
 db.expense = require("../app/modules/expense/expense.model")(
   db.sequelize,
-  DataTypes
+  DataTypes,
 );
 db.book = require("../app/modules/book/book.model")(db.sequelize, DataTypes);
+db.category = require("../app/modules/category/category.model")(
+  db.sequelize,
+  DataTypes,
+);
+db.supplier = require("../app/modules/supplier/supplier.model")(
+  db.sequelize,
+  DataTypes,
+);
 db.cashInOut = require("../app/modules/cashInOut/cashInOut.model")(
   db.sequelize,
-  DataTypes
+  DataTypes,
 );
 db.receiveable = require("../app/modules/receiveable/receiveable.model")(
   db.sequelize,
-  DataTypes
+  DataTypes,
 );
 db.payable = require("../app/modules/payable/payable.model")(
   db.sequelize,
-  DataTypes
+  DataTypes,
 );
 
 // // Define associations
@@ -82,20 +90,25 @@ db.payable = require("../app/modules/payable/payable.model")(
 db.product.hasMany(db.receivedProduct, { foreignKey: "productId" });
 db.receivedProduct.belongsTo(db.product, { foreignKey: "productId" });
 
-db.product.hasMany(db.returnProduct, { foreignKey: "productId" });
-db.returnProduct.belongsTo(db.product, { foreignKey: "productId" });
+db.receivedProduct.hasMany(db.returnProduct, { foreignKey: "productId" });
+db.returnProduct.belongsTo(db.receivedProduct, { foreignKey: "productId" });
 
-db.product.hasMany(db.inTransitProduct, { foreignKey: "productId" });
-db.inTransitProduct.belongsTo(db.product, { foreignKey: "productId" });
+db.receivedProduct.hasMany(db.inTransitProduct, { foreignKey: "productId" });
+db.inTransitProduct.belongsTo(db.receivedProduct, { foreignKey: "productId" });
 
-db.product.hasMany(db.confirmOrder, { foreignKey: "productId" });
+db.receivedProduct.hasMany(db.confirmOrder, { foreignKey: "productId" });
 db.confirmOrder.belongsTo(db.product, { foreignKey: "productId" });
 
 db.product.hasMany(db.purchaseReturnProduct, { foreignKey: "productId" });
-db.purchaseReturnProduct.belongsTo(db.product, { foreignKey: "productId" });
+db.purchaseReturnProduct.belongsTo(db.receivedProduct, {
+  foreignKey: "productId",
+});
 
 db.book.hasMany(db.cashInOut, { foreignKey: "bookId" });
 db.cashInOut.belongsTo(db.book, { foreignKey: "bookId" });
+
+// db.category.hasMany(db.cashInOut, { foreignKey: "categoryId" });
+// db.cashInOut.belongsTo(db.category, { foreignKey: "categoryId" });
 
 // db.product.hasMany(db.sale, { foreignKey: "productId" });
 // db.sale.belongsTo(db.product, { foreignKey: "productId" });

@@ -5,13 +5,10 @@ const ApiError = require("../../../error/ApiError");
 const { ExpenseSearchableFields } = require("./expense.constants");
 const Expense = db.expense;
 
-
 const insertIntoDB = async (data) => {
-
   const result = await Expense.create(data);
-  return result
+  return result;
 };
-
 
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
@@ -34,7 +31,7 @@ const getAllFromDB = async (filters, options) => {
     andConditions.push(
       ...Object.entries(otherFilters).map(([key, value]) => ({
         [key]: { [Op.eq]: value },
-      }))
+      })),
     );
   }
 
@@ -51,7 +48,9 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
-  const whereConditions = andConditions.length ? { [Op.and]: andConditions } : {};
+  const whereConditions = andConditions.length
+    ? { [Op.and]: andConditions }
+    : {};
 
   const result = await Expense.findAll({
     where: whereConditions,
@@ -63,65 +62,55 @@ const getAllFromDB = async (filters, options) => {
         : [["createdAt", "DESC"]],
   });
 
-  const total = await Expense.count({ where: whereConditions });
+  // const total = await Expense.count({ where: whereConditions });
+  // ✅ total count + total quantity (same filters)
+  const [count, totalAmount] = await Promise.all([
+    Expense.count({ where: whereConditions }),
+    Expense.sum("amount", { where: whereConditions }),
+  ]);
 
   return {
-    meta: { total, page, limit },
+    meta: { count, totalAmount: totalAmount || 0, page, limit },
     data: result,
   };
 };
 
-
-
 const getDataById = async (id) => {
-  
   const result = await Expense.findOne({
-    where:{
-      Id:id
-    }
-  })
+    where: {
+      Id: id,
+    },
+  });
 
-  return result
+  return result;
 };
-
 
 const deleteIdFromDB = async (id) => {
+  const result = await Expense.destroy({
+    where: {
+      Id: id,
+    },
+  });
 
-  const result = await Expense.destroy(
-    {
-      where:{
-        Id:id
-      }
-    }
-  )
-
-  return result
+  return result;
 };
 
-
 const updateOneFromDB = async (id, payload) => {
- 
-  const {name} = payload
-  const result = await Expense.update(payload,{
-    where:{
-      Id:id
-    }
-  })
+  const { name } = payload;
+  const result = await Expense.update(payload, {
+    where: {
+      Id: id,
+    },
+  });
 
-  return result
-
+  return result;
 };
 
 const getAllFromDBWithoutQuery = async () => {
- 
-  const result = await Expense.findAll()
+  const result = await Expense.findAll();
 
-  return result
-
+  return result;
 };
-
-
-
 
 const ExpenseService = {
   getAllFromDB,
@@ -129,7 +118,7 @@ const ExpenseService = {
   deleteIdFromDB,
   updateOneFromDB,
   getDataById,
-  getAllFromDBWithoutQuery
+  getAllFromDBWithoutQuery,
 };
 
 module.exports = ExpenseService;

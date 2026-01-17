@@ -2,17 +2,14 @@ const { Op, where } = require("sequelize"); // Ensure Op is imported
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
-const {  MetaSearchableFields } = require("./meta.constants");
+const { MetaSearchableFields } = require("./meta.constants");
 const Meta = db.meta;
 
-
 const insertIntoDB = async (data) => {
-
-  console.log("meta", data)
+  console.log("meta", data);
   const result = await Meta.create(data);
-  return result
+  return result;
 };
-
 
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
@@ -35,7 +32,7 @@ const getAllFromDB = async (filters, options) => {
     andConditions.push(
       ...Object.entries(otherFilters).map(([key, value]) => ({
         [key]: { [Op.eq]: value },
-      }))
+      })),
     );
   }
 
@@ -52,7 +49,9 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
-  const whereConditions = andConditions.length ? { [Op.and]: andConditions } : {};
+  const whereConditions = andConditions.length
+    ? { [Op.and]: andConditions }
+    : {};
 
   const result = await Meta.findAll({
     where: whereConditions,
@@ -64,65 +63,55 @@ const getAllFromDB = async (filters, options) => {
         : [["createdAt", "DESC"]],
   });
 
-  const total = await Meta.count({ where: whereConditions });
+  // const total = await Meta.count({ where: whereConditions });
+  // ✅ total count + total quantity (same filters)
+  const [count, totalAmount] = await Promise.all([
+    Meta.count({ where: whereConditions }),
+    Meta.sum("amount", { where: whereConditions }),
+  ]);
 
   return {
-    meta: { total, page, limit },
+    meta: { count, totalAmount: totalAmount || 0, page, limit },
     data: result,
   };
 };
 
-
-
 const getDataById = async (id) => {
-  
   const result = await Meta.findOne({
-    where:{
-      Id:id
-    }
-  })
+    where: {
+      Id: id,
+    },
+  });
 
-  return result
+  return result;
 };
-
 
 const deleteIdFromDB = async (id) => {
+  const result = await Meta.destroy({
+    where: {
+      Id: id,
+    },
+  });
 
-  const result = await Meta.destroy(
-    {
-      where:{
-        Id:id
-      }
-    }
-  )
-
-  return result
+  return result;
 };
 
-
 const updateOneFromDB = async (id, payload) => {
- 
-  const {name} = payload
-  const result = await Meta.update(payload,{
-    where:{
-      Id:id
-    }
-  })
+  const { name } = payload;
+  const result = await Meta.update(payload, {
+    where: {
+      Id: id,
+    },
+  });
 
-  return result
-
+  return result;
 };
 
 const getAllFromDBWithoutQuery = async () => {
- 
-  const result = await Meta.findAll()
+  const result = await Meta.findAll();
 
-  return result
-
+  return result;
 };
-
-
-
 
 const MetaService = {
   getAllFromDB,
@@ -130,7 +119,7 @@ const MetaService = {
   deleteIdFromDB,
   updateOneFromDB,
   getDataById,
-  getAllFromDBWithoutQuery
+  getAllFromDBWithoutQuery,
 };
 
 module.exports = MetaService;

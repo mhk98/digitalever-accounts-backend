@@ -1,76 +1,76 @@
 const catchAsync = require("../../../shared/catchAsync");
 const sendResponse = require("../../../shared/sendResponse");
 const pick = require("../../../shared/pick");
-const { BookFilterAbleFileds } = require("./book.constants");
-const BookService = require("./book.service");
+const { CategoryFilterAbleFileds } = require("./category.constants");
+const CategoryService = require("./category.service");
 
 const insertIntoDB = catchAsync(async (req, res) => {
-  const result = await BookService.insertIntoDB(req.body);
+  const result = await CategoryService.insertIntoDB(req.body);
 
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "Book data created!!",
+    message: "Category data created!!",
     data: result,
   });
 });
 
 const getAllFromDB = catchAsync(async (req, res) => {
-  const filters = pick(req.query, BookFilterAbleFileds);
+  const filters = pick(req.query, CategoryFilterAbleFileds);
   const options = pick(req.query, ["limit", "page", "sortBy", "sortOrder"]);
 
-  const result = await BookService.getAllFromDB(filters, options);
+  const result = await CategoryService.getAllFromDB(filters, options);
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "Book data fetched!!",
+    message: "Category data fetched!!",
     meta: result.meta,
     data: result.data,
   });
 });
 
 const getDataById = catchAsync(async (req, res) => {
-  const result = await BookService.getDataById(req.params.id);
+  const result = await CategoryService.getDataById(req.params.id);
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "Book data fetched!!",
+    message: "Category data fetched!!",
     data: result,
   });
 });
 
 const updateOneFromDB = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const result = await BookService.updateOneFromDB(id, req.body);
+  const result = await CategoryService.updateOneFromDB(id, req.body);
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "Book update successfully!!",
+    message: "Category update successfully!!",
     data: result,
   });
 });
 
 const deleteIdFromDB = catchAsync(async (req, res) => {
-  const result = await BookService.deleteIdFromDB(req.params.id);
+  const result = await CategoryService.deleteIdFromDB(req.params.id);
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "Book delete successfully!!",
+    message: "Category delete successfully!!",
     data: result,
   });
 });
 
 const getAllFromDBWithoutQuery = catchAsync(async (req, res) => {
-  const result = await BookService.getAllFromDBWithoutQuery();
+  const result = await CategoryService.getAllFromDBWithoutQuery();
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "Book data fetch!!",
+    message: "Category data fetch!!",
     data: result,
   });
 });
 
-const BookController = {
+const CategoryController = {
   getAllFromDB,
   insertIntoDB,
   getDataById,
@@ -79,4 +79,4 @@ const BookController = {
   getAllFromDBWithoutQuery,
 };
 
-module.exports = BookController;
+module.exports = CategoryController;

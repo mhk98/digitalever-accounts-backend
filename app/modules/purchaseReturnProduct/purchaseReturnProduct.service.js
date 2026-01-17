@@ -1,4 +1,4 @@
-const { Op, where } = require("sequelize"); // Ensure Op is imported
+const { Op } = require("sequelize"); // Ensure Op is imported
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
@@ -6,31 +6,156 @@ const {
   PurchaseReturnProductSearchableFields,
 } = require("./purchaseReturnProduct.constants");
 const PurchaseReturnProduct = db.purchaseReturnProduct;
-const Product = db.product;
+const ReceivedProduct = db.receivedProduct;
+
+// const insertIntoDB = async (data) => {
+//   const { quantity, productId } = data;
+
+//   const qty = Number(quantity);
+
+//   if (!qty || qty <= 0) {
+//     throw new ApiError(400, "Quantity must be greater than 0");
+//   }
+
+//   return await db.sequelize.transaction(async (t) => {
+//     // ✅ ReceivedProduct (stock)
+//     // ⚠️ যদি তোমার ReceivedProduct এ productId নামে কলাম থাকে, তাহলে where: { productId } করবে
+//     const received = await ReceivedProduct.findOne({
+//       where: { Id: productId },
+//       transaction: t,
+//       lock: t.LOCK.UPDATE,
+//     });
+
+//     if (!received) throw new ApiError(404, "Received product not found");
+
+//     // ✅ Stock check
+//     const availableQty = Number(received.quantity);
+//     if (availableQty < qty) {
+//       throw new ApiError(400, `Not enough stock. Available: ${availableQty}`);
+//     }
+
+//     // ✅ Return amounts (per unit * qty)
+//     const unitPurchase = Number(productData.purchase_price);
+//     const unitSale = Number(productData.sale_price);
+
+//     const returnPurchase = unitPurchase * qty;
+//     const returnSale = unitSale * qty;
+
+//     // ✅ Create Purchase Return row (store returned totals)
+//     const payload = {
+//       name: productData.name,
+//       supplier: productData.supplier,
+//       quantity: qty,
+//       purchase_price: returnPurchase,
+//       sale_price: returnSale,
+//       productId,
+//     };
+
+//     const result = await PurchaseReturnProduct.create(payload, {
+//       transaction: t,
+//     });
+
+//     // ✅ Update ReceivedProduct (subtract qty & totals)
+//     const newQty = availableQty - qty;
+
+//     const newPurchaseTotal = Math.max(
+//       0,
+//       Number(received.purchase_price) - returnPurchase,
+//     );
+
+//     const newSaleTotal = Math.max(0, Number(received.sale_price) - returnSale);
+
+//     await ReceivedProduct.update(
+//       {
+//         quantity: newQty,
+//         purchase_price: newPurchaseTotal,
+//         sale_price: newSaleTotal,
+//       },
+//       {
+//         where: { Id: received.Id }, // যদি where: { productId } লাগে, এখানে বদলাবে
+//         transaction: t,
+//       },
+//     );
+
+//     return result;
+//   });
+// };
 
 const insertIntoDB = async (data) => {
   const { quantity, productId } = data;
 
-  const productData = await Product.findOne({
-    where: {
-      Id: productId,
-    },
-  });
-
-  if (!productData) {
-    throw new ApiError(404, "Product not found");
+  if (!quantity || quantity <= 0) {
+    throw new ApiError(400, "Quantity must be greater than 0");
   }
 
-  const payload = {
-    name: productData.name,
-    quantity,
-    purchase_price: productData.purchase_price * quantity,
-    sale_price: productData.sale_price * quantity,
-    productId,
-  };
+  return await db.sequelize.transaction(async (t) => {
+    // ✅ ReceivedProduct (তোমার schema অনুযায়ী Id/productId adjust করো)
+    const received = await ReceivedProduct.findOne({
+      where: { Id: productId }, // যদি column থাকে productId, তাহলে where: { productId }
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
 
-  const result = await PurchaseReturnProduct.create(payload);
-  return result;
+    if (!received) throw new ApiError(404, "Received product not found");
+
+    // ✅ stock check
+    if (received.quantity < quantity) {
+      throw new ApiError(
+        400,
+        `Not enough stock. Available: ${received.quantity}`,
+      );
+    }
+
+    /**
+     * ✅ per unit price বের করা
+     * received.purchase_price / received.quantity (old quantity)
+     */
+    const oldQty = Number(received.quantity);
+    const perUnitPurchase =
+      oldQty > 0 ? Number(received.purchase_price) / oldQty : 0;
+    const perUnitSale = oldQty > 0 ? Number(received.sale_price) / oldQty : 0;
+
+    const returnQty = Number(quantity);
+
+    const deductPurchase = perUnitPurchase * returnQty;
+    const deductSale = perUnitSale * returnQty;
+
+    // ✅ PurchaseReturnProduct create (return amount)
+    const payload = {
+      name: received.name,
+      supplier: received.supplier,
+      quantity: returnQty,
+      purchase_price: deductPurchase,
+      sale_price: deductSale,
+      productId,
+    };
+
+    const result = await PurchaseReturnProduct.create(payload, {
+      transaction: t,
+    });
+
+    // ✅ ReceivedProduct update (qty & prices reduce)
+    const newQty = oldQty - returnQty;
+    const newPurchase = Math.max(
+      0,
+      Number(received.purchase_price) - deductPurchase,
+    );
+    const newSale = Math.max(0, Number(received.sale_price) - deductSale);
+
+    await ReceivedProduct.update(
+      {
+        quantity: newQty,
+        purchase_price: newPurchase,
+        sale_price: newSale,
+      },
+      {
+        where: { Id: received.Id }, // যদি productId হয়: where: { productId }
+        transaction: t,
+      },
+    );
+
+    return result;
+  });
 };
 
 const getAllFromDB = async (filters, options) => {
@@ -54,7 +179,7 @@ const getAllFromDB = async (filters, options) => {
     andConditions.push(
       ...Object.entries(otherFilters).map(([key, value]) => ({
         [key]: { [Op.eq]: value },
-      }))
+      })),
     );
   }
 
@@ -85,10 +210,16 @@ const getAllFromDB = async (filters, options) => {
         : [["createdAt", "DESC"]],
   });
 
-  const total = await PurchaseReturnProduct.count({ where: whereConditions });
+  // const total = await PurchaseReturnProduct.count({ where: whereConditions });
+
+  // ✅ total count + total quantity (same filters)
+  const [count, totalQuantity] = await Promise.all([
+    PurchaseReturnProduct.count({ where: whereConditions }),
+    PurchaseReturnProduct.sum("quantity", { where: whereConditions }),
+  ]);
 
   return {
-    meta: { total, page, limit },
+    meta: { count, totalQuantity: totalQuantity || 0, page, limit },
     data: result,
   };
 };
@@ -113,33 +244,83 @@ const deleteIdFromDB = async (id) => {
   return result;
 };
 
-const updateOneFromDB = async (id, payload) => {
-  const { quantity, productId } = payload;
+const updateOneFromDB = async (id, data) => {
+  const { quantity, productId } = data;
 
-  const productData = await Product.findOne({
-    where: {
-      Id: productId,
-    },
-  });
-
-  if (!productData) {
-    throw new ApiError(404, "Product not found");
+  if (!quantity || quantity <= 0) {
+    throw new ApiError(400, "Quantity must be greater than 0");
   }
 
-  const data = {
-    name: productData.name,
-    quantity,
-    purchase_price: productData.purchase_price * quantity,
-    sale_price: productData.sale_price * quantity,
-    productId,
-  };
-  const result = await PurchaseReturnProduct.update(data, {
-    where: {
-      Id: id,
-    },
-  });
+  return await db.sequelize.transaction(async (t) => {
+    // ✅ ReceivedProduct (তোমার schema অনুযায়ী Id/productId adjust করো)
+    const received = await ReceivedProduct.findOne({
+      where: { Id: productId }, // যদি column থাকে productId, তাহলে where: { productId }
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
 
-  return result;
+    if (!received) throw new ApiError(404, "Received product not found");
+
+    // ✅ stock check
+    if (received.quantity < quantity) {
+      throw new ApiError(
+        400,
+        `Not enough stock. Available: ${received.quantity}`,
+      );
+    }
+
+    /**
+     * ✅ per unit price বের করা
+     * received.purchase_price / received.quantity (old quantity)
+     */
+    const oldQty = Number(received.quantity);
+    const perUnitPurchase =
+      oldQty > 0 ? Number(received.purchase_price) / oldQty : 0;
+    const perUnitSale = oldQty > 0 ? Number(received.sale_price) / oldQty : 0;
+
+    const returnQty = Number(quantity);
+
+    const deductPurchase = perUnitPurchase * returnQty;
+    const deductSale = perUnitSale * returnQty;
+
+    // ✅ PurchaseReturnProduct create (return amount)
+    const payload = {
+      name: received.name,
+      supplier: received.supplier,
+      quantity: returnQty,
+      purchase_price: deductPurchase,
+      sale_price: deductSale,
+      productId,
+    };
+
+    const result = await PurchaseReturnProduct.update(payload, {
+      where: { Id: id },
+
+      transaction: t,
+    });
+
+    // ✅ ReceivedProduct update (qty & prices reduce)
+    const newQty = oldQty - returnQty;
+    const newPurchase = Math.max(
+      0,
+      Number(received.purchase_price) - deductPurchase,
+    );
+    const newSale = Math.max(0, Number(received.sale_price) - deductSale);
+
+    await ReceivedProduct.update(
+      {
+        quantity: newQty,
+        purchase_price: newPurchase,
+        sale_price: newSale,
+      },
+      {
+        where: { Id: received.Id },
+        transaction: t,
+      },
+    );
+
+    return result;
+  });
 };
 
 const getAllFromDBWithoutQuery = async () => {
