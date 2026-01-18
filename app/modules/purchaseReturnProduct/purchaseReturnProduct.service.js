@@ -1,4 +1,4 @@
-const { Op } = require("sequelize"); // Ensure Op is imported
+const { Op, where } = require("sequelize"); // Ensure Op is imported
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
@@ -81,77 +81,150 @@ const ReceivedProduct = db.receivedProduct;
 //   });
 // };
 
-const insertIntoDB = async (data) => {
-  const { quantity, productId } = data;
+// const insertIntoDB = async (data) => {
+//   const { quantity, productId } = data;
 
-  if (!quantity || quantity <= 0) {
+//   console.log("purchaseReturn", data);
+
+//   if (!quantity || quantity <= 0) {
+//     throw new ApiError(400, "Quantity must be greater than 0");
+//   }
+
+//   return await db.sequelize.transaction(async (t) => {
+//     // ✅ ReceivedProduct (তোমার schema অনুযায়ী Id/productId adjust করো)
+//     const received = await ReceivedProduct.findOne({
+//       where: { Id: productId }, // যদি column থাকে productId, তাহলে where: { productId }
+//       transaction: t,
+//       lock: t.LOCK.UPDATE,
+//     });
+
+//     if (!received) throw new ApiError(404, "Received product not found");
+
+//     // ✅ stock check
+//     if (received.quantity < quantity) {
+//       throw new ApiError(
+//         400,
+//         `Not enough stock. Available: ${received.quantity}`,
+//       );
+//     }
+
+//     /**
+//      * ✅ per unit price বের করা
+//      * received.purchase_price / received.quantity (old quantity)
+//      */
+//     const oldQty = Number(received.quantity);
+//     const perUnitPurchase =
+//       oldQty > 0 ? Number(received.purchase_price) / oldQty : 0;
+//     const perUnitSale = oldQty > 0 ? Number(received.sale_price) / oldQty : 0;
+
+//     const returnQty = Number(quantity);
+
+//     const deductPurchase = perUnitPurchase * returnQty;
+//     const deductSale = perUnitSale * returnQty;
+
+//     // ✅ PurchaseReturnProduct create (return amount)
+//     const payload = {
+//       name: received.name,
+//       supplier: received.supplier,
+//       quantity: returnQty,
+//       purchase_price: deductPurchase,
+//       sale_price: deductSale,
+//       productId: received.Id,
+//     };
+
+//     const result = await PurchaseReturnProduct.create(payload, {
+//       transaction: t,
+//     });
+
+//     // ✅ ReceivedProduct update (qty & prices reduce)
+//     const newQty = oldQty - returnQty;
+//     const newPurchase = Math.max(
+//       0,
+//       Number(received.purchase_price) - deductPurchase,
+//     );
+//     const newSale = Math.max(0, Number(received.sale_price) - deductSale);
+
+//     await ReceivedProduct.update(
+//       {
+//         quantity: newQty,
+//         purchase_price: newPurchase,
+//         sale_price: newSale,
+//       },
+//       {
+//         where: { Id: received.Id }, // যদি productId হয়: where: { productId }
+//         transaction: t,
+//       },
+//     );
+
+//     return result;
+//   });
+// };
+
+const insertIntoDB = async (data) => {
+  const { quantity, receivedId } = data;
+
+  console.log("purchaseReturn", data);
+
+  const returnQty = Number(quantity);
+  const rid = Number(receivedId);
+
+  if (!rid) throw new ApiError(400, "receivedId is required");
+  if (!returnQty || returnQty <= 0) {
     throw new ApiError(400, "Quantity must be greater than 0");
   }
 
   return await db.sequelize.transaction(async (t) => {
-    // ✅ ReceivedProduct (তোমার schema অনুযায়ী Id/productId adjust করো)
     const received = await ReceivedProduct.findOne({
-      where: { Id: productId }, // যদি column থাকে productId, তাহলে where: { productId }
+      where: { Id: rid },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
     if (!received) throw new ApiError(404, "Received product not found");
 
-    // ✅ stock check
-    if (received.quantity < quantity) {
-      throw new ApiError(
-        400,
-        `Not enough stock. Available: ${received.quantity}`,
-      );
+    const oldQty = Number(received.quantity || 0);
+    if (oldQty < returnQty) {
+      throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
     }
 
-    /**
-     * ✅ per unit price বের করা
-     * received.purchase_price / received.quantity (old quantity)
-     */
-    const oldQty = Number(received.quantity);
     const perUnitPurchase =
-      oldQty > 0 ? Number(received.purchase_price) / oldQty : 0;
-    const perUnitSale = oldQty > 0 ? Number(received.sale_price) / oldQty : 0;
-
-    const returnQty = Number(quantity);
+      oldQty > 0 ? Number(received.purchase_price || 0) / oldQty : 0;
+    const perUnitSale =
+      oldQty > 0 ? Number(received.sale_price || 0) / oldQty : 0;
 
     const deductPurchase = perUnitPurchase * returnQty;
     const deductSale = perUnitSale * returnQty;
 
-    // ✅ PurchaseReturnProduct create (return amount)
-    const payload = {
-      name: received.name,
-      supplier: received.supplier,
-      quantity: returnQty,
-      purchase_price: deductPurchase,
-      sale_price: deductSale,
-      productId,
-    };
+    const realProductId = Number(received.productId);
+    if (!realProductId) {
+      throw new ApiError(
+        400,
+        "ReceivedProduct.productId missing (Products.Id)",
+      );
+    }
 
-    const result = await PurchaseReturnProduct.create(payload, {
-      transaction: t,
-    });
-
-    // ✅ ReceivedProduct update (qty & prices reduce)
-    const newQty = oldQty - returnQty;
-    const newPurchase = Math.max(
-      0,
-      Number(received.purchase_price) - deductPurchase,
+    const result = await PurchaseReturnProduct.create(
+      {
+        name: received.name,
+        supplier: received.supplier,
+        quantity: returnQty,
+        purchase_price: deductPurchase,
+        sale_price: deductSale,
+        productId: realProductId, // ✅ Products.Id (FK)
+      },
+      { transaction: t },
     );
-    const newSale = Math.max(0, Number(received.sale_price) - deductSale);
 
     await ReceivedProduct.update(
       {
-        quantity: newQty,
-        purchase_price: newPurchase,
-        sale_price: newSale,
+        quantity: oldQty - returnQty,
+        purchase_price: Math.max(
+          0,
+          Number(received.purchase_price || 0) - deductPurchase,
+        ),
+        sale_price: Math.max(0, Number(received.sale_price || 0) - deductSale),
       },
-      {
-        where: { Id: received.Id }, // যদি productId হয়: where: { productId }
-        transaction: t,
-      },
+      { where: { Id: received.Id }, transaction: t },
     );
 
     return result;
@@ -245,78 +318,73 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, data) => {
-  const { quantity, productId } = data;
+  const { quantity, receivedId } = data;
 
-  if (!quantity || quantity <= 0) {
+  console.log("purchaseReturn", data);
+
+  const returnQty = Number(quantity);
+  const rid = Number(receivedId);
+
+  if (!rid) throw new ApiError(400, "receivedId is required");
+  if (!returnQty || returnQty <= 0) {
     throw new ApiError(400, "Quantity must be greater than 0");
   }
 
   return await db.sequelize.transaction(async (t) => {
-    // ✅ ReceivedProduct (তোমার schema অনুযায়ী Id/productId adjust করো)
     const received = await ReceivedProduct.findOne({
-      where: { Id: productId }, // যদি column থাকে productId, তাহলে where: { productId }
+      where: { Id: rid },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
     if (!received) throw new ApiError(404, "Received product not found");
 
-    // ✅ stock check
-    if (received.quantity < quantity) {
-      throw new ApiError(
-        400,
-        `Not enough stock. Available: ${received.quantity}`,
-      );
+    const oldQty = Number(received.quantity || 0);
+    if (oldQty < returnQty) {
+      throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
     }
 
-    /**
-     * ✅ per unit price বের করা
-     * received.purchase_price / received.quantity (old quantity)
-     */
-    const oldQty = Number(received.quantity);
     const perUnitPurchase =
-      oldQty > 0 ? Number(received.purchase_price) / oldQty : 0;
-    const perUnitSale = oldQty > 0 ? Number(received.sale_price) / oldQty : 0;
-
-    const returnQty = Number(quantity);
+      oldQty > 0 ? Number(received.purchase_price || 0) / oldQty : 0;
+    const perUnitSale =
+      oldQty > 0 ? Number(received.sale_price || 0) / oldQty : 0;
 
     const deductPurchase = perUnitPurchase * returnQty;
     const deductSale = perUnitSale * returnQty;
 
-    // ✅ PurchaseReturnProduct create (return amount)
-    const payload = {
-      name: received.name,
-      supplier: received.supplier,
-      quantity: returnQty,
-      purchase_price: deductPurchase,
-      sale_price: deductSale,
-      productId,
-    };
+    const realProductId = Number(received.productId);
+    if (!realProductId) {
+      throw new ApiError(
+        400,
+        "ReceivedProduct.productId missing (Products.Id)",
+      );
+    }
 
-    const result = await PurchaseReturnProduct.update(payload, {
-      where: { Id: id },
-
-      transaction: t,
-    });
-
-    // ✅ ReceivedProduct update (qty & prices reduce)
-    const newQty = oldQty - returnQty;
-    const newPurchase = Math.max(
-      0,
-      Number(received.purchase_price) - deductPurchase,
+    const result = await PurchaseReturnProduct.update(
+      {
+        name: received.name,
+        supplier: received.supplier,
+        quantity: returnQty,
+        purchase_price: deductPurchase,
+        sale_price: deductSale,
+        productId: realProductId, // ✅ Products.Id (FK)
+      },
+      {
+        where: { Id: id },
+        transaction: t,
+      },
     );
-    const newSale = Math.max(0, Number(received.sale_price) - deductSale);
 
     await ReceivedProduct.update(
       {
-        quantity: newQty,
-        purchase_price: newPurchase,
-        sale_price: newSale,
+        quantity: oldQty - returnQty,
+        purchase_price: Math.max(
+          0,
+          Number(received.purchase_price || 0) - deductPurchase,
+        ),
+        sale_price: Math.max(0, Number(received.sale_price || 0) - deductSale),
       },
-      {
-        where: { Id: received.Id },
-        transaction: t,
-      },
+      { where: { Id: received.Id }, transaction: t },
     );
 
     return result;

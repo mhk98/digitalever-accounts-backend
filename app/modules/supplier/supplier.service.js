@@ -66,16 +66,10 @@ const getAllFromDB = async (filters, options) => {
         : [["createdAt", "DESC"]],
   });
 
-  // const total = await Supplier.count({ where: whereConditions });
-
-  // ✅ total count + total quantity (same filters)
-  const [count, totalQuantity] = await Promise.all([
-    Supplier.count({ where: whereConditions }),
-    Supplier.sum("quantity", { where: whereConditions }),
-  ]);
+  const total = await Supplier.count({ where: whereConditions });
 
   return {
-    meta: { count, totalQuantity: totalQuantity || 0, page, limit },
+    meta: { total, page, limit },
     data: result,
   };
 };

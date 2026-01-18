@@ -6,20 +6,63 @@ const { AssetsDamageSearchableFields } = require("./assetsDamage.constants");
 const AssetsDamage = db.assetsDamage;
 const AssetsPurchase = db.assetsPurchase;
 
-const insertIntoDB = async (payload) => {
-  const { productId, quantity, price } = payload;
+const insertIntoDB = async (data) => {
+  const { productId, quantity, price } = data;
 
-  const productData = await AssetsPurchase.findOne({
-    where: { Id: productId },
+  if (!quantity || quantity <= 0) {
+    throw new ApiError(400, "Quantity must be greater than 0");
+  }
+
+  return await db.sequelize.transaction(async (t) => {
+    // ✅ PurchaseProduct (তোমার schema অনুযায়ী Id/productId adjust করো)
+    const purchase = await AssetsPurchase.findOne({
+      where: { Id: productId }, // যদি column থাকে productId, তাহলে where: { productId }
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!purchase) throw new ApiError(404, "Received product not found");
+
+    // ✅ stock check
+    if (purchase.quantity < quantity) {
+      throw new ApiError(
+        400,
+        `Not enough stock. Available: ${purchase.quantity}`,
+      );
+    }
+
+    const oldQty = Number(purchase.quantity);
+    const saleQty = Number(quantity);
+
+    // ✅ AssetsPurchase create (return amount)
+    const payload = {
+      name: purchase.name,
+      quantity: saleQty,
+      price,
+      total: price * quantity,
+      productId,
+    };
+
+    const result = await AssetsDamage.create(payload, {
+      transaction: t,
+    });
+
+    // ✅ AssetsPurchase update (qty & prices reduce)
+    const newQty = oldQty - saleQty;
+
+    await AssetsPurchase.update(
+      {
+        quantity: newQty,
+        total: purchase.price * newQty,
+      },
+      {
+        where: { Id: purchase.Id }, // যদি productId হয়: where: { productId }
+        transaction: t,
+      },
+    );
+
+    return result;
   });
-  const data = {
-    name: productData.name,
-    quantity,
-    price,
-    total: Number(price * quantity),
-  };
-  const result = await AssetsDamage.create(data);
-  return result;
 };
 
 const getAllFromDB = async (filters, options) => {
@@ -43,7 +86,7 @@ const getAllFromDB = async (filters, options) => {
     andConditions.push(
       ...Object.entries(otherFilters).map(([key, value]) => ({
         [key]: { [Op.eq]: value },
-      }))
+      })),
     );
   }
 
@@ -74,10 +117,15 @@ const getAllFromDB = async (filters, options) => {
         : [["createdAt", "DESC"]],
   });
 
-  const total = await AssetsDamage.count({ where: whereConditions });
+  // const total = await AssetsDamage.count({ where: whereConditions });
+
+  const [count, totalQuantity] = await Promise.all([
+    AssetsDamage.count({ where: whereConditions }),
+    AssetsDamage.sum("quantity", { where: whereConditions }),
+  ]);
 
   return {
-    meta: { total, page, limit },
+    meta: { count, totalQuantity: totalQuantity || 0, page, limit },
     data: result,
   };
 };
@@ -102,26 +150,64 @@ const deleteIdFromDB = async (id) => {
   return result;
 };
 
-const updateOneFromDB = async (id, payload) => {
-  const { productId, quantity, price } = payload;
+const updateOneFromDB = async (id, data) => {
+  const { productId, quantity, price } = data;
 
-  const productData = await AssetsPurchase.findOne({
-    where: { Id: productId },
+  if (!quantity || quantity <= 0) {
+    throw new ApiError(400, "Quantity must be greater than 0");
+  }
+
+  return await db.sequelize.transaction(async (t) => {
+    // ✅ PurchaseProduct (তোমার schema অনুযায়ী Id/productId adjust করো)
+    const purchase = await AssetsPurchase.findOne({
+      where: { Id: productId }, // যদি column থাকে productId, তাহলে where: { productId }
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!purchase) throw new ApiError(404, "Received product not found");
+
+    // ✅ stock check
+    if (purchase.quantity < quantity) {
+      throw new ApiError(
+        400,
+        `Not enough stock. Available: ${purchase.quantity}`,
+      );
+    }
+
+    const oldQty = Number(purchase.quantity);
+    const saleQty = Number(quantity);
+
+    // ✅ AssetsPurchase create (return amount)
+    const payload = {
+      name: purchase.name,
+      quantity: saleQty,
+      price,
+      total: price * quantity,
+      productId,
+    };
+
+    const result = await AssetsDamage.update(payload, {
+      where: { Id: id },
+      transaction: t,
+    });
+
+    // ✅ AssetsPurchase update (qty & prices reduce)
+    const newQty = oldQty - saleQty;
+
+    await AssetsPurchase.update(
+      {
+        quantity: newQty,
+        total: purchase.price * newQty,
+      },
+      {
+        where: { Id: purchase.Id },
+        transaction: t,
+      },
+    );
+
+    return result;
   });
-  const data = {
-    name: productData.name,
-    quantity,
-    price,
-    total: Number(price * quantity),
-  };
-
-  const result = await AssetsDamage.update(data, {
-    where: {
-      Id: id,
-    },
-  });
-
-  return result;
 };
 
 const getAllFromDBWithoutQuery = async () => {

@@ -15,21 +15,49 @@ const insertIntoDB = catchAsync(async (req, res) => {
     remarks,
     bookId,
   } = req.body;
-  const file = req.file.path.replace(/\\/g, "/");
+
+  // ✅ file optional safe
+  const file = req.file?.path ? req.file.path.replace(/\\/g, "/") : null;
+
+  const isBank = paymentMode === "Bank";
+
+  // ✅ bankAccount sanitize
+  const bankAccountNumber =
+    isBank &&
+    bankAccount !== undefined &&
+    bankAccount !== null &&
+    String(bankAccount).trim() !== ""
+      ? Number(bankAccount)
+      : null;
+
+  if (isBank && bankAccountNumber !== null && Number.isNaN(bankAccountNumber)) {
+    throw new ApiError(400, "Bank Account must be a valid number");
+  }
+
+  // ✅ amount sanitize
+  const amountNumber =
+    amount !== undefined && amount !== null && String(amount).trim() !== ""
+      ? Number(amount)
+      : 0;
+
+  if (!amountNumber || Number.isNaN(amountNumber) || amountNumber <= 0) {
+    throw new ApiError(400, "Amount must be greater than 0");
+  }
 
   const data = {
-    name,
+    name: name || null,
     paymentMode,
-    bankName,
-    bankAccount,
     paymentStatus,
-    amount,
-    remarks,
-    file,
+    bankName: isBank ? bankName || "" : "", // ✅ Bank না হলে empty
+    bankAccount: isBank ? bankAccountNumber : null, // ✅ Bank না হলে NULL (not "")
+    amount: amountNumber,
+    remarks: remarks || "",
+    file, // null allowed
     bookId,
   };
 
   console.log("cashinout", data);
+
   const result = await CashInOutService.insertIntoDB(data);
 
   sendResponse(res, {
@@ -64,8 +92,44 @@ const getDataById = catchAsync(async (req, res) => {
   });
 });
 
+// const updateOneFromDB = catchAsync(async (req, res) => {
+//   const { id } = req.params;
+//   const {
+//     name,
+//     paymentMode,
+//     paymentStatus,
+//     bankName,
+//     bankAccount,
+//     amount,
+//     remarks,
+//     bookId,
+//   } = req.body;
+//   const file = req.file.path.replace(/\\/g, "/");
+
+//   const data = {
+//     name,
+//     paymentMode,
+//     bankName,
+//     bankAccount,
+//     paymentStatus,
+//     amount,
+//     remarks,
+//     file,
+//     bookId,
+//   };
+
+//   const result = await CashInOutService.updateOneFromDB(id, data);
+//   sendResponse(res, {
+//     statusCode: 200,
+//     success: true,
+//     message: "CashInOut CashInOut update successfully!!",
+//     data: result,
+//   });
+// });
+
 const updateOneFromDB = catchAsync(async (req, res) => {
   const { id } = req.params;
+
   const {
     name,
     paymentMode,
@@ -76,25 +140,58 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     remarks,
     bookId,
   } = req.body;
-  const file = req.file.path.replace(/\\/g, "/");
+
+  // ✅ file optional safe (new file না দিলে আগেরটা থাকবে - service এ handle করা ভাল)
+  const file = req.file?.path ? req.file.path.replace(/\\/g, "/") : undefined;
+
+  const isBank = paymentMode === "Bank";
+
+  // ✅ bankAccount sanitize
+  const bankAccountNumber =
+    isBank &&
+    bankAccount !== undefined &&
+    bankAccount !== null &&
+    String(bankAccount).trim() !== ""
+      ? Number(bankAccount)
+      : null;
+
+  if (isBank && bankAccountNumber !== null && Number.isNaN(bankAccountNumber)) {
+    throw new ApiError(400, "Bank Account must be a valid number");
+  }
+
+  // ✅ amount sanitize (update এ amount optional হতে পারে, তবে দিলে validate)
+  const amountNumber =
+    amount !== undefined && amount !== null && String(amount).trim() !== ""
+      ? Number(amount)
+      : undefined;
+
+  if (
+    amountNumber !== undefined &&
+    (Number.isNaN(amountNumber) || amountNumber <= 0)
+  ) {
+    throw new ApiError(400, "Amount must be greater than 0");
+  }
 
   const data = {
-    name,
-    paymentMode,
-    bankName,
-    bankAccount,
-    paymentStatus,
-    amount,
-    remarks,
-    file,
-    bookId,
+    name: name ?? undefined,
+    paymentMode: paymentMode ?? undefined,
+    paymentStatus: paymentStatus ?? undefined,
+    bankName: isBank ? bankName || "" : "", // ✅ Bank না হলে blank
+    bankAccount: isBank ? bankAccountNumber : null, // ✅ Bank না হলে NULL
+    remarks: remarks ?? undefined,
+    bookId: bookId ?? undefined,
+    ...(amountNumber !== undefined ? { amount: amountNumber } : {}),
+
+    // ✅ file only include if uploaded
+    ...(file !== undefined ? { file } : {}),
   };
 
   const result = await CashInOutService.updateOneFromDB(id, data);
+
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "CashInOut CashInOut update successfully!!",
+    message: "CashInOut updated successfully!!",
     data: result,
   });
 });

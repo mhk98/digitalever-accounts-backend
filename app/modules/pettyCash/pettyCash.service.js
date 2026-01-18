@@ -66,13 +66,30 @@ const getAllFromDB = async (filters, options) => {
   // const total = await PettyCash.count({ where: whereConditions });
 
   // ✅ total count + total quantity (same filters)
-  const [count, totalAmount] = await Promise.all([
-    Meta.count({ where: whereConditions }),
-    Meta.sum("amount", { where: whereConditions }),
+
+  const [count, totalCashIn, totalCashOut] = await Promise.all([
+    PettyCash.count({ where: whereConditions }),
+    PettyCash.sum("amount", {
+      where: { ...whereConditions, paymentStatus: "CashIn" },
+    }),
+    PettyCash.sum("amount", {
+      where: { ...whereConditions, paymentStatus: "CashOut" },
+    }),
   ]);
 
+  const cashIn = Number(totalCashIn || 0);
+  const cashOut = Number(totalCashOut || 0);
+  const netBalance = cashIn - cashOut;
+
   return {
-    meta: { count, totalAmount: totalAmount || 0, page, limit },
+    meta: {
+      count,
+      totalCashIn: cashIn,
+      totalCashOut: cashOut,
+      netBalance,
+      page,
+      limit,
+    },
     data: result,
   };
 };

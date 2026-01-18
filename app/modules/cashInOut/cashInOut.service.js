@@ -148,22 +148,37 @@ const getAllFromDB = async (filters, options) => {
   });
 
   // const total = await CashInOut.count({ where: whereConditions });
-  // ✅ total count + total quantity (same filters)
-  const [count, totalAmount] = await Promise.all([
+  const [count, totalCashIn, totalCashOut] = await Promise.all([
     CashInOut.count({ where: whereConditions }),
-    CashInOut.sum("amount", { where: whereConditions }),
+    CashInOut.sum("amount", {
+      where: { ...whereConditions, paymentStatus: "CashIn" },
+    }),
+    CashInOut.sum("amount", {
+      where: { ...whereConditions, paymentStatus: "CashOut" },
+    }),
   ]);
 
+  const cashIn = Number(totalCashIn || 0);
+  const cashOut = Number(totalCashOut || 0);
+  const netBalance = cashIn - cashOut;
+
   return {
-    meta: { count, totalAmount: totalAmount || 0, page, limit },
+    meta: {
+      count,
+      totalCashIn: cashIn,
+      totalCashOut: cashOut,
+      netBalance,
+      page,
+      limit,
+    },
     data,
   };
 };
 
 const getDataById = async (id) => {
-  const result = await CashInOut.findOne({
+  const result = await CashInOut.findAll({
     where: {
-      Id: id,
+      bookId: id,
     },
   });
 

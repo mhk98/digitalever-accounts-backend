@@ -20,6 +20,7 @@ const OverviewRoutes = require("../modules/overview/overview.routes");
 const AssetsDamageRoutes = require("../modules/assetsDamage/assetsDamage.routes");
 const SupplierRoutes = require("../modules/supplier/supplier.routes");
 const CategoryRoutes = require("../modules/category/category.routes");
+const DamageProductRoutes = require("../modules/damageProduct/damageProduct.routes");
 
 const router = express.Router();
 
@@ -41,6 +42,10 @@ const moduleRoutes = [
   {
     path: "/intransit-product",
     route: InTransitProductRoutes,
+  },
+  {
+    path: "/damage-product",
+    route: DamageProductRoutes,
   },
   {
     path: "/return-product",

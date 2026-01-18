@@ -41,7 +41,7 @@ const getAllFromDB = async (filters, options) => {
     andConditions.push(
       ...Object.entries(otherFilters).map(([key, value]) => ({
         [key]: { [Op.eq]: value },
-      }))
+      })),
     );
   }
 
@@ -72,10 +72,15 @@ const getAllFromDB = async (filters, options) => {
         : [["createdAt", "DESC"]],
   });
 
-  const total = await AssetsPurchase.count({ where: whereConditions });
+  // const total = await AssetsPurchase.count({ where: whereConditions });
+
+  const [count, totalQuantity] = await Promise.all([
+    AssetsPurchase.count({ where: whereConditions }),
+    AssetsPurchase.sum("quantity", { where: whereConditions }),
+  ]);
 
   return {
-    meta: { total, page, limit },
+    meta: { count, totalQuantity: totalQuantity || 0, page, limit },
     data: result,
   };
 };

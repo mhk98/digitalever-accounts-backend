@@ -99,21 +99,21 @@ const getOverviewSummaryFromDB = async (filters) => {
 
   // ✅ তোমার UI logic অনুযায়ী হিসাব
   const remainingAmount = n(
-    totalPurchaseAmount - (totalSaleAmount + totalDamageAmount)
+    totalPurchaseAmount - (totalSaleAmount + totalDamageAmount),
   );
 
   const totalInventoryExpense = n(
     totalPurchaseReturnProductAmount +
       totalIntransitProductAmount +
-      totalConfirmOrderProductAmount
+      totalConfirmOrderProductAmount,
   );
 
   const inventoryStock_AfterAdd_SalesReturnProduct = n(
-    totalReceivedProductAmount + totalSalesReturnProductAmount
+    totalReceivedProductAmount + totalSalesReturnProductAmount,
   );
 
   const remainingInventoryStock_AfterMinus_InventoryExpense = n(
-    inventoryStock_AfterAdd_SalesReturnProduct - totalInventoryExpense
+    inventoryStock_AfterAdd_SalesReturnProduct - totalInventoryExpense,
   );
 
   return {
