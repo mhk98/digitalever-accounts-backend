@@ -30,6 +30,14 @@ module.exports = (sequelize, DataTypes) => {
           notEmpty: true, // Ensure name is not empty
         },
       },
+      note: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      status: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
 
       total: {
         type: DataTypes.INTEGER(10),
@@ -41,7 +49,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     {
       timestamps: true,
-    }
+    },
   );
 
   return AssetsPurchase;

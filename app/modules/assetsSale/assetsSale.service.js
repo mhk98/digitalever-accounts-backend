@@ -6,22 +6,6 @@ const { AssetsSaleSearchableFields } = require("./assetsSale.constants");
 const AssetsSale = db.assetsSale;
 const AssetsPurchase = db.assetsPurchase;
 
-// const insertIntoDB = async (payload) => {
-//   const { productId, quantity, price } = payload;
-
-//   const productData = await AssetsPurchase.findOne({
-//     where: { Id: productId },
-//   });
-//   const data = {
-//     name: productData.name,
-//     quantity,
-//     price,
-//     total: Number(price * quantity),
-//   };
-//   const result = await AssetsSale.create(data);
-//   return result;
-// };
-
 const insertIntoDB = async (data) => {
   const { productId, quantity, price } = data;
 
@@ -157,36 +141,48 @@ const getDataById = async (id) => {
 };
 
 const deleteIdFromDB = async (id) => {
-  const result = await AssetsSale.destroy({
-    where: {
-      Id: id,
-    },
+  return await db.sequelize.transaction(async (t) => {
+    // 1) Sale row বের করো
+    const sale = await AssetsSale.findOne({
+      where: { Id: id },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!sale) throw new ApiError(404, "AssetsSale not found");
+
+    const saleQty = Number(sale.quantity || 0);
+    if (saleQty <= 0) throw new ApiError(400, "Invalid sale quantity");
+
+    // 2) Purchase row বের করো (sale.productId = AssetsPurchase.Id)
+    const purchase = await AssetsPurchase.findOne({
+      where: { Id: sale.productId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!purchase) throw new ApiError(404, "AssetsPurchase not found");
+
+    // 3) Purchase এ quantity ফিরিয়ে দাও + total re-calc
+    const newQty = Number(purchase.quantity || 0) + saleQty;
+
+    await AssetsPurchase.update(
+      {
+        quantity: newQty,
+        total: Number(purchase.price || 0) * newQty,
+      },
+      { where: { Id: purchase.Id }, transaction: t },
+    );
+
+    // 4) Sale delete
+    await AssetsSale.destroy({
+      where: { Id: id },
+      transaction: t,
+    });
+
+    return { deleted: true };
   });
-
-  return result;
 };
-
-// const updateOneFromDB = async (id, payload) => {
-//   const { productId, quantity, price } = payload;
-
-//   const productData = await AssetsPurchase.findOne({
-//     where: { Id: productId },
-//   });
-//   const data = {
-//     name: productData.name,
-//     quantity,
-//     price,
-//     total: Number(price * quantity),
-//   };
-
-//   const result = await AssetsSale.update(data, {
-//     where: {
-//       Id: id,
-//     },
-//   });
-
-//   return result;
-// };
 
 const updateOneFromDB = async (id, data) => {
   const { productId, quantity, price } = data;

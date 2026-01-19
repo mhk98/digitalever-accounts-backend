@@ -155,13 +155,49 @@ const getDataById = async (id) => {
 };
 
 const deleteIdFromDB = async (id) => {
-  const result = await InTransitProduct.destroy({
-    where: {
-      Id: id,
-    },
-  });
+  return await db.sequelize.transaction(async (t) => {
+    // 1) Return row খুঁজে বের করো
+    const ret = await InTransitProduct.findOne({
+      where: { Id: id },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
 
-  return result;
+    if (!ret) throw new ApiError(404, "Return product not found");
+
+    const qty = Number(ret.quantity || 0);
+    if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
+
+    // 2) ReceivedProduct খুঁজে বের করো (Products.Id দিয়ে)
+    const received = await ReceivedProduct.findOne({
+      where: { productId: ret.productId }, // ✅ Products.Id
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!received) throw new ApiError(404, "Received product not found");
+
+    // 3) stock ফিরিয়ে দাও
+    await ReceivedProduct.update(
+      {
+        quantity: Number(received.quantity || 0) + qty,
+        purchase_price:
+          Number(received.purchase_price || 0) +
+          Number(ret.purchase_price || 0),
+        sale_price:
+          Number(received.sale_price || 0) + Number(ret.sale_price || 0),
+      },
+      { where: { Id: received.Id }, transaction: t },
+    );
+
+    // 4) Return row delete
+    await InTransitProduct.destroy({
+      where: { Id: id },
+      transaction: t,
+    });
+
+    return { deleted: true };
+  });
 };
 
 const updateOneFromDB = async (id, data) => {

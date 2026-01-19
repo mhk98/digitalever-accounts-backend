@@ -106,12 +106,14 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { name, quantity, price } = payload;
+  const { name, quantity, price, note, status } = payload;
 
   const data = {
     name,
     quantity,
     price,
+    note,
+    status: status ? status : "Pending",
     total: Number(price * quantity),
   };
 

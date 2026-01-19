@@ -141,13 +141,47 @@ const getDataById = async (id) => {
 };
 
 const deleteIdFromDB = async (id) => {
-  const result = await AssetsDamage.destroy({
-    where: {
-      Id: id,
-    },
-  });
+  return await db.sequelize.transaction(async (t) => {
+    // 1) Sale row বের করো
+    const sale = await AssetsDamage.findOne({
+      where: { Id: id },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
 
-  return result;
+    if (!sale) throw new ApiError(404, "AssetsDamage not found");
+
+    const saleQty = Number(sale.quantity || 0);
+    if (saleQty <= 0) throw new ApiError(400, "Invalid sale quantity");
+
+    // 2) Purchase row বের করো (sale.productId = AssetsPurchase.Id)
+    const purchase = await AssetsPurchase.findOne({
+      where: { Id: sale.productId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!purchase) throw new ApiError(404, "AssetsPurchase not found");
+
+    // 3) Purchase এ quantity ফিরিয়ে দাও + total re-calc
+    const newQty = Number(purchase.quantity || 0) + saleQty;
+
+    await AssetsPurchase.update(
+      {
+        quantity: newQty,
+        total: Number(purchase.price || 0) * newQty,
+      },
+      { where: { Id: purchase.Id }, transaction: t },
+    );
+
+    // 4) Sale delete
+    await AssetsDamage.destroy({
+      where: { Id: id },
+      transaction: t,
+    });
+
+    return { deleted: true };
+  });
 };
 
 const updateOneFromDB = async (id, data) => {
