@@ -185,7 +185,7 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, data) => {
-  const { productId, quantity, price } = data;
+  const { productId, quantity, price, note, status } = data;
 
   if (!quantity || quantity <= 0) {
     throw new ApiError(400, "Quantity must be greater than 0");
@@ -217,6 +217,8 @@ const updateOneFromDB = async (id, data) => {
       name: purchase.name,
       quantity: saleQty,
       price,
+      note: status === "Approved" ? "-" : note,
+      status: status ? status : "Pending",
       total: price * quantity,
       productId,
     };
@@ -228,18 +230,20 @@ const updateOneFromDB = async (id, data) => {
     });
 
     // ✅ AssetsPurchase update (qty & prices reduce)
-    const newQty = oldQty - saleQty;
+    if (status === "Approved") {
+      const newQty = oldQty - saleQty;
 
-    await AssetsPurchase.update(
-      {
-        quantity: newQty,
-        total: purchase.price * newQty,
-      },
-      {
-        where: { Id: purchase.Id },
-        transaction: t,
-      },
-    );
+      await AssetsPurchase.update(
+        {
+          quantity: newQty,
+          total: purchase.price * newQty,
+        },
+        {
+          where: { Id: purchase.Id },
+          transaction: t,
+        },
+      );
+    }
 
     return result;
   });

@@ -31,6 +31,15 @@ module.exports = (sequelize, DataTypes) => {
         },
       },
 
+      note: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      status: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+
       total: {
         type: DataTypes.INTEGER(10),
         allowNull: false,
@@ -41,7 +50,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     {
       timestamps: true,
-    }
+    },
   );
 
   return AssetsDamage;

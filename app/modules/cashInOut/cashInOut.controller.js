@@ -138,6 +138,8 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     bankAccount,
     amount,
     remarks,
+    note,
+    status,
     bookId,
   } = req.body;
 
@@ -179,6 +181,8 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     bankName: isBank ? bankName || "" : "", // ✅ Bank না হলে blank
     bankAccount: isBank ? bankAccountNumber : null, // ✅ Bank না হলে NULL
     remarks: remarks ?? undefined,
+    note: status === "Approved" ? "-" : note,
+    status: status ? status : "Pending",
     bookId: bookId ?? undefined,
     ...(amountNumber !== undefined ? { amount: amountNumber } : {}),
 

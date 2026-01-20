@@ -112,7 +112,7 @@ const updateOneFromDB = async (id, payload) => {
     name,
     quantity,
     price,
-    note,
+    note: status === "Approved" ? "-" : note,
     status: status ? status : "Pending",
     total: Number(price * quantity),
   };

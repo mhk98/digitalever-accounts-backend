@@ -273,7 +273,7 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, data) => {
-  const { quantity, receivedId } = data;
+  const { quantity, receivedId, note, status } = data;
 
   console.log("Damage", data);
 
@@ -322,6 +322,8 @@ const updateOneFromDB = async (id, data) => {
         quantity: returnQty,
         purchase_price: deductPurchase,
         sale_price: deductSale,
+        note: status === "Approved" ? "-" : note,
+        status: status ? status : "Pending",
         productId: realProductId, // ✅ Products.Id (FK)
       },
       {
@@ -330,18 +332,22 @@ const updateOneFromDB = async (id, data) => {
       },
     );
 
-    await ReceivedProduct.update(
-      {
-        quantity: oldQty - returnQty,
-        purchase_price: Math.max(
-          0,
-          Number(received.purchase_price || 0) - deductPurchase,
-        ),
-        sale_price: Math.max(0, Number(received.sale_price || 0) - deductSale),
-      },
-      { where: { Id: received.Id }, transaction: t },
-    );
-
+    if (status === "Approved") {
+      await ReceivedProduct.update(
+        {
+          quantity: oldQty - returnQty,
+          purchase_price: Math.max(
+            0,
+            Number(received.purchase_price || 0) - deductPurchase,
+          ),
+          sale_price: Math.max(
+            0,
+            Number(received.sale_price || 0) - deductSale,
+          ),
+        },
+        { where: { Id: received.Id }, transaction: t },
+      );
+    }
     return result;
   });
 };

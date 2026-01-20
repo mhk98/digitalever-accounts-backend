@@ -95,7 +95,14 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const result = await Book.update(payload, {
+  const { name, note, status } = payload;
+
+  const data = {
+    name,
+    note: status === "Approved" ? "-" : note,
+    status: status ? status : "Pending",
+  };
+  const result = await Book.update(data, {
     where: {
       Id: id,
     },

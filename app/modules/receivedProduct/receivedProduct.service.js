@@ -186,7 +186,7 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { quantity, productId, supplier } = payload;
+  const { quantity, productId, supplier, note, status } = payload;
 
   const productData = await Product.findOne({
     where: {
@@ -203,6 +203,8 @@ const updateOneFromDB = async (id, payload) => {
     quantity,
     purchase_price: productData.purchase_price * quantity,
     sale_price: productData.sale_price * quantity,
+    note: status === "Approved" ? "-" : note,
+    status: status ? status : "Pending",
     supplier,
     productId,
   };

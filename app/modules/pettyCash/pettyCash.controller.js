@@ -56,8 +56,16 @@ const getDataById = catchAsync(async (req, res) => {
 
 const updateOneFromDB = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const { name, paymentMode, bankName, paymentStatus, amount, remarks } =
-    req.body;
+  const {
+    name,
+    paymentMode,
+    bankName,
+    paymentStatus,
+    amount,
+    note,
+    status,
+    remarks,
+  } = req.body;
   const file = req.file.path.replace(/\\/g, "/");
 
   const data = {
@@ -66,6 +74,8 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     bankName,
     paymentStatus,
     amount,
+    note: status === "Approved" ? "-" : note,
+    status: status ? status : "Pending",
     remarks,
     file,
   };

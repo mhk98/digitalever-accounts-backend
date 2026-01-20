@@ -97,8 +97,14 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { name } = payload;
-  const result = await Meta.update(payload, {
+  const { note, status, amount } = payload;
+
+  const data = {
+    note: status === "Approved" ? "-" : note,
+    status: status ? status : "Pending",
+    amount,
+  };
+  const result = await Meta.update(data, {
     where: {
       Id: id,
     },

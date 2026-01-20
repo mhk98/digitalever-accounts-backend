@@ -185,23 +185,24 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, data) => {
-  const { productId, quantity, price } = data;
+  const { productId, quantity, price, note, status } = data;
 
+  // Validating quantity
   if (!quantity || quantity <= 0) {
     throw new ApiError(400, "Quantity must be greater than 0");
   }
 
   return await db.sequelize.transaction(async (t) => {
-    // ✅ PurchaseProduct (তোমার schema অনুযায়ী Id/productId adjust করো)
+    // ✅ Fetch the product details from AssetsPurchase
     const purchase = await AssetsPurchase.findOne({
-      where: { Id: productId }, // যদি column থাকে productId, তাহলে where: { productId }
+      where: { Id: productId }, // Use productId if applicable
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (!purchase) throw new ApiError(404, "Received product not found");
+    if (!purchase) throw new ApiError(404, "Product not found");
 
-    // ✅ stock check
+    // ✅ Stock validation
     if (purchase.quantity < quantity) {
       throw new ApiError(
         400,
@@ -212,35 +213,41 @@ const updateOneFromDB = async (id, data) => {
     const oldQty = Number(purchase.quantity);
     const saleQty = Number(quantity);
 
-    // ✅ AssetsPurchase create (return amount)
-    const payload = {
+    // Payload for AssetsDamage (for non-Approved status)
+    const damagePayload = {
       name: purchase.name,
       quantity: saleQty,
       price,
+      note: status === "Approved" ? "-" : note, // If Approved, no note
+      status: status ? status : "Pending", // Default status: Pending
       total: price * quantity,
       productId,
     };
 
-    const result = await AssetsDamage.update(payload, {
+    // Update AssetsDamage table when status is not "Approved"
+    const damageResult = await AssetsDamage.update(damagePayload, {
       where: { Id: id },
       transaction: t,
     });
 
-    // ✅ AssetsPurchase update (qty & prices reduce)
-    const newQty = oldQty - saleQty;
+    // ✅ Only update AssetsPurchase if the status is "Approved"
+    if (status === "Approved") {
+      const newQty = oldQty - saleQty;
 
-    await AssetsPurchase.update(
-      {
-        quantity: newQty,
-        total: purchase.price * newQty,
-      },
-      {
-        where: { Id: purchase.Id },
-        transaction: t,
-      },
-    );
+      // Update AssetsPurchase table only if status is "Approved"
+      await AssetsPurchase.update(
+        {
+          quantity: newQty,
+          total: purchase.price * newQty, // Adjust total value
+        },
+        {
+          where: { Id: purchase.Id },
+          transaction: t,
+        },
+      );
+    }
 
-    return result;
+    return damageResult;
   });
 };
 
