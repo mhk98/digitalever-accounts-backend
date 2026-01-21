@@ -120,6 +120,12 @@ db.cashInOut.belongsTo(db.book, { foreignKey: "bookId" });
 // db.product.hasMany(db.sale, { foreignKey: "productId" });
 // db.sale.belongsTo(db.product, { foreignKey: "productId" });
 
+db.assetsPurchase.hasMany(db.assetsSale, { foreignKey: "productId" });
+db.assetsSale.belongsTo(db.assetsPurchase, { foreignKey: "productId" });
+
+db.assetsPurchase.hasMany(db.assetsDamage, { foreignKey: "productId" });
+db.assetsDamage.belongsTo(db.assetsPurchase, { foreignKey: "productId" });
+
 // Sync the database
 db.sequelize
   .sync({ force: false })

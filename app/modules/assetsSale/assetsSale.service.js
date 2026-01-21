@@ -21,7 +21,7 @@ const insertIntoDB = async (data) => {
       lock: t.LOCK.UPDATE,
     });
 
-    if (!purchase) throw new ApiError(404, "Received product not found");
+    if (!purchase) throw new ApiError(404, "Purchase asset product not found");
 
     // ✅ stock check
     if (purchase.quantity < quantity) {
@@ -103,6 +103,11 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
+  // ✅ Exclude soft deleted records
+  andConditions.push({
+    deletedAt: { [Op.is]: null }, // Only include records with deletedAt as null (not deleted)
+  });
+
   const whereConditions = andConditions.length
     ? { [Op.and]: andConditions }
     : {};
@@ -111,6 +116,7 @@ const getAllFromDB = async (filters, options) => {
     where: whereConditions,
     offset: skip,
     limit,
+    paranoid: true,
     order:
       options.sortBy && options.sortOrder
         ? [[options.sortBy, options.sortOrder.toUpperCase()]]

@@ -30,10 +30,15 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      deletedAt: {
+        type: DataTypes.DATE,
+        allowNull: true, // This will be used for soft delete
+      },
     },
     {
       timestamps: true,
-    }
+      paranoid: true, // Soft delete enabled
+    },
   );
 
   return Receiveable;

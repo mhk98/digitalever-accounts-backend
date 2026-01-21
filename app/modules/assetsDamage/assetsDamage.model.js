@@ -47,9 +47,14 @@ module.exports = (sequelize, DataTypes) => {
           notEmpty: true, // Ensure name is not empty
         },
       },
+      deletedAt: {
+        type: DataTypes.DATE,
+        allowNull: true, // This will be used for soft delete
+      },
     },
     {
       timestamps: true,
+      paranoid: true, // Soft delete enabled
     },
   );
 

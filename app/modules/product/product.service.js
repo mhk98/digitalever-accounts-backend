@@ -31,7 +31,7 @@ const getAllFromDB = async (filters, options) => {
     andConditions.push(
       ...Object.entries(otherFilters).map(([key, value]) => ({
         [key]: { [Op.eq]: value },
-      }))
+      })),
     );
   }
 
@@ -48,6 +48,11 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
+  // ✅ Exclude soft deleted records
+  andConditions.push({
+    deletedAt: { [Op.is]: null }, // Only include records with deletedAt as null (not deleted)
+  });
+
   const whereConditions = andConditions.length
     ? { [Op.and]: andConditions }
     : {};
@@ -56,6 +61,7 @@ const getAllFromDB = async (filters, options) => {
     where: whereConditions,
     offset: skip,
     limit,
+    paranoid: true,
     order:
       options.sortBy && options.sortOrder
         ? [[options.sortBy, options.sortOrder.toUpperCase()]]

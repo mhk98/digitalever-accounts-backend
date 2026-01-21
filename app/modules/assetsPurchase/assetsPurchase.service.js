@@ -58,6 +58,11 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
+  // ✅ Exclude soft deleted records
+  andConditions.push({
+    deletedAt: { [Op.is]: null }, // Only include records with deletedAt as null (not deleted)
+  });
+
   const whereConditions = andConditions.length
     ? { [Op.and]: andConditions }
     : {};
@@ -66,6 +71,7 @@ const getAllFromDB = async (filters, options) => {
     where: whereConditions,
     offset: skip,
     limit,
+    paranoid: true, // Ensure this is added to include soft deleted records
     order:
       options.sortBy && options.sortOrder
         ? [[options.sortBy, options.sortOrder.toUpperCase()]]
@@ -95,6 +101,24 @@ const getDataById = async (id) => {
   return result;
 };
 
+// const removeIdFromDB = async (id) => {
+//   const result = await AssetsPurchase.findOne({
+//     where: {
+//       Id: id,
+//     },
+//   });
+
+//   if (!result) {
+//     throw new ApiError(404, "Asset purchase data not found");
+//   }
+
+//   // Soft delete by updating `deletedAt`
+//   result.deletedAt = new Date(); // Set current timestamp
+//   await result.save(); // Save the updated product with the deleted timestamp
+
+//   return result;
+// };
+
 const deleteIdFromDB = async (id) => {
   const result = await AssetsPurchase.destroy({
     where: {
@@ -109,13 +133,16 @@ const updateOneFromDB = async (id, payload) => {
   const { name, quantity, price, note, status } = payload;
 
   const data = {
-    name,
-    quantity,
-    price,
+    name: name === "" ? undefined : name,
+    quantity: quantity === "" ? undefined : quantity,
+    price: price === "" ? undefined : price,
     note: status === "Approved" ? "-" : note,
     status: status ? status : "Pending",
-    total: Number(price * quantity),
+    total: price * quantity,
   };
+
+  console.log("assetsPurchasePayload", payload);
+  console.log("assetsPurchaseData", data, id);
 
   const result = await AssetsPurchase.update(data, {
     where: {

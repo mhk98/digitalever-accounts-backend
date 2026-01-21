@@ -52,6 +52,11 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
+  // ✅ Exclude soft deleted records
+  andConditions.push({
+    deletedAt: { [Op.is]: null }, // Only include records with deletedAt as null (not deleted)
+  });
+
   const whereConditions = andConditions.length
     ? { [Op.and]: andConditions }
     : {};
@@ -59,6 +64,7 @@ const getAllFromDB = async (filters, options) => {
   const result = await Book.findAll({
     where: whereConditions,
     offset: skip,
+    paranoid: true,
     limit,
     order:
       options.sortBy && options.sortOrder

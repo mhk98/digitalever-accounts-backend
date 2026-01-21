@@ -103,6 +103,11 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
+  // ✅ Exclude soft deleted records
+  andConditions.push({
+    deletedAt: { [Op.is]: null }, // Only include records with deletedAt as null (not deleted)
+  });
+
   const whereConditions = andConditions.length
     ? { [Op.and]: andConditions }
     : {};
@@ -111,6 +116,8 @@ const getAllFromDB = async (filters, options) => {
     where: whereConditions,
     offset: skip,
     limit,
+    paranoid: true, // Ensure this is added to include soft deleted records
+
     order:
       options.sortBy && options.sortOrder
         ? [[options.sortBy, options.sortOrder.toUpperCase()]]
@@ -142,21 +149,21 @@ const getDataById = async (id) => {
 
 const deleteIdFromDB = async (id) => {
   return await db.sequelize.transaction(async (t) => {
-    // 1) Sale row বের করো
-    const sale = await AssetsDamage.findOne({
+    // 1) damage row বের করো
+    const damage = await AssetsDamage.findOne({
       where: { Id: id },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (!sale) throw new ApiError(404, "AssetsDamage not found");
+    if (!damage) throw new ApiError(404, "AssetsDamage not found");
 
-    const saleQty = Number(sale.quantity || 0);
-    if (saleQty <= 0) throw new ApiError(400, "Invalid sale quantity");
+    const damageQty = Number(damage.quantity || 0);
+    if (damageQty <= 0) throw new ApiError(400, "Invalid damage quantity");
 
-    // 2) Purchase row বের করো (sale.productId = AssetsPurchase.Id)
+    // 2) Purchase row বের করো (damage.productId = AssetsPurchase.Id)
     const purchase = await AssetsPurchase.findOne({
-      where: { Id: sale.productId },
+      where: { Id: damage.productId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -164,7 +171,7 @@ const deleteIdFromDB = async (id) => {
     if (!purchase) throw new ApiError(404, "AssetsPurchase not found");
 
     // 3) Purchase এ quantity ফিরিয়ে দাও + total re-calc
-    const newQty = Number(purchase.quantity || 0) + saleQty;
+    const newQty = Number(purchase.quantity || 0) + damageQty;
 
     await AssetsPurchase.update(
       {
@@ -174,7 +181,7 @@ const deleteIdFromDB = async (id) => {
       { where: { Id: purchase.Id }, transaction: t },
     );
 
-    // 4) Sale delete
+    // 4) damage delete
     await AssetsDamage.destroy({
       where: { Id: id },
       transaction: t,
@@ -187,6 +194,7 @@ const deleteIdFromDB = async (id) => {
 const updateOneFromDB = async (id, data) => {
   const { productId, quantity, price, note, status } = data;
 
+  console.log(data);
   // Validating quantity
   if (!quantity || quantity <= 0) {
     throw new ApiError(400, "Quantity must be greater than 0");

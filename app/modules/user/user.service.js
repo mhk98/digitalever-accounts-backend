@@ -22,7 +22,7 @@ const login = async (buyerData) => {
   if (!user) {
     throw new ApiError(
       404,
-      "No user found with this email. Please create an account first."
+      "No user found with this email. Please create an account first.",
     );
   }
 
@@ -91,6 +91,11 @@ const getAllUserFromDB = async (filters, options) => {
     });
   }
 
+  // ✅ Exclude soft deleted records
+  andConditions.push({
+    deletedAt: { [Op.is]: null }, // Only include records with deletedAt as null (not deleted)
+  });
+
   const whereConditions =
     andConditions.length > 0 ? { [Op.and]: andConditions } : {};
 
@@ -98,6 +103,7 @@ const getAllUserFromDB = async (filters, options) => {
     where: whereConditions,
     offset: skip,
     limit,
+    paranoid: true,
     attributes: { exclude: ["Password"] }, // ✅ important
     order:
       options.sortBy && options.sortOrder

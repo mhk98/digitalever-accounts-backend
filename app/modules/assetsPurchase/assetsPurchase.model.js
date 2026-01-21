@@ -1,6 +1,3 @@
-const validator = require("validator");
-const bcrypt = require("bcryptjs");
-
 module.exports = (sequelize, DataTypes) => {
   const AssetsPurchase = sequelize.define(
     "AssetsPurchase",
@@ -27,7 +24,7 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER(10),
         allowNull: false,
         validate: {
-          notEmpty: true, // Ensure name is not empty
+          notEmpty: true, // Ensure price is not empty
         },
       },
       note: {
@@ -38,17 +35,21 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
-
       total: {
         type: DataTypes.INTEGER(10),
         allowNull: false,
         validate: {
-          notEmpty: true, // Ensure name is not empty
+          notEmpty: true, // Ensure total is not empty
         },
+      },
+      deletedAt: {
+        type: DataTypes.DATE,
+        allowNull: true, // This will be used for soft delete
       },
     },
     {
       timestamps: true,
+      paranoid: true, // Soft delete enabled
     },
   );
 

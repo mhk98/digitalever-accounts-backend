@@ -1,7 +1,7 @@
 const validator = require("validator");
 const bcrypt = require("bcryptjs");
 
-module.exports = (sequelize, DataTypes, Sequelize) => {
+module.exports = (sequelize, DataTypes) => {
   const User = sequelize.define(
     "User",
     {
@@ -62,13 +62,19 @@ module.exports = (sequelize, DataTypes, Sequelize) => {
           "inventor",
           "accountant",
           "staff",
-          "user"
+          "user",
         ),
         allowNull: true,
         defaultValue: "user",
       },
+      deletedAt: {
+        type: DataTypes.DATE,
+        allowNull: true, // This will be used for soft delete
+      },
     },
     {
+      timestamps: true,
+      paranoid: true,
       hooks: {
         beforeCreate: async (user) => {
           if (user.Password) {
@@ -83,7 +89,7 @@ module.exports = (sequelize, DataTypes, Sequelize) => {
           }
         },
       },
-    }
+    },
   );
 
   User.prototype.validPassword = async function (Password) {
