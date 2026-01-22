@@ -2,11 +2,11 @@ const { Op, where } = require("sequelize"); // Ensure Op is imported
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
-const { pettyCashSearchableFields } = require("./pettyCash.constants");
-const PettyCash = db.pettyCash;
+const { EmployeeSearchableFields } = require("./employee.constants");
+const Employee = db.employee;
 
 const insertIntoDB = async (data) => {
-  const result = await PettyCash.create(data);
+  const result = await Employee.create(data);
   return result;
 };
 
@@ -20,7 +20,7 @@ const getAllFromDB = async (filters, options) => {
   // ✅ Search (ILIKE on searchable fields)
   if (searchTerm && searchTerm.trim()) {
     andConditions.push({
-      [Op.or]: pettyCashSearchableFields.map((field) => ({
+      [Op.or]: EmployeeSearchableFields.map((field) => ({
         [field]: { [Op.iLike]: `%${searchTerm.trim()}%` },
       })),
     });
@@ -57,7 +57,7 @@ const getAllFromDB = async (filters, options) => {
     ? { [Op.and]: andConditions }
     : {};
 
-  const result = await PettyCash.findAll({
+  const result = await Employee.findAll({
     where: whereConditions,
     offset: skip,
     limit,
@@ -68,39 +68,16 @@ const getAllFromDB = async (filters, options) => {
         : [["createdAt", "DESC"]],
   });
 
-  // const total = await PettyCash.count({ where: whereConditions });
-
-  // ✅ total count + total quantity (same filters)
-
-  const [count, totalCashIn, totalCashOut] = await Promise.all([
-    PettyCash.count({ where: whereConditions }),
-    PettyCash.sum("amount", {
-      where: { ...whereConditions, paymentStatus: "CashIn" },
-    }),
-    PettyCash.sum("amount", {
-      where: { ...whereConditions, paymentStatus: "CashOut" },
-    }),
-  ]);
-
-  const cashIn = Number(totalCashIn || 0);
-  const cashOut = Number(totalCashOut || 0);
-  const netBalance = cashIn - cashOut;
+  const total = await Employee.count({ where: whereConditions });
 
   return {
-    meta: {
-      count,
-      totalCashIn: cashIn,
-      totalCashOut: cashOut,
-      netBalance,
-      page,
-      limit,
-    },
+    meta: { total, page, limit },
     data: result,
   };
 };
 
 const getDataById = async (id) => {
-  const result = await PettyCash.findOne({
+  const result = await Employee.findOne({
     where: {
       Id: id,
     },
@@ -110,7 +87,7 @@ const getDataById = async (id) => {
 };
 
 const deleteIdFromDB = async (id) => {
-  const result = await PettyCash.destroy({
+  const result = await Employee.destroy({
     where: {
       Id: id,
     },
@@ -120,7 +97,7 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const result = await PettyCash.update(payload, {
+  const result = await Employee.update(payload, {
     where: {
       Id: id,
     },
@@ -130,12 +107,12 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await PettyCash.findAll();
+  const result = await Employee.findAll();
 
   return result;
 };
 
-const PettyCashService = {
+const EmployeeService = {
   getAllFromDB,
   insertIntoDB,
   deleteIdFromDB,
@@ -144,4 +121,4 @@ const PettyCashService = {
   getAllFromDBWithoutQuery,
 };
 
-module.exports = PettyCashService;
+module.exports = EmployeeService;

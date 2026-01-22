@@ -7,8 +7,12 @@ const router = require("express").Router();
 router.post(
   "/create",
   uploadFile,
-  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
-  PayableController.insertIntoDB
+  auth(
+    ENUM_USER_ROLE.SUPER_ADMIN,
+    ENUM_USER_ROLE.ADMIN,
+    ENUM_USER_ROLE.ACCOUNTANT,
+  ),
+  PayableController.insertIntoDB,
 );
 router.get("/", PayableController.getAllFromDB);
 router.get("/all", PayableController.getAllFromDBWithoutQuery);
@@ -16,13 +20,17 @@ router.get("/all", PayableController.getAllFromDBWithoutQuery);
 router.delete(
   "/:id",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
-  PayableController.deleteIdFromDB
+  PayableController.deleteIdFromDB,
 );
 router.patch(
   "/:id",
   uploadFile,
-  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
-  PayableController.updateOneFromDB
+  auth(
+    ENUM_USER_ROLE.SUPER_ADMIN,
+    ENUM_USER_ROLE.ADMIN,
+    ENUM_USER_ROLE.ACCOUNTANT,
+  ),
+  PayableController.updateOneFromDB,
 );
 const PayableRoutes = router;
 module.exports = PayableRoutes;

@@ -6,76 +6,99 @@ const { ConfirmOrderSearchableFields } = require("./confirmOrder.constants");
 
 const ConfirmOrder = db.confirmOrder;
 const ReceivedProduct = db.receivedProduct;
+const Product = db.product;
 
 const insertIntoDB = async (data) => {
+  // console.log("ConfirmOrder", data);
+
+  // const returnQty = Number(quantity);
+  // const rid = Number(receivedId);
+
+  // if (!rid) throw new ApiError(400, "receivedId is required");
+  // if (!returnQty || returnQty <= 0) {
+  //   throw new ApiError(400, "Quantity must be greater than 0");
+  // }
+
+  // return await db.sequelize.transaction(async (t) => {
+  //   const received = await ReceivedProduct.findOne({
+  //     where: { Id: rid },
+  //     transaction: t,
+  //     lock: t.LOCK.UPDATE,
+  //   });
+
+  //   if (!received) throw new ApiError(404, "Received product not found");
+
+  //   const oldQty = Number(received.quantity || 0);
+  //   if (oldQty < returnQty) {
+  //     throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
+  //   }
+
+  //   const perUnitPurchase =
+  //     oldQty > 0 ? Number(received.purchase_price || 0) / oldQty : 0;
+  //   const perUnitSale =
+  //     oldQty > 0 ? Number(received.sale_price || 0) / oldQty : 0;
+
+  //   const deductPurchase = perUnitPurchase * returnQty;
+  //   const deductSale = perUnitSale * returnQty;
+
+  //   const realProductId = Number(received.productId);
+  //   if (!realProductId) {
+  //     throw new ApiError(
+  //       400,
+  //       "ReceivedProduct.productId missing (Products.Id)",
+  //     );
+  //   }
+
+  //   const result = await ConfirmOrder.create(
+  //     {
+  //       name: received.name,
+  //       supplier: received.supplier,
+  //       quantity: returnQty,
+  //       purchase_price: deductPurchase,
+  //       sale_price: deductSale,
+  //       productId: realProductId, // ✅ Products.Id (FK)
+  //     },
+  //     { transaction: t },
+  //   );
+
+  //   await ReceivedProduct.update(
+  //     {
+  //       quantity: oldQty - returnQty,
+  //       purchase_price: Math.max(
+  //         0,
+  //         Number(received.purchase_price || 0) - deductPurchase,
+  //       ),
+  //       sale_price: Math.max(0, Number(received.sale_price || 0) - deductSale),
+  //     },
+  //     { where: { Id: received.Id }, transaction: t },
+  //   );
+
+  //   return result;
+  // });
+
   const { quantity, receivedId } = data;
 
-  console.log("ConfirmOrder", data);
+  const productData = await Product.findOne({
+    where: {
+      Id: receivedId,
+    },
+  });
 
-  const returnQty = Number(quantity);
-  const rid = Number(receivedId);
-
-  if (!rid) throw new ApiError(400, "receivedId is required");
-  if (!returnQty || returnQty <= 0) {
-    throw new ApiError(400, "Quantity must be greater than 0");
+  if (!productData) {
+    throw new ApiError(404, "Product not found");
   }
 
-  return await db.sequelize.transaction(async (t) => {
-    const received = await ReceivedProduct.findOne({
-      where: { Id: rid },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
+  const payload = {
+    name: productData.name,
+    quantity,
+    purchase_price: productData.purchase_price * quantity,
+    sale_price: productData.sale_price * quantity,
+    supplier: productData.supplier,
+    productId: receivedId,
+  };
 
-    if (!received) throw new ApiError(404, "Received product not found");
-
-    const oldQty = Number(received.quantity || 0);
-    if (oldQty < returnQty) {
-      throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
-    }
-
-    const perUnitPurchase =
-      oldQty > 0 ? Number(received.purchase_price || 0) / oldQty : 0;
-    const perUnitSale =
-      oldQty > 0 ? Number(received.sale_price || 0) / oldQty : 0;
-
-    const deductPurchase = perUnitPurchase * returnQty;
-    const deductSale = perUnitSale * returnQty;
-
-    const realProductId = Number(received.productId);
-    if (!realProductId) {
-      throw new ApiError(
-        400,
-        "ReceivedProduct.productId missing (Products.Id)",
-      );
-    }
-
-    const result = await ConfirmOrder.create(
-      {
-        name: received.name,
-        supplier: received.supplier,
-        quantity: returnQty,
-        purchase_price: deductPurchase,
-        sale_price: deductSale,
-        productId: realProductId, // ✅ Products.Id (FK)
-      },
-      { transaction: t },
-    );
-
-    await ReceivedProduct.update(
-      {
-        quantity: oldQty - returnQty,
-        purchase_price: Math.max(
-          0,
-          Number(received.purchase_price || 0) - deductPurchase,
-        ),
-        sale_price: Math.max(0, Number(received.sale_price || 0) - deductSale),
-      },
-      { where: { Id: received.Id }, transaction: t },
-    );
-
-    return result;
-  });
+  const result = await ConfirmOrder.create(payload);
+  return result;
 };
 
 const getAllFromDB = async (filters, options) => {
@@ -209,82 +232,33 @@ const deleteIdFromDB = async (id) => {
 const updateOneFromDB = async (id, data) => {
   const { quantity, receivedId, note, status } = data;
 
-  console.log("ConfirmOrder", data);
+  const productData = await Product.findOne({
+    where: {
+      Id: receivedId,
+    },
+  });
 
-  const returnQty = Number(quantity);
-  const rid = Number(receivedId);
-
-  if (!rid) throw new ApiError(400, "receivedId is required");
-  if (!returnQty || returnQty <= 0) {
-    throw new ApiError(400, "Quantity must be greater than 0");
+  if (!productData) {
+    throw new ApiError(404, "Product not found");
   }
 
-  return await db.sequelize.transaction(async (t) => {
-    const received = await ReceivedProduct.findOne({
-      where: { Id: rid },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
+  const payload = {
+    name: productData.name,
+    quantity,
+    purchase_price: productData.purchase_price * quantity,
+    sale_price: productData.sale_price * quantity,
+    supplier: productData.supplier,
+    productId: receivedId,
+    note: status === "Approved" ? "-" : note,
+    status: status ? status : "Pending",
+  };
 
-    if (!received) throw new ApiError(404, "Received product not found");
-
-    const oldQty = Number(received.quantity || 0);
-    if (oldQty < returnQty) {
-      throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
-    }
-
-    const perUnitPurchase =
-      oldQty > 0 ? Number(received.purchase_price || 0) / oldQty : 0;
-    const perUnitSale =
-      oldQty > 0 ? Number(received.sale_price || 0) / oldQty : 0;
-
-    const deductPurchase = perUnitPurchase * returnQty;
-    const deductSale = perUnitSale * returnQty;
-
-    const realProductId = Number(received.productId);
-    if (!realProductId) {
-      throw new ApiError(
-        400,
-        "ReceivedProduct.productId missing (Products.Id)",
-      );
-    }
-
-    const result = await ConfirmOrder.update(
-      {
-        name: received.name,
-        supplier: received.supplier,
-        quantity: returnQty,
-        purchase_price: deductPurchase,
-        sale_price: deductSale,
-        note: status === "Approved" ? "-" : note,
-        status: status ? status : "Pending",
-        productId: realProductId, // ✅ Products.Id (FK)
-      },
-      {
-        where: { Id: id },
-        transaction: t,
-      },
-    );
-
-    if (status === "Approved") {
-      await ReceivedProduct.update(
-        {
-          quantity: oldQty - returnQty,
-          purchase_price: Math.max(
-            0,
-            Number(received.purchase_price || 0) - deductPurchase,
-          ),
-          sale_price: Math.max(
-            0,
-            Number(received.sale_price || 0) - deductSale,
-          ),
-        },
-        { where: { Id: received.Id }, transaction: t },
-      );
-    }
-
-    return result;
+  const result = await ConfirmOrder.update(payload, {
+    where: {
+      Id: id,
+    },
   });
+  return result;
 };
 
 const getAllFromDBWithoutQuery = async () => {

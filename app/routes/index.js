@@ -21,6 +21,7 @@ const AssetsDamageRoutes = require("../modules/assetsDamage/assetsDamage.routes"
 const SupplierRoutes = require("../modules/supplier/supplier.routes");
 const CategoryRoutes = require("../modules/category/category.routes");
 const DamageProductRoutes = require("../modules/damageProduct/damageProduct.routes");
+const EmployeeRoutes = require("../modules/employee/employee.routes");
 
 const router = express.Router();
 
@@ -114,6 +115,10 @@ const moduleRoutes = [
   {
     path: "/payable",
     route: PayableRoutes,
+  },
+  {
+    path: "/employee",
+    route: EmployeeRoutes,
   },
   {
     path: "/overview",

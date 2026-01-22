@@ -83,6 +83,10 @@ db.payable = require("../app/modules/payable/payable.model")(
   db.sequelize,
   DataTypes,
 );
+db.employee = require("../app/modules/employee/employee.model")(
+  db.sequelize,
+  DataTypes,
+);
 
 // // Define associations
 // db.purchase.hasOne(db.accounting, { foreignKey: "purchaseId" });
@@ -100,11 +104,11 @@ db.returnProduct.belongsTo(db.receivedProduct, { foreignKey: "productId" });
 db.receivedProduct.hasMany(db.inTransitProduct, { foreignKey: "productId" });
 db.inTransitProduct.belongsTo(db.receivedProduct, { foreignKey: "productId" });
 
-db.receivedProduct.hasMany(db.confirmOrder, { foreignKey: "productId" });
+db.product.hasMany(db.confirmOrder, { foreignKey: "productId" });
 db.confirmOrder.belongsTo(db.product, { foreignKey: "productId" });
 
 db.receivedProduct.hasMany(db.damageProduct, { foreignKey: "productId" });
-db.damageProduct.belongsTo(db.product, { foreignKey: "productId" });
+db.damageProduct.belongsTo(db.receivedProduct, { foreignKey: "productId" });
 
 db.product.hasMany(db.purchaseReturnProduct, { foreignKey: "productId" });
 db.purchaseReturnProduct.belongsTo(db.receivedProduct, {

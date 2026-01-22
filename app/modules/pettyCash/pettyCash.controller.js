@@ -7,7 +7,8 @@ const { pettyCashFilterAbleFields } = require("./pettyCash.constants");
 const insertIntoDB = catchAsync(async (req, res) => {
   const { name, paymentMode, bankName, paymentStatus, amount, remarks } =
     req.body;
-  const file = req.file.path.replace(/\\/g, "/");
+  // const file = req.file.path.replace(/\\/g, "/");
+  const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
 
   const data = {
     name,
@@ -66,7 +67,8 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     status,
     remarks,
   } = req.body;
-  const file = req.file.path.replace(/\\/g, "/");
+  // const file = req.file.path.replace(/\\/g, "/");
+  const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
 
   const data = {
     name,

@@ -5,13 +5,15 @@ const ReceiveableService = require("./receiveable.service");
 const { ReceiveableFilterAbleFields } = require("./receiveable.constants");
 
 const insertIntoDB = catchAsync(async (req, res) => {
-  const { name, amount, remarks } = req.body;
-  const file = req.file.path.replace(/\\/g, "/");
+  const { name, amount, remarks, note, status } = req.body;
+  const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
 
   const data = {
     name,
     amount,
     remarks,
+    note,
+    status,
     file,
   };
 
@@ -52,14 +54,16 @@ const getDataById = catchAsync(async (req, res) => {
 
 const updateOneFromDB = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const { name, amount, remarks } = req.body;
+  const { name, amount, remarks, note, status } = req.body;
 
-  const file = req.file.path.replace(/\\/g, "/");
+  const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
 
   const data = {
     name,
     amount,
     remarks,
+    note,
+    status,
     file,
   };
   const result = await ReceiveableService.updateOneFromDB(id, data);
