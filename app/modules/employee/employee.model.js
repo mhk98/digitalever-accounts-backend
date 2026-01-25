@@ -18,8 +18,12 @@ module.exports = (sequelize, DataTypes) => {
           notEmpty: true, // Ensure name is not empty
         },
       },
+      employee_id: {
+        type: DataTypes.INTEGER(10),
+        allowNull: false,
+      },
       basic_salary: {
-        type: DataTypes.STRING,
+        type: DataTypes.INTEGER(10),
         allowNull: false,
       },
       incentive: {
@@ -54,11 +58,11 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER(10),
         allowNull: false,
       },
-      early_leave: {
+      unapproval_absent: {
         type: DataTypes.INTEGER(10),
         allowNull: false,
       },
-      unapproval_absent: {
+      net_salary: {
         type: DataTypes.INTEGER(10),
         allowNull: false,
       },
