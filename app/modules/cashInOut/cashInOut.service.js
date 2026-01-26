@@ -4,6 +4,8 @@ const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { CashInOutSearchableFields } = require("./cashInOut.constants");
 const CashInOut = db.cashInOut;
+const Notification = db.notification;
+const User = db.user;
 
 const insertIntoDB = async (data) => {
   const result = await CashInOut.create(data);
@@ -202,14 +204,41 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const {} = payload;
-  const result = await CashInOut.update(payload, {
+  const { note, status, userId, bookId } = payload;
+
+  const [updatedCount] = await CashInOut.update(payload, {
     where: {
       Id: id,
     },
   });
 
-  return result;
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId }, // sender বাদ
+      role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
+    },
+  });
+
+  console.log("users", users.length);
+  if (!users.length) return updatedCount;
+
+  const message =
+    status === "Approved"
+      ? "Cash In Out request approved"
+      : note || "Cash In Out updated";
+
+  await Promise.all(
+    users.map((u) =>
+      Notification.create({
+        userId: u.Id,
+        message,
+        url: `http://localhost:5173/book/${bookId}`,
+      }),
+    ),
+  );
+
+  return updatedCount;
 };
 
 const getAllFromDBWithoutQuery = async () => {

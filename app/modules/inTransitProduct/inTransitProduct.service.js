@@ -7,6 +7,8 @@ const {
 } = require("./inTransitProduct.constants");
 const InTransitProduct = db.inTransitProduct;
 const ReceivedProduct = db.receivedProduct;
+const Notification = db.notification;
+const User = db.user;
 
 const insertIntoDB = async (data) => {
   const { quantity, receivedId } = data;
@@ -207,7 +209,7 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, data) => {
-  const { quantity, receivedId, note, status } = data;
+  const { quantity, receivedId, note, status, userId } = data;
 
   console.log("InTransit", data);
 
@@ -249,7 +251,7 @@ const updateOneFromDB = async (id, data) => {
       );
     }
 
-    const result = await InTransitProduct.update(
+    const [updatedCount] = await InTransitProduct.update(
       {
         name: received.name,
         supplier: received.supplier,
@@ -283,7 +285,32 @@ const updateOneFromDB = async (id, data) => {
       );
     }
 
-    return result;
+    const users = await User.findAll({
+      attributes: ["Id", "role"],
+      where: {
+        Id: { [Op.ne]: userId }, // sender বাদ
+        role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
+      },
+    });
+
+    console.log("users", users.length);
+    if (!users.length) return updatedCount;
+
+    const message =
+      finalStatus === "Approved"
+        ? "Intransit product request approved"
+        : finalNote || "Intransit product updated";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: `http://localhost:5173/intransit-product`,
+        }),
+      ),
+    );
+    return updatedCount;
   });
 };
 

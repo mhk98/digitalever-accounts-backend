@@ -5,6 +5,8 @@ const ApiError = require("../../../error/ApiError");
 const { AssetsSaleSearchableFields } = require("./assetsSale.constants");
 const AssetsSale = db.assetsSale;
 const AssetsPurchase = db.assetsPurchase;
+const Notification = db.notification;
+const User = db.user;
 
 const insertIntoDB = async (data) => {
   const { productId, quantity, price } = data;
@@ -191,7 +193,7 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, data) => {
-  const { productId, quantity, price, note, status } = data;
+  const { productId, quantity, price, note, status, userId } = data;
 
   if (!quantity || quantity <= 0) {
     throw new ApiError(400, "Quantity must be greater than 0");
@@ -229,7 +231,7 @@ const updateOneFromDB = async (id, data) => {
       productId,
     };
 
-    const result = await AssetsSale.update(payload, {
+    const [updatedCount] = await AssetsSale.update(payload, {
       where: { Id: id },
 
       transaction: t,
@@ -251,7 +253,34 @@ const updateOneFromDB = async (id, data) => {
       );
     }
 
-    return result;
+    // ✅ শুধু admin/superAdmin/inventory রোলের ইউজার
+    const users = await User.findAll({
+      attributes: ["Id", "role"],
+      where: {
+        Id: { [Op.ne]: userId }, // sender বাদ
+        role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
+      },
+    });
+
+    console.log("users", users.length);
+    if (!users.length) return updatedCount;
+
+    const message =
+      finalStatus === "Approved"
+        ? "Assets sale request approved"
+        : finalNote || "Assets sale updated";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: `http://localhost:5173/assets-sale`,
+        }),
+      ),
+    );
+
+    return updatedCount;
   });
 };
 

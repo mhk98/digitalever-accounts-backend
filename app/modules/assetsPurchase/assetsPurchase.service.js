@@ -6,6 +6,8 @@ const {
   AssetsPurchaseSearchableFields,
 } = require("./assetsPurchase.constants");
 const AssetsPurchase = db.assetsPurchase;
+const Notification = db.notification;
+const User = db.user;
 
 const insertIntoDB = async (payload) => {
   const { name, quantity, price } = payload;
@@ -129,28 +131,117 @@ const deleteIdFromDB = async (id) => {
   return result;
 };
 
+// const updateOneFromDB = async (id, payload) => {
+//   const { name, quantity, price, note, status, userId } = payload;
+
+//   const q = quantity === "" || quantity == null ? undefined : Number(quantity);
+//   const p = price === "" || price == null ? undefined : Number(price);
+
+//   const finalStatus = status ? status : "Pending";
+//   const finalNote = finalStatus === "Approved" ? "-" : note;
+
+//   const data = {
+//     name: name === "" ? undefined : name,
+//     quantity: q,
+//     price: p,
+//     note: finalNote,
+//     status: finalStatus,
+//     total: typeof p === "number" && typeof q === "number" ? p * q : undefined,
+//   };
+
+//   console.log("assetsPurchasePayload", payload);
+//   console.log("assetsPurchaseData", data, id);
+
+//   // ✅ update first
+//   const [updatedCount] = await AssetsPurchase.update(data, {
+//     where: { Id: id },
+//   });
+
+//   const users = await User.findAll({
+//     where: {
+//       id: { [Op.ne]: userId }, // 👈 Exclude sender
+//       role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+//     },
+//   });
+
+//   if (!users.length) {
+//     console.log("No users found for notification.");
+//     return [];
+//   }
+
+//   if (updatedCount > 0) {
+//     await Promise.all(
+//       users.map((user) =>
+//         Notification.create({
+//           userId: user.id,
+//           message:
+//             finalStatus === "Approved"
+//               ? `Approved inventors request for assets purchase`
+//               : `${finalNote}`,
+//           url: "/assets-purchase",
+//         }),
+//       ),
+//     );
+//   }
+
+//   return updatedCount; // অথবা return { updatedCount }
+// };
+
 const updateOneFromDB = async (id, payload) => {
-  const { name, quantity, price, note, status } = payload;
+  const { name, quantity, price, note, status, userId } = payload;
+
+  console.log("data", payload);
+
+  const q = quantity === "" || quantity == null ? undefined : Number(quantity);
+  const p = price === "" || price == null ? undefined : Number(price);
+
+  const finalStatus = status || "Pending";
+  const finalNote = finalStatus === "Approved" ? "-" : note;
 
   const data = {
     name: name === "" ? undefined : name,
-    quantity: quantity === "" ? undefined : quantity,
-    price: price === "" ? undefined : price,
-    note: status === "Approved" ? "-" : note,
-    status: status ? status : "Pending",
-    total: price * quantity,
+    quantity: q,
+    price: p,
+    note: finalNote,
+    status: finalStatus,
+    total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
   };
 
-  console.log("assetsPurchasePayload", payload);
-  console.log("assetsPurchaseData", data, id);
+  const [updatedCount] = await AssetsPurchase.update(data, {
+    where: { Id: id },
+  });
 
-  const result = await AssetsPurchase.update(data, {
+  // ✅ update না হলে এখানেই থামো
+  if (updatedCount <= 0) return updatedCount;
+
+  // ✅ শুধু admin/superAdmin/inventory রোলের ইউজার
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
     where: {
-      Id: id,
+      Id: { [Op.ne]: userId }, // sender বাদ
+      role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
     },
   });
 
-  return result;
+  console.log("users", users.length);
+  if (!users.length) return updatedCount;
+
+  const message =
+    finalStatus === "Approved"
+      ? "Assets purchase request approved"
+      : finalNote || "Assets purchase updated";
+
+  await Promise.all(
+    users.map((u) =>
+      Notification.create({
+        userId: u.Id,
+        message,
+        url: `http://localhost:5173/assets-purchase`,
+      }),
+    ),
+  );
+
+  return updatedCount;
 };
 
 const getAllFromDBWithoutQuery = async () => {

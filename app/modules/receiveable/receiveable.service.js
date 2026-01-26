@@ -4,7 +4,8 @@ const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { ReceiveableSearchableFields } = require("./receiveable.constants");
 const Receiveable = db.receiveable;
-
+const Notification = db.notification;
+const User = db.user;
 const insertIntoDB = async (data) => {
   const result = await Receiveable.create(data);
   return result;
@@ -127,12 +128,39 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { name } = payload;
+  const { status, note, userId } = payload;
+
   const result = await Receiveable.update(payload, {
     where: {
       Id: id,
     },
   });
+
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId }, // sender বাদ
+      role: { [Op.in]: ["superAdmin", "admin", "accountant"] }, // তোমার DB অনুযায়ী ঠিক করো
+    },
+  });
+
+  console.log("users", users.length);
+  if (!users.length) return updatedCount;
+
+  const message =
+    status === "Approved"
+      ? "Receiveable request approved"
+      : note || "Receiveable updated";
+
+  await Promise.all(
+    users.map((u) =>
+      Notification.create({
+        userId: u.Id,
+        message,
+        url: `http://localhost:5173/receivable`,
+      }),
+    ),
+  );
 
   return result;
 };

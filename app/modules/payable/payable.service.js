@@ -4,6 +4,8 @@ const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { PayableSearchableFields } = require("./payable.constants");
 const Payable = db.payable;
+const Notification = db.notification;
+const User = db.user;
 
 const insertIntoDB = async (data) => {
   const result = await Payable.create(data);
@@ -127,14 +129,39 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { name } = payload;
-  const result = await Payable.update(payload, {
+  const { status, note, userId } = payload;
+  const [updatedCount] = await Payable.update(payload, {
     where: {
       Id: id,
     },
   });
 
-  return result;
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId }, // sender বাদ
+      role: { [Op.in]: ["superAdmin", "admin", "accountant"] }, // তোমার DB অনুযায়ী ঠিক করো
+    },
+  });
+
+  console.log("users", users.length);
+  if (!users.length) return updatedCount;
+
+  const message =
+    status === "Approved"
+      ? "Petty cash request approved"
+      : note || "Petty cash updated";
+
+  await Promise.all(
+    users.map((u) =>
+      Notification.create({
+        userId: u.Id,
+        message,
+        url: `http://localhost:5173/payable`,
+      }),
+    ),
+  );
+  return updatedCount;
 };
 
 const getAllFromDBWithoutQuery = async () => {

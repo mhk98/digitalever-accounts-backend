@@ -7,6 +7,8 @@ const { ConfirmOrderSearchableFields } = require("./confirmOrder.constants");
 const ConfirmOrder = db.confirmOrder;
 const ReceivedProduct = db.receivedProduct;
 const Product = db.product;
+const Notification = db.notification;
+const User = db.user;
 
 const insertIntoDB = async (data) => {
   // console.log("ConfirmOrder", data);
@@ -230,7 +232,7 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, data) => {
-  const { quantity, receivedId, note, status } = data;
+  const { quantity, receivedId, note, status, userId } = data;
 
   const productData = await Product.findOne({
     where: {
@@ -253,12 +255,38 @@ const updateOneFromDB = async (id, data) => {
     status: status ? status : "Pending",
   };
 
-  const result = await ConfirmOrder.update(payload, {
+  const [updatedCount] = await ConfirmOrder.update(payload, {
     where: {
       Id: id,
     },
   });
-  return result;
+
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId }, // sender বাদ
+      role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
+    },
+  });
+
+  console.log("users", users.length);
+  if (!users.length) return updatedCount;
+
+  const message =
+    finalStatus === "Approved"
+      ? "Confirm order request approved"
+      : finalNote || "Confirm order updated";
+
+  await Promise.all(
+    users.map((u) =>
+      Notification.create({
+        userId: u.Id,
+        message,
+        url: `http://localhost:5173/confirm-order`,
+      }),
+    ),
+  );
+  return updatedCount;
 };
 
 const getAllFromDBWithoutQuery = async () => {

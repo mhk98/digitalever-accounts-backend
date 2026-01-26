@@ -4,6 +4,8 @@ const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { MetaSearchableFields } = require("./meta.constants");
 const Meta = db.meta;
+const Notification = db.notification;
+const User = db.user;
 
 const insertIntoDB = async (data) => {
   console.log("meta", data);
@@ -103,20 +105,47 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { note, status, amount } = payload;
+  const { note, status, amount, userId } = payload;
 
   const data = {
     note: status === "Approved" ? "-" : note,
     status: status ? status : "Pending",
     amount,
   };
-  const result = await Meta.update(data, {
+
+  const [updatedCount] = await Meta.update(data, {
     where: {
       Id: id,
     },
   });
 
-  return result;
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId }, // sender বাদ
+      role: { [Op.in]: ["superAdmin", "admin", "marketer"] }, // তোমার DB অনুযায়ী ঠিক করো
+    },
+  });
+
+  console.log("users", users.length);
+  if (!users.length) return updatedCount;
+
+  const message =
+    finalStatus === "Approved"
+      ? "Digital Expense request approved"
+      : finalNote || "Digital Expense updated";
+
+  await Promise.all(
+    users.map((u) =>
+      Notification.create({
+        userId: u.Id,
+        message,
+        url: `http://localhost:5173/`,
+      }),
+    ),
+  );
+
+  return updatedCount;
 };
 
 const getAllFromDBWithoutQuery = async () => {

@@ -5,6 +5,8 @@ const ApiError = require("../../../error/ApiError");
 const { ReturnProductSearchableFields } = require("./returnProduct.constants");
 const ReturnProduct = db.returnProduct;
 const ReceivedProduct = db.receivedProduct;
+const Notification = db.notification;
+const User = db.user;
 
 const insertIntoDB = async (data) => {
   const { quantity, receivedId } = data;
@@ -205,7 +207,7 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, data) => {
-  const { quantity, receivedId, note, status } = data;
+  const { quantity, receivedId, note, status, userId } = data;
 
   console.log("Return", data);
 
@@ -247,7 +249,7 @@ const updateOneFromDB = async (id, data) => {
       );
     }
 
-    const result = await ReturnProduct.update(
+    const [updatedCount] = await ReturnProduct.update(
       {
         name: received.name,
         supplier: received.supplier,
@@ -281,7 +283,33 @@ const updateOneFromDB = async (id, data) => {
       );
     }
 
-    return result;
+    const users = await User.findAll({
+      attributes: ["Id", "role"],
+      where: {
+        Id: { [Op.ne]: userId }, // sender বাদ
+        role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
+      },
+    });
+
+    console.log("users", users.length);
+    if (!users.length) return updatedCount;
+
+    const message =
+      finalStatus === "Approved"
+        ? "Sales return request approved"
+        : finalNote || "Sales return updated";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: `http://localhost:5173/sales-return`,
+        }),
+      ),
+    );
+
+    return updatedCount;
   });
 };
 

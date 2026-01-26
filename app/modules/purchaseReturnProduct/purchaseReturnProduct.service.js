@@ -7,7 +7,8 @@ const {
 } = require("./purchaseReturnProduct.constants");
 const PurchaseReturnProduct = db.purchaseReturnProduct;
 const ReceivedProduct = db.receivedProduct;
-
+const Notification = db.notification;
+const User = db.user;
 // const insertIntoDB = async (data) => {
 //   const { quantity, productId } = data;
 
@@ -360,7 +361,7 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, data) => {
-  const { quantity, receivedId, note, status } = data;
+  const { quantity, receivedId, note, status, userId } = data;
 
   console.log("purchaseReturn", data);
 
@@ -402,7 +403,7 @@ const updateOneFromDB = async (id, data) => {
       );
     }
 
-    const result = await PurchaseReturnProduct.update(
+    const [updatedCount] = await PurchaseReturnProduct.update(
       {
         name: received.name,
         supplier: received.supplier,
@@ -436,7 +437,32 @@ const updateOneFromDB = async (id, data) => {
       );
     }
 
-    return result;
+    const users = await User.findAll({
+      attributes: ["Id", "role"],
+      where: {
+        Id: { [Op.ne]: userId }, // sender বাদ
+        role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
+      },
+    });
+
+    console.log("users", users.length);
+    if (!users.length) return updatedCount;
+
+    const message =
+      finalStatus === "Approved"
+        ? "Purchase return product request approved"
+        : finalNote || "Purchase return product updated";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: `http://localhost:5173/purchase-return`,
+        }),
+      ),
+    );
+    return updatedCount;
   });
 };
 

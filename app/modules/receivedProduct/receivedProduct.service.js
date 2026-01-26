@@ -8,6 +8,8 @@ const {
 
 const ReceivedProduct = db.receivedProduct;
 const Product = db.product;
+const Notification = db.notification;
+const User = db.user;
 
 const insertIntoDB = async (data) => {
   const { quantity, productId } = data;
@@ -192,7 +194,7 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { quantity, productId, supplier, note, status } = payload;
+  const { quantity, productId, supplier, note, status, userId } = payload;
 
   const productData = await Product.findOne({
     where: {
@@ -215,13 +217,39 @@ const updateOneFromDB = async (id, payload) => {
     productId,
   };
 
-  const result = await ReceivedProduct.update(data, {
+  const [updatedCount] = await ReceivedProduct.update(data, {
     where: {
       Id: id,
     },
   });
 
-  return result;
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId }, // sender বাদ
+      role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
+    },
+  });
+
+  console.log("users", users.length);
+  if (!users.length) return updatedCount;
+
+  const message =
+    finalStatus === "Approved"
+      ? "Purchase  product request approved"
+      : finalNote || "Purchase product updated";
+
+  await Promise.all(
+    users.map((u) =>
+      Notification.create({
+        userId: u.Id,
+        message,
+        url: `http://localhost:5173/purchase-product`,
+      }),
+    ),
+  );
+
+  return updatedCount;
 };
 
 const getAllFromDBWithoutQuery = async () => {

@@ -5,6 +5,8 @@ const ApiError = require("../../../error/ApiError");
 const { DamageProductSearchableFields } = require("./damageProduct.constants");
 const DamageProduct = db.damageProduct;
 const ReceivedProduct = db.receivedProduct;
+const Notification = db.notification;
+const User = db.user;
 
 // const insertIntoDB = async (data) => {
 //   const { quantity, productId } = data;
@@ -279,7 +281,7 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, data) => {
-  const { quantity, receivedId, note, status } = data;
+  const { quantity, receivedId, note, status, userId } = data;
 
   console.log("Damage", data);
 
@@ -321,7 +323,7 @@ const updateOneFromDB = async (id, data) => {
       );
     }
 
-    const result = await DamageProduct.update(
+    const [updatedCount] = await DamageProduct.update(
       {
         name: received.name,
         supplier: received.supplier,
@@ -354,7 +356,33 @@ const updateOneFromDB = async (id, data) => {
         { where: { Id: received.Id }, transaction: t },
       );
     }
-    return result;
+
+    const users = await User.findAll({
+      attributes: ["Id", "role"],
+      where: {
+        Id: { [Op.ne]: userId }, // sender বাদ
+        role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
+      },
+    });
+
+    console.log("users", users.length);
+    if (!users.length) return updatedCount;
+
+    const message =
+      finalStatus === "Approved"
+        ? "Damage product request approved"
+        : finalNote || "Damage product updated";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: `http://localhost:5173/damage-product`,
+        }),
+      ),
+    );
+    return updatedCount;
   });
 };
 

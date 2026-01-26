@@ -87,6 +87,10 @@ db.employee = require("../app/modules/employee/employee.model")(
   db.sequelize,
   DataTypes,
 );
+db.notification = require("../app/modules/notification/notification.model")(
+  db.sequelize,
+  DataTypes,
+);
 
 // // Define associations
 // db.purchase.hasOne(db.accounting, { foreignKey: "purchaseId" });

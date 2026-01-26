@@ -4,6 +4,8 @@ const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { EmployeeSearchableFields } = require("./employee.constants");
 const Employee = db.employee;
+const Notification = db.notification;
+const User = db.user;
 
 const insertIntoDB = async (data) => {
   const result = await Employee.create(data);
@@ -97,13 +99,81 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const result = await Employee.update(payload, {
+  const {
+    name,
+    employee_id,
+    basic_salary,
+    incentive,
+    holiday_payment,
+    total_salary,
+    advance,
+    late,
+    early_leave,
+    absent,
+    friday_absent,
+    unapproval_absent,
+    net_salary,
+    note,
+    remarks,
+    status,
+    userId,
+  } = payload;
+
+  const finalStatus = status || "Pending";
+  const finalNote = finalStatus === "Approved" ? "-" : note;
+
+  const data = {
+    name,
+    employee_id,
+    basic_salary,
+    incentive,
+    holiday_payment,
+    total_salary,
+    advance,
+    late,
+    early_leave,
+    absent,
+    friday_absent,
+    unapproval_absent,
+    net_salary,
+    note: finalNote,
+    remarks,
+    status: finalStatus,
+  };
+
+  const [updatedCount] = await Employee.update(data, {
     where: {
       Id: id,
     },
   });
 
-  return result;
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId }, // sender বাদ
+      role: { [Op.in]: ["superAdmin", "admin", "accountant"] }, // তোমার DB অনুযায়ী ঠিক করো
+    },
+  });
+
+  console.log("users", users.length);
+  if (!users.length) return updatedCount;
+
+  const message =
+    finalStatus === "Approved"
+      ? "Employee salary calculation request approved"
+      : finalNote || "Employee salary calculation updated";
+
+  await Promise.all(
+    users.map((u) =>
+      Notification.create({
+        userId: u.Id,
+        message,
+        url: `http://localhost:5173/employee`,
+      }),
+    ),
+  );
+
+  return updatedCount;
 };
 
 const getAllFromDBWithoutQuery = async () => {

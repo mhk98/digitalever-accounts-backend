@@ -70,6 +70,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: false,
       },
+      remarks: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
       deletedAt: {
         type: DataTypes.DATE,
         allowNull: true, // This will be used for soft delete

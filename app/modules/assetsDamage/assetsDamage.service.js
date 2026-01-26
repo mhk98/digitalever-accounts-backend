@@ -5,6 +5,8 @@ const ApiError = require("../../../error/ApiError");
 const { AssetsDamageSearchableFields } = require("./assetsDamage.constants");
 const AssetsDamage = db.assetsDamage;
 const AssetsPurchase = db.assetsPurchase;
+const Notification = db.notification;
+const User = db.user;
 
 const insertIntoDB = async (data) => {
   const { productId, quantity, price } = data;
@@ -192,7 +194,7 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, data) => {
-  const { productId, quantity, price, note, status } = data;
+  const { productId, quantity, price, note, status, userId } = data;
 
   console.log(data);
   // Validating quantity
@@ -233,7 +235,7 @@ const updateOneFromDB = async (id, data) => {
     };
 
     // Update AssetsDamage table when status is not "Approved"
-    const damageResult = await AssetsDamage.update(damagePayload, {
+    const [updatedCount] = await AssetsDamage.update(damagePayload, {
       where: { Id: id },
       transaction: t,
     });
@@ -255,7 +257,33 @@ const updateOneFromDB = async (id, data) => {
       );
     }
 
-    return damageResult;
+    const users = await User.findAll({
+      attributes: ["Id", "role"],
+      where: {
+        Id: { [Op.ne]: userId }, // sender বাদ
+        role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
+      },
+    });
+
+    console.log("users", users.length);
+    if (!users.length) return updatedCount;
+
+    const message =
+      finalStatus === "Approved"
+        ? "Assets damage request approved"
+        : finalNote || "Assets damage updated";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: `http://localhost:5173/assets-damage`,
+        }),
+      ),
+    );
+
+    return updatedCount;
   });
 };
 
