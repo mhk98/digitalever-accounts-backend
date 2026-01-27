@@ -71,6 +71,10 @@ db.supplier = require("../app/modules/supplier/supplier.model")(
   db.sequelize,
   DataTypes,
 );
+db.warehouse = require("../app/modules/warehouse/warehouse.model")(
+  db.sequelize,
+  DataTypes,
+);
 db.cashInOut = require("../app/modules/cashInOut/cashInOut.model")(
   db.sequelize,
   DataTypes,
@@ -121,6 +125,9 @@ db.purchaseReturnProduct.belongsTo(db.receivedProduct, {
 
 db.book.hasMany(db.cashInOut, { foreignKey: "bookId" });
 db.cashInOut.belongsTo(db.book, { foreignKey: "bookId" });
+
+db.warehouse.hasMany(db.product, { foreignKey: "warehouseId" });
+db.product.belongsTo(db.warehouse, { foreignKey: "warehouseId" });
 
 // db.category.hasMany(db.cashInOut, { foreignKey: "categoryId" });
 // db.cashInOut.belongsTo(db.category, { foreignKey: "categoryId" });

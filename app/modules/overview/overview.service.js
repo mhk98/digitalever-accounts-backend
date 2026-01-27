@@ -16,7 +16,7 @@ const ReceivedProduct = db.receivedProduct;
 const PurchaseReturnProduct = db.purchaseReturnProduct;
 const InTransitProduct = db.inTransitProduct;
 const ReturnProduct = db.returnProduct; // sales return
-const ConfirmOrder = db.confirmOrder;
+const DamageProduct = db.damageProduct;
 
 const CashInOut = db.cashInOut;
 
@@ -68,7 +68,7 @@ const getOverviewSummaryFromDB = async (filters) => {
     totalPurchaseReturnProductAmount,
     totalIntransitProductAmount,
     totalSalesReturnProductAmount,
-    totalConfirmOrderProductAmount,
+    totalDamageProductProductAmount,
 
     totalCashInAmount,
     totalCashOutAmount,
@@ -90,7 +90,7 @@ const getOverviewSummaryFromDB = async (filters) => {
     sumField(PurchaseReturnProduct, "quantity", dateWhere),
     sumField(InTransitProduct, "quantity", dateWhere),
     sumField(ReturnProduct, "quantity", dateWhere),
-    sumField(ConfirmOrder, "quantity", dateWhere),
+    sumField(DamageProduct, "quantity", dateWhere),
 
     // Cash In/Out (same table, different status)
     sumField(CashInOut, "amount", { ...dateWhere, paymentStatus: "CashIn" }),
@@ -105,7 +105,7 @@ const getOverviewSummaryFromDB = async (filters) => {
   const totalInventoryExpense = n(
     totalPurchaseReturnProductAmount +
       totalIntransitProductAmount +
-      totalConfirmOrderProductAmount,
+      totalDamageProductProductAmount,
   );
 
   const inventoryStock_AfterAdd_SalesReturnProduct = n(
@@ -131,7 +131,7 @@ const getOverviewSummaryFromDB = async (filters) => {
     totalPurchaseReturnProductAmount,
     totalIntransitProductAmount,
     totalSalesReturnProductAmount,
-    totalConfirmOrderProductAmount,
+    totalDamageProductProductAmount,
     remainingInventoryStock_AfterMinus_InventoryExpense,
 
     // Expenses & Accounts

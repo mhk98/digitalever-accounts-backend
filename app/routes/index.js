@@ -23,6 +23,7 @@ const CategoryRoutes = require("../modules/category/category.routes");
 const DamageProductRoutes = require("../modules/damageProduct/damageProduct.routes");
 const EmployeeRoutes = require("../modules/employee/employee.routes");
 const NotificationRoutes = require("../modules/notification/notification.routes");
+const WarehouseRoutes = require("../modules/warehouse/warehouse.routes");
 
 const router = express.Router();
 
@@ -100,6 +101,10 @@ const moduleRoutes = [
   {
     path: "/supplier",
     route: SupplierRoutes,
+  },
+  {
+    path: "/warehouse",
+    route: WarehouseRoutes,
   },
   {
     path: "/cash-in",
