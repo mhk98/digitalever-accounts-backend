@@ -260,6 +260,7 @@ const updateOneFromDB = async (id, data) => {
         Id: { [Op.ne]: userId }, // sender বাদ
         role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
       },
+      transaction: t,
     });
 
     console.log("users", users.length);
@@ -272,11 +273,16 @@ const updateOneFromDB = async (id, data) => {
 
     await Promise.all(
       users.map((u) =>
-        Notification.create({
-          userId: u.Id,
-          message,
-          url: `http://localhost:5173/assets-sale`,
-        }),
+        Notification.create(
+          {
+            userId: u.Id,
+            message,
+            url: `http://localhost:5173/assets-sale`,
+          },
+          {
+            transaction: t,
+          },
+        ),
       ),
     );
 
