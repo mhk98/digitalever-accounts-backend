@@ -24,6 +24,8 @@ const DamageProductRoutes = require("../modules/damageProduct/damageProduct.rout
 const EmployeeRoutes = require("../modules/employee/employee.routes");
 const NotificationRoutes = require("../modules/notification/notification.routes");
 const WarehouseRoutes = require("../modules/warehouse/warehouse.routes");
+const LogoRoutes = require("../modules/logo/logo.routes");
+const SalaryRoutes = require("../modules/salary/salary.routes");
 
 const router = express.Router();
 
@@ -125,6 +127,14 @@ const moduleRoutes = [
   {
     path: "/employee",
     route: EmployeeRoutes,
+  },
+  {
+    path: "/salary",
+    route: SalaryRoutes,
+  },
+  {
+    path: "/logo",
+    route: LogoRoutes,
   },
   {
     path: "/notification",

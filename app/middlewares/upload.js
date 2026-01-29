@@ -21,8 +21,8 @@ const fileFilter = (req, file, cb) => {
   } else {
     cb(
       new Error(
-        "Invalid file format. Supported formats: jpeg, jpg, png, gif, webp"
-      )
+        "Invalid file format. Supported formats: jpeg, jpg, png, gif, webp",
+      ),
     );
   }
 };

@@ -95,6 +95,11 @@ db.notification = require("../app/modules/notification/notification.model")(
   db.sequelize,
   DataTypes,
 );
+db.salary = require("../app/modules/salary/salary.model")(
+  db.sequelize,
+  DataTypes,
+);
+db.logo = require("../app/modules/logo/logo.model")(db.sequelize, DataTypes);
 
 // // Define associations
 // db.purchase.hasOne(db.accounting, { foreignKey: "purchaseId" });
