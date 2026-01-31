@@ -36,6 +36,10 @@ db.damageProduct = require("../app/modules/damageProduct/damageProduct.model")(
   db.sequelize,
   DataTypes,
 );
+db.damageRepair = require("../app/modules/damageRepair/damageRepair.model")(
+  db.sequelize,
+  DataTypes,
+);
 db.meta = require("../app/modules/meta/meta.model")(db.sequelize, DataTypes);
 db.assetsPurchase =
   require("../app/modules/assetsPurchase/assetsPurchase.model")(
@@ -122,6 +126,9 @@ db.confirmOrder.belongsTo(db.product, { foreignKey: "productId" });
 
 db.receivedProduct.hasMany(db.damageProduct, { foreignKey: "productId" });
 db.damageProduct.belongsTo(db.receivedProduct, { foreignKey: "productId" });
+
+db.damageProduct.hasMany(db.damageRepair, { foreignKey: "productId" });
+db.damageRepair.belongsTo(db.damageProduct, { foreignKey: "productId" });
 
 db.product.hasMany(db.purchaseReturnProduct, { foreignKey: "productId" });
 db.purchaseReturnProduct.belongsTo(db.receivedProduct, {
