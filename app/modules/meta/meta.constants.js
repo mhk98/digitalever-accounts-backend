@@ -1,11 +1,8 @@
- const MetaFilterAbleFileds = ['searchTerm', 'startDate', 'endDate'];
+const MetaFilterAbleFileds = ["searchTerm", "startDate", "endDate", "platform"];
 
- const MetaSearchableFields = ['searchTerm',];
-
+const MetaSearchableFields = ["searchTerm"];
 
 module.exports = {
-
-    MetaFilterAbleFileds,
-    MetaSearchableFields
-
-}
+  MetaFilterAbleFileds,
+  MetaSearchableFields,
+};
