@@ -40,6 +40,11 @@ db.damageRepair = require("../app/modules/damageRepair/damageRepair.model")(
   db.sequelize,
   DataTypes,
 );
+db.damageRepaired =
+  require("../app/modules/damageRepaired/damageRepaired.model")(
+    db.sequelize,
+    DataTypes,
+  );
 db.meta = require("../app/modules/meta/meta.model")(db.sequelize, DataTypes);
 db.assetsPurchase =
   require("../app/modules/assetsPurchase/assetsPurchase.model")(
@@ -121,19 +126,22 @@ db.returnProduct.belongsTo(db.receivedProduct, { foreignKey: "productId" });
 db.receivedProduct.hasMany(db.inTransitProduct, { foreignKey: "productId" });
 db.inTransitProduct.belongsTo(db.receivedProduct, { foreignKey: "productId" });
 
-db.product.hasMany(db.confirmOrder, { foreignKey: "productId" });
-db.confirmOrder.belongsTo(db.product, { foreignKey: "productId" });
-
 db.receivedProduct.hasMany(db.damageProduct, { foreignKey: "productId" });
 db.damageProduct.belongsTo(db.receivedProduct, { foreignKey: "productId" });
 
 db.damageProduct.hasMany(db.damageRepair, { foreignKey: "productId" });
 db.damageRepair.belongsTo(db.damageProduct, { foreignKey: "productId" });
 
+db.damageRepair.hasMany(db.damageRepaired, { foreignKey: "productId" });
+db.damageRepaired.belongsTo(db.damageRepair, { foreignKey: "productId" });
+
 db.product.hasMany(db.purchaseReturnProduct, { foreignKey: "productId" });
 db.purchaseReturnProduct.belongsTo(db.receivedProduct, {
   foreignKey: "productId",
 });
+
+db.product.hasMany(db.confirmOrder, { foreignKey: "productId" });
+db.confirmOrder.belongsTo(db.product, { foreignKey: "productId" });
 
 db.book.hasMany(db.cashInOut, { foreignKey: "bookId" });
 db.cashInOut.belongsTo(db.book, { foreignKey: "bookId" });

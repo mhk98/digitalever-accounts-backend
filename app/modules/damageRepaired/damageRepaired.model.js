@@ -2,8 +2,8 @@ const validator = require("validator");
 const bcrypt = require("bcryptjs");
 
 module.exports = (sequelize, DataTypes) => {
-  const DamageRepair = sequelize.define(
-    "DamageRepair",
+  const DamageRepaired = sequelize.define(
+    "DamageRepaired",
     {
       Id: {
         type: DataTypes.INTEGER(10),
@@ -64,5 +64,5 @@ module.exports = (sequelize, DataTypes) => {
     },
   );
 
-  return DamageRepair;
+  return DamageRepaired;
 };

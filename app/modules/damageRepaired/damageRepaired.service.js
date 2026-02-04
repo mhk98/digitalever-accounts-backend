@@ -2,9 +2,13 @@ const { Op } = require("sequelize"); // Ensure Op is imported
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
-const { DamageRepairSearchableFields } = require("./damageRepair.constants");
+const {
+  DamageRepairedSearchableFields,
+} = require("./damageRepaired.constants");
+const DamageRepaired = db.damageRepaired;
 const DamageRepair = db.damageRepair;
 const DamageProduct = db.damageProduct;
+const ReceivedProduct = db.receivedProduct;
 const Notification = db.notification;
 const User = db.user;
 
@@ -22,55 +26,89 @@ const insertIntoDB = async (data) => {
   }
 
   return await db.sequelize.transaction(async (t) => {
-    const received = await DamageProduct.findOne({
+    const damageRepair = await DamageRepair.findOne({
       where: { Id: rid },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (!received) throw new ApiError(404, "Received product not found");
+    if (!damageRepair)
+      throw new ApiError(404, "DamageRepair product not found");
 
-    const oldQty = Number(received.quantity || 0);
+    const oldQty = Number(damageRepair.quantity || 0);
     if (oldQty < returnQty) {
       throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
     }
 
     const perUnitPurchase =
-      oldQty > 0 ? Number(received.purchase_price || 0) / oldQty : 0;
+      oldQty > 0 ? Number(damageRepair.purchase_price || 0) / oldQty : 0;
     const perUnitSale =
-      oldQty > 0 ? Number(received.sale_price || 0) / oldQty : 0;
+      oldQty > 0 ? Number(damageRepair.sale_price || 0) / oldQty : 0;
 
     const deductPurchase = perUnitPurchase * returnQty;
     const deductSale = perUnitSale * returnQty;
 
-    const realProductId = Number(received.productId);
-    if (!realProductId) {
-      throw new ApiError(400, "DamageProduct.productId missing (Products.Id)");
+    const realDamageProductId = Number(damageRepair.productId);
+    if (!realDamageProductId) {
+      throw new ApiError(400, "DamageRepair productId missing (Products.Id)");
     }
 
-    const result = await DamageRepair.create(
+    const result = await DamageRepaired.create(
       {
-        name: received.name,
-        supplier: received.supplier,
-        remarks: received.remarks,
+        name: damageRepair.name,
+        supplier: damageRepair.supplier,
+        remarks: damageRepair.remarks,
         quantity: returnQty,
         purchase_price: deductPurchase,
         sale_price: deductSale,
-        productId: realProductId, // ✅ Products.Id (FK)
+        productId: realDamageProductId, // ✅ Products.Id (FK)
       },
       { transaction: t },
     );
 
-    await DamageProduct.update(
+    await DamageRepair.update(
       {
         quantity: oldQty - returnQty,
         purchase_price: Math.max(
           0,
-          Number(received.purchase_price || 0) - deductPurchase,
+          Number(damageRepair.purchase_price || 0) - deductPurchase,
         ),
-        sale_price: Math.max(0, Number(received.sale_price || 0) - deductSale),
+        sale_price: Math.max(
+          0,
+          Number(damageRepair.sale_price || 0) - deductSale,
+        ),
       },
-      { where: { Id: received.Id }, transaction: t },
+      { where: { Id: damageRepair.Id }, transaction: t },
+    );
+
+    const damageProduct = await DamageProduct.findOne({
+      where: { Id: realDamageProductId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!damageProduct) throw new ApiError(404, "Damage product not found");
+
+    const receivedProduct = await ReceivedProduct.findOne({
+      where: { Id: damageProduct.productId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!receivedProduct) throw new ApiError(404, "Damage product not found");
+
+    const receivedOldQty = Number(receivedProduct.quantity || 0);
+
+    const realreceivedProductId = Number(receivedOldQty.Id);
+    if (!realDamageProductId) {
+      throw new ApiError(400, "DamageRepair productId missing (Products.Id)");
+    }
+
+    await ReceivedProduct.update(
+      {
+        quantity: receivedOldQty + returnQty,
+      },
+      { where: { Id: receivedProduct.Id }, transaction: t },
     );
 
     return result;
@@ -87,7 +125,7 @@ const getAllFromDB = async (filters, options) => {
   // ✅ Search (ILIKE on searchable fields)
   if (searchTerm && searchTerm.trim()) {
     andConditions.push({
-      [Op.or]: DamageRepairSearchableFields.map((field) => ({
+      [Op.or]: DamageRepairedSearchableFields.map((field) => ({
         [field]: { [Op.iLike]: `%${searchTerm.trim()}%` },
       })),
     });
@@ -124,7 +162,7 @@ const getAllFromDB = async (filters, options) => {
     ? { [Op.and]: andConditions }
     : {};
 
-  const result = await DamageRepair.findAll({
+  const result = await DamageRepaired.findAll({
     where: whereConditions,
     offset: skip,
     limit,
@@ -135,12 +173,12 @@ const getAllFromDB = async (filters, options) => {
         : [["createdAt", "DESC"]],
   });
 
-  // const total = await DamageRepair.count({ where: whereConditions });
+  // const total = await DamageRepaired.count({ where: whereConditions });
 
   // ✅ total count + total quantity (same filters)
   const [count, totalQuantity] = await Promise.all([
-    DamageRepair.count({ where: whereConditions }),
-    DamageRepair.sum("quantity", { where: whereConditions }),
+    DamageRepaired.count({ where: whereConditions }),
+    DamageRepaired.sum("quantity", { where: whereConditions }),
   ]);
 
   return {
@@ -150,7 +188,7 @@ const getAllFromDB = async (filters, options) => {
 };
 
 const getDataById = async (id) => {
-  const result = await DamageRepair.findOne({
+  const result = await DamageRepaired.findOne({
     where: {
       Id: id,
     },
@@ -162,7 +200,7 @@ const getDataById = async (id) => {
 const deleteIdFromDB = async (id) => {
   return await db.sequelize.transaction(async (t) => {
     // 1) Return row খুঁজে বের করো
-    const ret = await DamageRepair.findOne({
+    const ret = await DamageRepaired.findOne({
       where: { Id: id },
       transaction: t,
       lock: t.LOCK.UPDATE,
@@ -174,7 +212,7 @@ const deleteIdFromDB = async (id) => {
     if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
 
     // 2) ReceivedProduct খুঁজে বের করো (Products.Id দিয়ে)
-    const received = await DamageProduct.findOne({
+    const received = await DamageRepair.findOne({
       where: { productId: ret.productId }, // ✅ Products.Id
       transaction: t,
       lock: t.LOCK.UPDATE,
@@ -183,7 +221,7 @@ const deleteIdFromDB = async (id) => {
     if (!received) throw new ApiError(404, "Received product not found");
 
     // 3) stock ফিরিয়ে দাও
-    await DamageProduct.update(
+    await DamageRepair.update(
       {
         quantity: Number(received.quantity || 0) + qty,
         purchase_price:
@@ -196,7 +234,7 @@ const deleteIdFromDB = async (id) => {
     );
 
     // 4) Return row delete
-    await DamageRepair.destroy({
+    await DamageRepaired.destroy({
       where: { Id: id },
       transaction: t,
     });
@@ -219,7 +257,7 @@ const updateOneFromDB = async (id, data) => {
   }
 
   return await db.sequelize.transaction(async (t) => {
-    const received = await DamageProduct.findOne({
+    const received = await DamageRepair.findOne({
       where: { Id: rid },
       transaction: t,
       lock: t.LOCK.UPDATE,
@@ -242,10 +280,10 @@ const updateOneFromDB = async (id, data) => {
 
     const realProductId = Number(received.productId);
     if (!realProductId) {
-      throw new ApiError(400, "DamageProduct.productId missing (Products.Id)");
+      throw new ApiError(400, "DamageRepair.productId missing (Products.Id)");
     }
 
-    const [updatedCount] = await DamageRepair.update(
+    const [updatedCount] = await DamageRepaired.update(
       {
         name: received.name,
         supplier: received.supplier,
@@ -264,7 +302,7 @@ const updateOneFromDB = async (id, data) => {
     );
 
     if (status === "Approved") {
-      await DamageProduct.update(
+      await DamageRepair.update(
         {
           quantity: oldQty - returnQty,
           purchase_price: Math.max(
@@ -310,12 +348,12 @@ const updateOneFromDB = async (id, data) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await DamageRepair.findAll();
+  const result = await DamageRepaired.findAll();
 
   return result;
 };
 
-const DamageRepairService = {
+const DamageRepairedService = {
   getAllFromDB,
   insertIntoDB,
   deleteIdFromDB,
@@ -324,4 +362,4 @@ const DamageRepairService = {
   getAllFromDBWithoutQuery,
 };
 
-module.exports = DamageRepairService;
+module.exports = DamageRepairedService;

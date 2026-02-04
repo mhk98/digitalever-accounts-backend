@@ -27,6 +27,8 @@ const WarehouseRoutes = require("../modules/warehouse/warehouse.routes");
 const LogoRoutes = require("../modules/logo/logo.routes");
 const SalaryRoutes = require("../modules/salary/salary.routes");
 const DamageRepairRoutes = require("../modules/damageRepair/damageRepair.routes");
+const DamageRepairedRoutes = require("../modules/damageRepaired/damageRepaired.routes");
+const PurchaseRequisitionRoutes = require("../modules/purchaseRequision/purchaseRequisition.routes");
 
 const router = express.Router();
 
@@ -39,6 +41,10 @@ const moduleRoutes = [
   {
     path: "/product",
     route: ProductRoutes,
+  },
+  {
+    path: "/purchase-requesition",
+    route: PurchaseRequisitionRoutes,
   },
   {
     path: "/received-product",
@@ -56,6 +62,10 @@ const moduleRoutes = [
   {
     path: "/damage-repair",
     route: DamageRepairRoutes,
+  },
+  {
+    path: "/damage-repaired",
+    route: DamageRepairedRoutes,
   },
   {
     path: "/return-product",
