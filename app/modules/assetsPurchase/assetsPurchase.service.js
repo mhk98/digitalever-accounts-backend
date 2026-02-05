@@ -10,12 +10,13 @@ const Notification = db.notification;
 const User = db.user;
 
 const insertIntoDB = async (payload) => {
-  const { name, quantity, price } = payload;
+  const { name, quantity, price, date } = payload;
 
   const data = {
     name,
     quantity,
     price,
+    date,
     total: Number(price * quantity),
   };
   const result = await AssetsPurchase.create(data);

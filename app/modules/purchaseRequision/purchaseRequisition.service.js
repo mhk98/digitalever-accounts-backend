@@ -6,63 +6,63 @@ const {
   PurchaseRequisitionSearchableFields,
 } = require("./purchaseRequisition.constants");
 
-const PurchaseRequisition = db.PurchaseRequisition;
+const PurchaseRequisition = db.purchaseRequisition;
 const Product = db.product;
 const Notification = db.notification;
 const User = db.user;
 
-const insertIntoDB = async (data) => {
-  const { quantity, productId, userId, remarks, status } = data;
+// const insertIntoDB = async (data) => {
+//   const { quantity, productId, userId, remarks, status } = data;
 
-  const productData = await Product.findOne({
-    where: {
-      Id: productId,
-    },
-  });
+//   const productData = await Product.findOne({
+//     where: {
+//       Id: productId,
+//     },
+//   });
 
-  if (!productData) {
-    throw new ApiError(404, "Product not found");
-  }
+//   if (!productData) {
+//     throw new ApiError(404, "Product not found");
+//   }
 
-  const payload = {
-    name: productData.name,
-    quantity,
-    remarks,
-    purchase_price: productData.purchase_price * quantity,
-    supplier: productData.supplier,
-    productId,
-  };
+//   const payload = {
+//     name: productData.name,
+//     quantity,
+//     remarks,
+//     purchase_price: productData.purchase_price * quantity,
+//     supplier: productData.supplier,
+//     productId,
+//   };
 
-  const [updatedCount] = await PurchaseRequisition.create(payload);
+//   const [updatedCount] = await PurchaseRequisition.create(payload);
 
-  const users = await User.findAll({
-    attributes: ["Id", "role"],
-    where: {
-      Id: { [Op.ne]: userId }, // sender বাদ
-      role: { [Op.in]: ["superAdmin", "admin"] }, // তোমার DB অনুযায়ী ঠিক করো
-    },
-  });
+//   const users = await User.findAll({
+//     attributes: ["Id", "role"],
+//     where: {
+//       Id: { [Op.ne]: userId }, // sender বাদ
+//       role: { [Op.in]: ["superAdmin", "admin"] }, // তোমার DB অনুযায়ী ঠিক করো
+//     },
+//   });
 
-  console.log("users", users.length);
-  if (!users.length) return updatedCount;
+//   console.log("users", users.length);
+//   if (!users.length) return updatedCount;
 
-  const message =
-    status === "Approved"
-      ? "Product purchase request approved"
-      : status || "Product purchase updated";
+//   const message =
+//     status === "Approved"
+//       ? "Product purchase request approved"
+//       : status || "Product purchase updated";
 
-  await Promise.all(
-    users.map((u) =>
-      Notification.create({
-        userId: u.Id,
-        message,
-        url: `http://localhost:5173/purchase-requisition`,
-      }),
-    ),
-  );
+//   await Promise.all(
+//     users.map((u) =>
+//       Notification.create({
+//         userId: u.Id,
+//         message,
+//         url: `http://localhost:5173/purchase-requisition`,
+//       }),
+//     ),
+//   );
 
-  return result;
-};
+//   return result;
+// };
 
 // const getAllFromDB = async (filters, options) => {
 //   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
@@ -123,6 +123,58 @@ const insertIntoDB = async (data) => {
 //     data: result,
 //   };
 // };
+
+const insertIntoDB = async (data) => {
+  const { quantity, productId, userId, remarks, status } = data;
+
+  const productData = await Product.findOne({
+    where: { Id: productId },
+  });
+
+  if (!productData) {
+    throw new ApiError(404, "Product not found");
+  }
+
+  const payload = {
+    name: productData.name,
+    quantity: Number(quantity),
+    remarks: remarks || "",
+    purchase_price:
+      Number(productData.purchase_price || 0) * Number(quantity || 0),
+    supplier: productData.supplier,
+    productId,
+  };
+
+  // ✅ create returns instance (not array)
+  const result = await PurchaseRequisition.create(payload);
+
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId },
+      role: { [Op.in]: ["superAdmin", "admin"] },
+    },
+  });
+
+  if (users.length) {
+    const message =
+      status === "Approved"
+        ? "Product purchase request approved"
+        : remarks || "Product purchase updated";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: `http://localhost:5173/purchase-requisition`,
+        }),
+      ),
+    );
+  }
+
+  return result;
+};
 
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);

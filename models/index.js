@@ -109,6 +109,11 @@ db.salary = require("../app/modules/salary/salary.model")(
   DataTypes,
 );
 db.logo = require("../app/modules/logo/logo.model")(db.sequelize, DataTypes);
+db.purchaseRequisition =
+  require("../app/modules/purchaseRequision/purchaseRequisition.model")(
+    db.sequelize,
+    DataTypes,
+  );
 
 // // Define associations
 // db.purchase.hasOne(db.accounting, { foreignKey: "purchaseId" });

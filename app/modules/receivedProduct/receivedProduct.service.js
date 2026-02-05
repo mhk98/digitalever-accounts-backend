@@ -11,31 +11,27 @@ const Product = db.product;
 const Notification = db.notification;
 const User = db.user;
 
-const insertIntoDB = async (data) => {
-  const { quantity, productId } = data;
+// const insertIntoDB = async (data) => {
+//   const { quantity, productId, date, status, note } = data;
 
-  const productData = await Product.findOne({
-    where: {
-      Id: productId,
-    },
-  });
+//   const productData = await Product.findOne({ where: { Id: productId } });
+//   if (!productData) throw new ApiError(404, "Product not found");
 
-  if (!productData) {
-    throw new ApiError(404, "Product not found");
-  }
+//   const todayStr = new Date().toISOString().slice(0, 10);
+//   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
 
-  const payload = {
-    name: productData.name,
-    quantity,
-    purchase_price: productData.purchase_price * quantity,
-    sale_price: productData.sale_price * quantity,
-    supplier: productData.supplier,
-    productId,
-  };
+//   const payload = {
+//     name: productData.name,
+//     quantity,
+//     purchase_price: productData.purchase_price * quantity,
+//     sale_price: productData.sale_price * quantity,
+//     supplier: productData.supplier,
+//     productId,
+//   };
 
-  const result = await ReceivedProduct.create(payload);
-  return result;
-};
+//   const result = await ReceivedProduct.create(payload);
+//   return result;
+// };
 
 // const getAllFromDB = async (filters, options) => {
 //   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
@@ -96,6 +92,72 @@ const insertIntoDB = async (data) => {
 //     data: result,
 //   };
 // };
+
+const insertIntoDB = async (data) => {
+  const { quantity, productId, date, status, note, userId } = data;
+
+  const productData = await Product.findOne({ where: { Id: productId } });
+  if (!productData) throw new ApiError(404, "Product not found");
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+  // ✅ Approved হলে পুরোনো date-ও allow + save
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে auto Pending
+  const finalStatus = isApproved
+    ? "Approved"
+    : inputDateStr === todayStr
+      ? status || "Pending"
+      : "Pending";
+
+  // ✅ date save হবে শুধুমাত্র:
+  // - date আজকের হলে (যে status-ই হোক)
+  // - অথবা status Approved হলে (পুরোনো date-ও save হবে)
+  const finalDate =
+    isApproved || inputDateStr === todayStr ? inputDateStr : null; // ✅ previous date হলে date insert হবে না
+
+  const payload = {
+    name: productData.name,
+    quantity,
+    purchase_price: Number(productData.purchase_price || 0) * qty,
+    sale_price: Number(productData.sale_price || 0) * qty,
+    supplier: productData.supplier,
+    productId,
+    status: finalStatus,
+    note: note || null,
+    date: finalDate,
+  };
+
+  const result = await ReceivedProduct.create(payload);
+
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId },
+      role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+    },
+  });
+
+  if (users.length) {
+    const message =
+      status === "Approved"
+        ? "Received product request approved"
+        : note || "Please approved my request";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: "/purchase-requisition",
+        }),
+      ),
+    );
+  }
+  return result;
+};
 
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);

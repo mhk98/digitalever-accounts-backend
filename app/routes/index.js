@@ -43,14 +43,13 @@ const moduleRoutes = [
     route: ProductRoutes,
   },
   {
-    path: "/purchase-requesition",
+    path: "/purchase-requisition",
     route: PurchaseRequisitionRoutes,
   },
   {
     path: "/received-product",
     route: ReceivedProductRoutes,
   },
-
   {
     path: "/intransit-product",
     route: InTransitProductRoutes,

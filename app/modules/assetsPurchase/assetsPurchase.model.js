@@ -27,6 +27,10 @@ module.exports = (sequelize, DataTypes) => {
           notEmpty: true, // Ensure price is not empty
         },
       },
+      date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+      },
       note: {
         type: DataTypes.STRING,
         allowNull: true,
