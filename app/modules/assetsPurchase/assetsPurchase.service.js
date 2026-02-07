@@ -10,7 +10,19 @@ const Notification = db.notification;
 const User = db.user;
 
 const insertIntoDB = async (payload) => {
-  const { name, quantity, price, date } = payload;
+  const { name, quantity, price, date, note, status } = payload;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+  // ✅ Approved হলে পুরোনো date-ও allow + save
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে auto Pending
+  const finalStatus = isApproved
+    ? "Approved"
+    : inputDateStr !== todayStr
+      ? "Pending"
+      : null;
 
   const data = {
     name,
@@ -18,6 +30,9 @@ const insertIntoDB = async (payload) => {
     price,
     date,
     total: Number(price * quantity),
+    status: finalStatus || "---",
+    note: note || "---",
+    date: date,
   };
   const result = await AssetsPurchase.create(data);
   return result;
@@ -139,7 +154,7 @@ const deleteIdFromDB = async (id) => {
 //   const p = price === "" || price == null ? undefined : Number(price);
 
 //   const finalStatus = status ? status : "Pending";
-//   const finalNote = finalStatus === "Approved" ? "-" : note;
+//   const finalNote = finalStatus === "Approved" ? "---" : note;
 
 //   const data = {
 //     name: name === "" ? undefined : name,
@@ -197,7 +212,7 @@ const updateOneFromDB = async (id, payload) => {
   const p = price === "" || price == null ? undefined : Number(price);
 
   const finalStatus = status || "Pending";
-  const finalNote = finalStatus === "Approved" ? "-" : note;
+  const finalNote = finalStatus === "Approved" ? "---" : note;
 
   const data = {
     name: name === "" ? undefined : name,

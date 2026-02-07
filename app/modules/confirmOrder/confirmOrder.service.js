@@ -78,7 +78,7 @@ const insertIntoDB = async (data) => {
   //   return result;
   // });
 
-  const { quantity, receivedId } = data;
+  const { quantity, receivedId, date, note, status, userId } = data;
 
   const productData = await Product.findOne({
     where: {
@@ -90,6 +90,19 @@ const insertIntoDB = async (data) => {
     throw new ApiError(404, "Product not found");
   }
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+  // ✅ Approved হলে পুরোনো date-ও allow + save
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে auto Pending
+  const finalStatus = isApproved
+    ? "Approved"
+    : inputDateStr !== todayStr
+      ? "Pending"
+      : null;
+
   const payload = {
     name: productData.name,
     quantity,
@@ -97,9 +110,37 @@ const insertIntoDB = async (data) => {
     sale_price: productData.sale_price * quantity,
     supplier: productData.supplier,
     productId: receivedId,
+    status: finalStatus || "---",
+    note: note || "---",
+    date: date,
   };
 
   const result = await ConfirmOrder.create(payload);
+
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId },
+      role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+    },
+  });
+
+  if (users.length) {
+    const message =
+      status === "Approved"
+        ? "Received product request approved"
+        : note || "Please approved my request";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: "/purchase-requisition",
+        }),
+      ),
+    );
+  }
   return result;
 };
 
@@ -251,7 +292,7 @@ const updateOneFromDB = async (id, data) => {
     sale_price: productData.sale_price * quantity,
     supplier: productData.supplier,
     productId: receivedId,
-    note: status === "Approved" ? "-" : note,
+    note: status === "Approved" ? "---" : note,
     status: status ? status : "Pending",
   };
 

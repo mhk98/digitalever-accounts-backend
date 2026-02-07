@@ -8,8 +8,54 @@ const Notification = db.notification;
 const User = db.user;
 
 const insertIntoDB = async (data) => {
-  console.log("meta", data);
-  const result = await Meta.create(data);
+  const { date, note, status, amount, platform, userId } = data;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+  // ✅ Approved হলে পুরোনো date-ও allow + save
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে auto Pending
+  const finalStatus = isApproved
+    ? "Approved"
+    : inputDateStr !== todayStr
+      ? "Pending"
+      : null;
+
+  const result = await Meta.create({
+    status: finalStatus || "---",
+    note: note || "---",
+    date: date,
+    amount,
+    platform,
+  });
+
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId },
+      role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+    },
+  });
+
+  if (users.length) {
+    const message =
+      status === "Approved"
+        ? "Received product request approved"
+        : note || "Please approved my request";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: "/purchase-requisition",
+        }),
+      ),
+    );
+  }
+
   return result;
 };
 
@@ -108,7 +154,7 @@ const updateOneFromDB = async (id, payload) => {
   const { note, status, amount, userId } = payload;
 
   const data = {
-    note: status === "Approved" ? "-" : note,
+    note: status === "Approved" ? "---" : note,
     status: status ? status : "Pending",
     amount,
   };

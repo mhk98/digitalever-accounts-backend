@@ -3,21 +3,61 @@ const sendResponse = require("../../../shared/sendResponse");
 const pick = require("../../../shared/pick");
 const PayableService = require("./payable.service");
 const { PayableFilterAbleFields } = require("./payable.constants");
+const db = require("../../../models");
+const User = db.user;
 
 const insertIntoDB = catchAsync(async (req, res) => {
-  const { name, amount, remarks, note, status } = req.body;
+  const { name, amount, remarks, note, status, date, userId } = req.body;
+
   const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+  // ✅ Approved হলে পুরোনো date-ও allow + save
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে auto Pending
+  const finalStatus = isApproved
+    ? "Approved"
+    : inputDateStr !== todayStr
+      ? "Pending"
+      : null;
 
   const data = {
     name,
     amount,
     remarks,
-    note,
-    status,
     file,
+    status: finalStatus || "---",
+    note: note || "---",
+    date: date,
   };
 
-  console.log("Payable", data);
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId },
+      role: { [Op.in]: ["superAdmin", "admin", "accountant"] },
+    },
+  });
+
+  if (users.length) {
+    const message =
+      status === "Approved"
+        ? "Payable request approved"
+        : note || "Please approved my request";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: "/payable",
+        }),
+      ),
+    );
+  }
   const result = await PayableService.insertIntoDB(data);
 
   sendResponse(res, {
@@ -58,14 +98,53 @@ const updateOneFromDB = catchAsync(async (req, res) => {
 
   const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+  // ✅ Approved হলে পুরোনো date-ও allow + save
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে auto Pending
+  const finalStatus = isApproved
+    ? "Approved"
+    : inputDateStr !== todayStr
+      ? "Pending"
+      : null;
+
   const data = {
     name,
     amount,
     remarks,
-    note,
-    status,
+    status: finalStatus || "---",
+    note: note || "---",
+    date: date,
     file,
   };
+
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId },
+      role: { [Op.in]: ["superAdmin", "admin", "accountant"] },
+    },
+  });
+
+  if (users.length) {
+    const message =
+      status === "Approved"
+        ? "Payable request approved"
+        : note || "Please approved my request";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: "/payable",
+        }),
+      ),
+    );
+  }
   const result = await PayableService.updateOneFromDB(id, data);
   sendResponse(res, {
     statusCode: 200,

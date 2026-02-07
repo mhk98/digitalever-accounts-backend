@@ -9,11 +9,24 @@ const Notification = db.notification;
 const User = db.user;
 
 const insertIntoDB = async (data) => {
-  const { productId, quantity, price } = data;
+  const { productId, quantity, price, date, note, status } = data;
 
   if (!quantity || quantity <= 0) {
     throw new ApiError(400, "Quantity must be greater than 0");
   }
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+  // ✅ Approved হলে পুরোনো date-ও allow + save
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে auto Pending
+  const finalStatus = isApproved
+    ? "Approved"
+    : inputDateStr !== todayStr
+      ? "Pending"
+      : null;
 
   return await db.sequelize.transaction(async (t) => {
     // ✅ PurchaseProduct (তোমার schema অনুযায়ী Id/productId adjust করো)
@@ -43,6 +56,9 @@ const insertIntoDB = async (data) => {
       price,
       total: price * quantity,
       productId,
+      status: finalStatus || "---",
+      note: note || "---",
+      date: date,
     };
 
     const result = await AssetsSale.create(payload, {
@@ -225,7 +241,7 @@ const updateOneFromDB = async (id, data) => {
       name: purchase.name,
       quantity: saleQty,
       price,
-      note: status === "Approved" ? "-" : note,
+      note: status === "Approved" ? "---" : note,
       status: status ? status : "Pending",
       total: price * quantity,
       productId,

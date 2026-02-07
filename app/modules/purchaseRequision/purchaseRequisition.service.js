@@ -125,7 +125,7 @@ const User = db.user;
 // };
 
 const insertIntoDB = async (data) => {
-  const { quantity, productId, userId, remarks, status } = data;
+  const { quantity, productId, userId, note, date, status } = data;
 
   const productData = await Product.findOne({
     where: { Id: productId },
@@ -138,7 +138,8 @@ const insertIntoDB = async (data) => {
   const payload = {
     name: productData.name,
     quantity: Number(quantity),
-    remarks: remarks || "",
+    note: note || "",
+    date,
     purchase_price:
       Number(productData.purchase_price || 0) * Number(quantity || 0),
     supplier: productData.supplier,
@@ -152,7 +153,7 @@ const insertIntoDB = async (data) => {
     attributes: ["Id", "role"],
     where: {
       Id: { [Op.ne]: userId },
-      role: { [Op.in]: ["superAdmin", "admin"] },
+      role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
     },
   });
 
@@ -292,7 +293,7 @@ const updateOneFromDB = async (id, payload) => {
     remarks,
     purchase_price: productData.purchase_price * quantity,
     sale_price: productData.sale_price * quantity,
-    note: status === "Approved" ? "-" : note,
+    note: status === "Approved" ? "---" : note,
     status: status ? status : "Pending",
     supplier,
     productId,

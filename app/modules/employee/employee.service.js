@@ -120,7 +120,7 @@ const updateOneFromDB = async (id, payload) => {
   } = payload;
 
   const finalStatus = status || "Pending";
-  const finalNote = finalStatus === "Approved" ? "-" : note;
+  const finalNote = finalStatus === "Approved" ? "---" : note;
 
   const data = {
     name,

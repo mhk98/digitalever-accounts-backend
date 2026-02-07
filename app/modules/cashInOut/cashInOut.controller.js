@@ -1,8 +1,10 @@
 const catchAsync = require("../../../shared/catchAsync");
 const sendResponse = require("../../../shared/sendResponse");
 const pick = require("../../../shared/pick");
+const db = require("../../../models");
 const CashInOutService = require("./cashInOut.service");
 const { CashInOutFilterAbleFields } = require("./cashInOut.constants");
+const User = db.user;
 
 const insertIntoDB = catchAsync(async (req, res) => {
   const {
@@ -13,7 +15,11 @@ const insertIntoDB = catchAsync(async (req, res) => {
     bankAccount,
     amount,
     remarks,
+    date,
+    note,
+    status,
     bookId,
+    userId,
   } = req.body;
 
   // ✅ file optional safe
@@ -44,6 +50,19 @@ const insertIntoDB = catchAsync(async (req, res) => {
     throw new ApiError(400, "Amount must be greater than 0");
   }
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+  // ✅ Approved হলে পুরোনো date-ও allow + save
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে auto Pending
+  const finalStatus = isApproved
+    ? "Approved"
+    : inputDateStr !== todayStr
+      ? "Pending"
+      : null;
+
   const data = {
     name: name || null,
     paymentMode,
@@ -52,11 +71,37 @@ const insertIntoDB = catchAsync(async (req, res) => {
     bankAccount: isBank ? bankAccountNumber : null, // ✅ Bank না হলে NULL (not "")
     amount: amountNumber,
     remarks: remarks || "",
+    status: finalStatus || "---",
+    note: note || "---",
+    date: date,
     file, // null allowed
     bookId,
   };
 
-  console.log("cashinout", data);
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId },
+      role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+    },
+  });
+
+  if (users.length) {
+    const message =
+      status === "Approved"
+        ? "Cash in/out request approved"
+        : note || "Please approved my request";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: "/purchase-requisition",
+        }),
+      ),
+    );
+  }
 
   const result = await CashInOutService.insertIntoDB(data);
 
@@ -141,6 +186,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     note,
     status,
     bookId,
+    userId,
   } = req.body;
 
   // ✅ file optional safe (new file না দিলে আগেরটা থাকবে - service এ handle করা ভাল)
@@ -181,7 +227,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     bankName: isBank ? bankName || "" : "", // ✅ Bank না হলে blank
     bankAccount: isBank ? bankAccountNumber : null, // ✅ Bank না হলে NULL
     remarks: remarks ?? undefined,
-    note: status === "Approved" ? "-" : note,
+    note: status === "Approved" ? "---" : note,
     status: status ? status : "Pending",
     bookId: bookId ?? undefined,
     ...(amountNumber !== undefined ? { amount: amountNumber } : {}),
@@ -191,6 +237,31 @@ const updateOneFromDB = catchAsync(async (req, res) => {
   };
 
   const result = await CashInOutService.updateOneFromDB(id, data);
+
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId },
+      role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+    },
+  });
+
+  if (users.length) {
+    const message =
+      status === "Approved"
+        ? "Cash book request approved"
+        : note || "Please approved my request";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: `/book/${bookId}`,
+        }),
+      ),
+    );
+  }
 
   sendResponse(res, {
     statusCode: 200,

@@ -11,7 +11,7 @@ const Notification = db.notification;
 const User = db.user;
 
 const insertIntoDB = async (data) => {
-  const { quantity, receivedId } = data;
+  const { quantity, receivedId, date, note, status, userId } = data;
 
   console.log("InTransit", data);
 
@@ -22,6 +22,19 @@ const insertIntoDB = async (data) => {
   if (!returnQty || returnQty <= 0) {
     throw new ApiError(400, "Quantity must be greater than 0");
   }
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+  // ✅ Approved হলে পুরোনো date-ও allow + save
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে auto Pending
+  const finalStatus = isApproved
+    ? "Approved"
+    : inputDateStr !== todayStr
+      ? "Pending"
+      : null;
 
   return await db.sequelize.transaction(async (t) => {
     const received = await ReceivedProduct.findOne({
@@ -61,6 +74,9 @@ const insertIntoDB = async (data) => {
         purchase_price: deductPurchase,
         sale_price: deductSale,
         productId: realProductId, // ✅ Products.Id (FK)
+        status: finalStatus || "---",
+        note: note || "---",
+        date: date,
       },
       { transaction: t },
     );
@@ -76,6 +92,31 @@ const insertIntoDB = async (data) => {
       },
       { where: { Id: received.Id }, transaction: t },
     );
+
+    const users = await User.findAll({
+      attributes: ["Id", "role"],
+      where: {
+        Id: { [Op.ne]: userId },
+        role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+      },
+    });
+
+    if (users.length) {
+      const message =
+        status === "Approved"
+          ? "Received product request approved"
+          : note || "Please approved my request";
+
+      await Promise.all(
+        users.map((u) =>
+          Notification.create({
+            userId: u.Id,
+            message,
+            url: "/purchase-requisition",
+          }),
+        ),
+      );
+    }
 
     return result;
   });
@@ -257,7 +298,7 @@ const updateOneFromDB = async (id, data) => {
         supplier: received.supplier,
         quantity: returnQty,
         purchase_price: deductPurchase,
-        note: status === "Approved" ? "-" : note,
+        note: status === "Approved" ? "---" : note,
         status: status ? status : "Pending",
         sale_price: deductSale,
         productId: realProductId, // ✅ Products.Id (FK)

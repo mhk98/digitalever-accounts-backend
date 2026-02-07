@@ -1,14 +1,39 @@
 const catchAsync = require("../../../shared/catchAsync");
 const sendResponse = require("../../../shared/sendResponse");
 const pick = require("../../../shared/pick");
+const db = require("../../../models");
 const PettyCashService = require("./pettyCash.service");
 const { pettyCashFilterAbleFields } = require("./pettyCash.constants");
+const User = db.user;
 
 const insertIntoDB = catchAsync(async (req, res) => {
-  const { name, paymentMode, bankName, paymentStatus, amount, remarks } =
-    req.body;
+  const {
+    name,
+    paymentMode,
+    bankName,
+    paymentStatus,
+    amount,
+    remarks,
+    note,
+    date,
+    status,
+    userId,
+  } = req.body;
   // const file = req.file.path.replace(/\\/g, "/");
   const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+  // ✅ Approved হলে পুরোনো date-ও allow + save
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে auto Pending
+  const finalStatus = isApproved
+    ? "Approved"
+    : inputDateStr !== todayStr
+      ? "Pending"
+      : null;
 
   const data = {
     name,
@@ -18,9 +43,36 @@ const insertIntoDB = catchAsync(async (req, res) => {
     amount,
     remarks,
     file,
+    status: finalStatus || "---",
+    note: note || "---",
+    date: date,
   };
 
-  console.log("PettyCash", data);
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId },
+      role: { [Op.in]: ["superAdmin", "admin", "accountant"] },
+    },
+  });
+
+  if (users.length) {
+    const message =
+      status === "Approved"
+        ? "Petty cash request approved"
+        : note || "Please approved my request";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: "/purchase-requisition",
+        }),
+      ),
+    );
+  }
+
   const result = await PettyCashService.insertIntoDB(data);
 
   sendResponse(res, {
@@ -66,6 +118,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     note,
     status,
     remarks,
+    userId,
   } = req.body;
   // const file = req.file.path.replace(/\\/g, "/");
   const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
@@ -76,12 +129,38 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     bankName,
     paymentStatus,
     amount,
-    note: status === "Approved" ? "-" : note,
+    note: status === "Approved" ? "---" : note,
     status: status ? status : "Pending",
     remarks,
     file,
   };
   const result = await PettyCashService.updateOneFromDB(id, data);
+
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId },
+      role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+    },
+  });
+
+  if (users.length) {
+    const message =
+      status === "Approved"
+        ? "Petty cash request approved"
+        : note || "Please approved my request";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: "/petty-cash",
+        }),
+      ),
+    );
+  }
+
   sendResponse(res, {
     statusCode: 200,
     success: true,

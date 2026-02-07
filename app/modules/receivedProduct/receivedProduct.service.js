@@ -108,26 +108,20 @@ const insertIntoDB = async (data) => {
   // ✅ current date না হলে auto Pending
   const finalStatus = isApproved
     ? "Approved"
-    : inputDateStr === todayStr
-      ? status || "Pending"
-      : "Pending";
-
-  // ✅ date save হবে শুধুমাত্র:
-  // - date আজকের হলে (যে status-ই হোক)
-  // - অথবা status Approved হলে (পুরোনো date-ও save হবে)
-  const finalDate =
-    isApproved || inputDateStr === todayStr ? inputDateStr : null; // ✅ previous date হলে date insert হবে না
+    : inputDateStr !== todayStr
+      ? "Pending"
+      : null;
 
   const payload = {
     name: productData.name,
     quantity,
-    purchase_price: Number(productData.purchase_price || 0) * qty,
-    sale_price: Number(productData.sale_price || 0) * qty,
+    purchase_price: Number(productData.purchase_price || 0) * quantity,
+    sale_price: Number(productData.sale_price || 0) * quantity,
     supplier: productData.supplier,
     productId,
-    status: finalStatus,
-    note: note || null,
-    date: finalDate,
+    status: finalStatus || "---",
+    note: note || "---",
+    date: date,
   };
 
   const result = await ReceivedProduct.create(payload);
@@ -256,7 +250,7 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { quantity, productId, supplier, note, status, userId } = payload;
+  const { quantity, productId, supplier, note, status, date, userId } = payload;
 
   const productData = await Product.findOne({
     where: {
@@ -273,10 +267,12 @@ const updateOneFromDB = async (id, payload) => {
     quantity,
     purchase_price: productData.purchase_price * quantity,
     sale_price: productData.sale_price * quantity,
-    note: status === "Approved" ? "-" : note,
-    status: status ? status : "Pending",
     supplier,
     productId,
+
+    note: status === "Approved" ? "---" : note,
+    status: status ? status : "Pending",
+    date,
   };
 
   const [updatedCount] = await ReceivedProduct.update(data, {
@@ -299,7 +295,7 @@ const updateOneFromDB = async (id, payload) => {
   const message =
     finalStatus === "Approved"
       ? "Purchase  product request approved"
-      : finalNote || "Purchase product updated";
+      : finalNote || "Please approved my request";
 
   await Promise.all(
     users.map((u) =>
