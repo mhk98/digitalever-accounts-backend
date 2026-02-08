@@ -7,6 +7,8 @@ const Sale = db.sale;
 const bcrypt = require("bcryptjs");
 const ApiError = require("../../../error/ApiError");
 const { UserSearchableFields } = require("./user.constants");
+const sendEmail = require("../../middlewares/sendEmail");
+const welcomeCredentialsTemplate = require("../../utils/emailTemplates/welcomeCredentials");
 
 const login = async (buyerData) => {
   const { Email, Password } = buyerData;
@@ -50,18 +52,49 @@ const login = async (buyerData) => {
   return result;
 };
 
-const register = async (userData) => {
-  const { Email } = userData;
+// const register = async (userData) => {
+//   const { Email } = userData;
 
-  const isUserExist = await User.findOne({
-    where: { Email: Email },
+//   const isUserExist = await User.findOne({
+//     where: { Email: Email },
+//   });
+
+//   if (isUserExist) {
+//     throw new ApiError(409, "User already exist");
+//   }
+
+//   const result = await User.create(userData);
+
+//   return result;
+// };
+
+const register = async (userData) => {
+  const { Email, Password, Name } = userData;
+
+  const isUserExist = await User.findOne({ where: { Email } });
+  if (isUserExist) throw new ApiError(409, "User already exist");
+
+  // ✅ user create
+  const result = await User.create(userData);
+
+  // ✅ send email after success
+  const htmlContent = welcomeCredentialsTemplate({
+    name: Name || "User",
+    email: Email,
+    password: Password, // ⚠️ plain password দরকার
+    loginUrl: "https://accounts.digitalever.com.bd/login", // চাইলে পরিবর্তন করো
   });
 
-  if (isUserExist) {
-    throw new ApiError(409, "User already exist");
-  }
+  const sent = await sendEmail({
+    to: Email,
+    subject: "Your Accounts Software Credentials",
+    htmlContent,
+  });
 
-  const result = await User.create(userData);
+  // optional: email fail হলে log/handle
+  if (!sent) {
+    console.log("⚠️ User created but email not sent:", Email);
+  }
 
   return result;
 };

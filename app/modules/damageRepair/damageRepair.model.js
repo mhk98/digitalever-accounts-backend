@@ -45,6 +45,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+      },
       remarks: {
         type: DataTypes.STRING,
         allowNull: true,

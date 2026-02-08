@@ -135,10 +135,24 @@ const insertIntoDB = async (data) => {
     throw new ApiError(404, "Product not found");
   }
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+  // ✅ Approved হলে পুরোনো date-ও allow + save
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে auto Pending
+  const finalStatus = isApproved
+    ? "Approved"
+    : inputDateStr !== todayStr
+      ? "Pending"
+      : "Pending";
+
   const payload = {
     name: productData.name,
     quantity: Number(quantity),
     note: note || "",
+    status: finalStatus || "---",
     date,
     purchase_price:
       Number(productData.purchase_price || 0) * Number(quantity || 0),
@@ -160,8 +174,8 @@ const insertIntoDB = async (data) => {
   if (users.length) {
     const message =
       status === "Approved"
-        ? "Product purchase request approved"
-        : remarks || "Product purchase updated";
+        ? "Product purchase requision request approved"
+        : note || "Product purchase requisition request";
 
     await Promise.all(
       users.map((u) =>
@@ -211,7 +225,7 @@ const getAllFromDB = async (filters, options) => {
     end.setHours(23, 59, 59, 999);
 
     andConditions.push({
-      createdAt: { [Op.between]: [start, end] },
+      date: { [Op.between]: [start, end] },
     });
   }
 
@@ -274,8 +288,7 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { quantity, productId, supplier, note, remarks, status, userId } =
-    payload;
+  const { quantity, productId, supplier, note, date, status, userId } = payload;
 
   const productData = await Product.findOne({
     where: {
@@ -287,14 +300,27 @@ const updateOneFromDB = async (id, payload) => {
     throw new ApiError(404, "Product not found");
   }
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+  // ✅ Approved হলে পুরোনো date-ও allow + save
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে auto Pending
+  const finalStatus = isApproved
+    ? "Approved"
+    : inputDateStr !== todayStr
+      ? "Pending"
+      : "Pending";
+
   const data = {
     name: productData.name,
     quantity,
-    remarks,
     purchase_price: productData.purchase_price * quantity,
     sale_price: productData.sale_price * quantity,
     note: status === "Approved" ? "---" : note,
-    status: status ? status : "Pending",
+    status: finalStatus,
+    date,
     supplier,
     productId,
   };
@@ -318,8 +344,8 @@ const updateOneFromDB = async (id, payload) => {
 
   const message =
     status === "Approved"
-      ? "Product purchase request approved"
-      : status || "Product purchase updated";
+      ? "Product purchase requision request approved"
+      : note || "Product purchase requisition request";
 
   await Promise.all(
     users.map((u) =>

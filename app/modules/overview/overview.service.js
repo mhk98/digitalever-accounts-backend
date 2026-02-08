@@ -40,7 +40,7 @@ const buildDateWhere = (from, to) => {
   end.setHours(23, 59, 59, 999);
 
   return {
-    createdAt: { [Op.between]: [start, end] },
+    date: { [Op.between]: [start, end] },
   };
 };
 

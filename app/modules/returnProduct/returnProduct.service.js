@@ -153,7 +153,7 @@ const getAllFromDB = async (filters, options) => {
     end.setHours(23, 59, 59, 999);
 
     andConditions.push({
-      createdAt: { [Op.between]: [start, end] },
+      date: { [Op.between]: [start, end] },
     });
   }
 

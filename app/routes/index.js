@@ -29,6 +29,7 @@ const SalaryRoutes = require("../modules/salary/salary.routes");
 const DamageRepairRoutes = require("../modules/damageRepair/damageRepair.routes");
 const DamageRepairedRoutes = require("../modules/damageRepaired/damageRepaired.routes");
 const PurchaseRequisitionRoutes = require("../modules/purchaseRequision/purchaseRequisition.routes");
+const AssetsRequisitionRoutes = require("../modules/assetsRequisition/assetsRequisition.routes");
 
 const router = express.Router();
 
@@ -81,6 +82,10 @@ const moduleRoutes = [
   {
     path: "/meta",
     route: MetaRoutes,
+  },
+  {
+    path: "/assets-requisition",
+    route: AssetsRequisitionRoutes,
   },
   {
     path: "/assets-purchase",

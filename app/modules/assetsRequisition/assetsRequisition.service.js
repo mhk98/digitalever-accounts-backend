@@ -3,14 +3,15 @@ const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const {
-  AssetsPurchaseSearchableFields,
-} = require("./assetsPurchase.constants");
-const AssetsPurchase = db.assetsPurchase;
+  AssetsRequisitionSearchableFields,
+} = require("./assetsRequisition.constants");
+const AssetsRequisition = db.assetsRequisition;
 const Notification = db.notification;
 const User = db.user;
 
 const insertIntoDB = async (payload) => {
-  const { name, quantity, price, date, note, status } = payload;
+  const { name, quantity, price, date, note, status, userId } = payload;
+
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
 
@@ -22,7 +23,7 @@ const insertIntoDB = async (payload) => {
     ? "Approved"
     : inputDateStr !== todayStr
       ? "Pending"
-      : null;
+      : "Pending";
 
   const data = {
     name,
@@ -34,7 +35,33 @@ const insertIntoDB = async (payload) => {
     note: note || "---",
     date: date,
   };
-  const result = await AssetsPurchase.create(data);
+  const result = await AssetsRequisition.create(data);
+
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId },
+      role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+    },
+  });
+
+  if (users.length) {
+    const message =
+      status === "Approved"
+        ? "Assets requisition request approved"
+        : note || "Please accpet my assets requisition request";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: `http://localhost:5173/assets-requisition`,
+        }),
+      ),
+    );
+  }
+
   return result;
 };
 
@@ -48,7 +75,7 @@ const getAllFromDB = async (filters, options) => {
   // ✅ Search (ILIKE on searchable fields)
   if (searchTerm && searchTerm.trim()) {
     andConditions.push({
-      [Op.or]: AssetsPurchaseSearchableFields.map((field) => ({
+      [Op.or]: AssetsRequisitionSearchableFields.map((field) => ({
         [field]: { [Op.iLike]: `%${searchTerm.trim()}%` },
       })),
     });
@@ -85,7 +112,7 @@ const getAllFromDB = async (filters, options) => {
     ? { [Op.and]: andConditions }
     : {};
 
-  const result = await AssetsPurchase.findAll({
+  const result = await AssetsRequisition.findAll({
     where: whereConditions,
     offset: skip,
     limit,
@@ -96,11 +123,11 @@ const getAllFromDB = async (filters, options) => {
         : [["createdAt", "DESC"]],
   });
 
-  // const total = await AssetsPurchase.count({ where: whereConditions });
+  // const total = await AssetsRequisition.count({ where: whereConditions });
 
   const [count, totalQuantity] = await Promise.all([
-    AssetsPurchase.count({ where: whereConditions }),
-    AssetsPurchase.sum("quantity", { where: whereConditions }),
+    AssetsRequisition.count({ where: whereConditions }),
+    AssetsRequisition.sum("quantity", { where: whereConditions }),
   ]);
 
   return {
@@ -110,7 +137,7 @@ const getAllFromDB = async (filters, options) => {
 };
 
 const getDataById = async (id) => {
-  const result = await AssetsPurchase.findOne({
+  const result = await AssetsRequisition.findOne({
     where: {
       Id: id,
     },
@@ -120,7 +147,7 @@ const getDataById = async (id) => {
 };
 
 // const removeIdFromDB = async (id) => {
-//   const result = await AssetsPurchase.findOne({
+//   const result = await AssetsRequisition.findOne({
 //     where: {
 //       Id: id,
 //     },
@@ -138,7 +165,7 @@ const getDataById = async (id) => {
 // };
 
 const deleteIdFromDB = async (id) => {
-  const result = await AssetsPurchase.destroy({
+  const result = await AssetsRequisition.destroy({
     where: {
       Id: id,
     },
@@ -165,11 +192,11 @@ const deleteIdFromDB = async (id) => {
 //     total: typeof p === "number" && typeof q === "number" ? p * q : undefined,
 //   };
 
-//   console.log("assetsPurchasePayload", payload);
-//   console.log("assetsPurchaseData", data, id);
+//   console.log("AssetsRequisitionPayload", payload);
+//   console.log("AssetsRequisitionData", data, id);
 
 //   // ✅ update first
-//   const [updatedCount] = await AssetsPurchase.update(data, {
+//   const [updatedCount] = await AssetsRequisition.update(data, {
 //     where: { Id: id },
 //   });
 
@@ -204,26 +231,36 @@ const deleteIdFromDB = async (id) => {
 // };
 
 const updateOneFromDB = async (id, payload) => {
-  const { name, quantity, price, note, status, userId } = payload;
+  const { name, quantity, price, note, date, status, userId } = payload;
 
   console.log("data", payload);
 
   const q = quantity === "" || quantity == null ? undefined : Number(quantity);
   const p = price === "" || price == null ? undefined : Number(price);
 
-  const finalStatus = status || "Pending";
-  const finalNote = finalStatus === "Approved" ? "---" : note;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+  // ✅ Approved হলে পুরোনো date-ও allow + save
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে auto Pending
+  const finalStatus = isApproved
+    ? "Approved"
+    : inputDateStr !== todayStr
+      ? "Pending"
+      : "Pending";
 
   const data = {
     name: name === "" ? undefined : name,
     quantity: q,
     price: p,
-    note: finalNote,
+    note: finalNote || "---",
     status: finalStatus,
     total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
   };
 
-  const [updatedCount] = await AssetsPurchase.update(data, {
+  const [updatedCount] = await AssetsRequisition.update(data, {
     where: { Id: id },
   });
 
@@ -267,12 +304,12 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await AssetsPurchase.findAll();
+  const result = await AssetsRequisition.findAll();
 
   return result;
 };
 
-const AssetsPurchaseService = {
+const AssetsRequisitionService = {
   getAllFromDB,
   insertIntoDB,
   deleteIdFromDB,
@@ -281,4 +318,4 @@ const AssetsPurchaseService = {
   getAllFromDBWithoutQuery,
 };
 
-module.exports = AssetsPurchaseService;
+module.exports = AssetsRequisitionService;

@@ -45,6 +45,18 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      warrantyValue: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
+      warrantyUnit: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+      },
       status: {
         type: DataTypes.STRING,
         allowNull: true,

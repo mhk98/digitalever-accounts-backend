@@ -5,7 +5,7 @@ const ConfirmOrderFilterAbleFileds = [
   "name",
 ];
 
-const ConfirmOrderSearchableFields = ["searchTerm", "name"];
+const ConfirmOrderSearchableFields = ["name"];
 
 module.exports = {
   ConfirmOrderFilterAbleFileds,

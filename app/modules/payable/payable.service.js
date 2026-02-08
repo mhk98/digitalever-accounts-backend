@@ -44,7 +44,7 @@ const getAllFromDB = async (filters, options) => {
     end.setHours(23, 59, 59, 999); // include full end day
 
     andConditions.push({
-      createdAt: { [Op.between]: [start, end] },
+      date: { [Op.between]: [start, end] },
     });
   } else if (startDate) {
     const start = new Date(startDate);

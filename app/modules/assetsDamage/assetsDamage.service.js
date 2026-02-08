@@ -9,7 +9,7 @@ const Notification = db.notification;
 const User = db.user;
 
 const insertIntoDB = async (data) => {
-  const { productId, quantity, price } = data;
+  const { productId, quantity, price, status } = data;
 
   if (!quantity || quantity <= 0) {
     throw new ApiError(400, "Quantity must be greater than 0");
@@ -116,7 +116,7 @@ const getAllFromDB = async (filters, options) => {
     end.setHours(23, 59, 59, 999);
 
     andConditions.push({
-      createdAt: { [Op.between]: [start, end] },
+      date: { [Op.between]: [start, end] },
     });
   }
 

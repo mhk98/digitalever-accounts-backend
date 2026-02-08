@@ -18,6 +18,10 @@ module.exports = (sequelize, DataTypes) => {
           notEmpty: true, // Ensure name is not empty
         },
       },
+      date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+      },
       purchase_price: {
         type: DataTypes.INTEGER(10),
         allowNull: false,

@@ -114,6 +114,11 @@ db.purchaseRequisition =
     db.sequelize,
     DataTypes,
   );
+db.assetsRequisition =
+  require("../app/modules/assetsRequisition/assetsRequisition.model")(
+    db.sequelize,
+    DataTypes,
+  );
 
 // // Define associations
 // db.purchase.hasOne(db.accounting, { foreignKey: "purchaseId" });
