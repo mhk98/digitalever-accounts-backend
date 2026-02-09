@@ -30,6 +30,7 @@ const DamageRepairRoutes = require("../modules/damageRepair/damageRepair.routes"
 const DamageRepairedRoutes = require("../modules/damageRepaired/damageRepaired.routes");
 const PurchaseRequisitionRoutes = require("../modules/purchaseRequision/purchaseRequisition.routes");
 const AssetsRequisitionRoutes = require("../modules/assetsRequisition/assetsRequisition.routes");
+const PosReportRoutes = require("../modules/posReport/posReport.routes");
 
 const router = express.Router();
 
@@ -154,6 +155,10 @@ const moduleRoutes = [
   {
     path: "/logo",
     route: LogoRoutes,
+  },
+  {
+    path: "/pos-report",
+    route: PosReportRoutes,
   },
   {
     path: "/notification",

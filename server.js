@@ -3,7 +3,7 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
 const http = require("http");
-require("./models"); // Your database models (e.g., Sequelize models)
+require("./models");
 require("dotenv").config();
 const routes = require("./app/routes"); // Import your routes
 const ApiError = require("./error/ApiError");

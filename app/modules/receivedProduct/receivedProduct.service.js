@@ -115,8 +115,8 @@ const insertIntoDB = async (data) => {
   const payload = {
     name: productData.name,
     quantity,
-    purchase_price: Number(productData.purchase_price || 0) * quantity,
-    sale_price: Number(productData.sale_price || 0) * quantity,
+    purchase_price: Number(productData.purchase_price || 0),
+    sale_price: Number(productData.sale_price || 0),
     supplier: productData.supplier,
     productId,
     status: finalStatus || "---",
