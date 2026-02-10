@@ -177,7 +177,7 @@ db.assetsDamage.belongsTo(db.assetsPurchase, { foreignKey: "productId" });
 
 // Sync the database
 db.sequelize
-  .sync({ force: false })
+  .sync({ force: true })
   .then(() => {
     console.log("Connection re-synced successfully");
   })

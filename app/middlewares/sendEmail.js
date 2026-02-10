@@ -9,13 +9,12 @@ const sendEmail = async ({
   filePath = null,
 }) => {
   const transporter = nodemailer.createTransport({
-    // host: "eaconsultancy.info",
     host: "premium15.web-hosting.com",
     port: 465,
     secure: true,
     auth: {
       user: "ceo@eaconsultancy.info",
-      pass: "EduAnchorCEO2911%",
+      pass: "EacEac2911%..",
     },
   });
 
