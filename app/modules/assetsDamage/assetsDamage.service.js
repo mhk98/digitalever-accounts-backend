@@ -9,7 +9,7 @@ const Notification = db.notification;
 const User = db.user;
 
 const insertIntoDB = async (data) => {
-  const { productId, quantity, price, status } = data;
+  const { productId, quantity, price, status, date, note } = data;
 
   if (!quantity || quantity <= 0) {
     throw new ApiError(400, "Quantity must be greater than 0");
@@ -295,7 +295,7 @@ const updateOneFromDB = async (id, data) => {
           {
             userId: u.Id,
             message,
-            url: `http://localhost:5173/assets-damage`,
+            url: `/localhost:5173/assets-damage`,
           },
           { transaction: t },
         ),

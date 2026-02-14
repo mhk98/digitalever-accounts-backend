@@ -342,7 +342,7 @@ const updateOneFromDB = async (id, data) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `http://localhost:5173/damage-product`,
+          url: `/localhost:5173/damage-product`,
         }),
       ),
     );

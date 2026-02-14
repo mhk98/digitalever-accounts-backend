@@ -2,8 +2,8 @@ const validator = require("validator");
 const bcrypt = require("bcryptjs");
 
 module.exports = (sequelize, DataTypes) => {
-  const ReceivedProduct = sequelize.define(
-    "ReceivedProduct",
+  const WarrantyProduct = sequelize.define(
+    "WarrantyProduct",
     {
       Id: {
         type: DataTypes.INTEGER(10),
@@ -25,32 +25,16 @@ module.exports = (sequelize, DataTypes) => {
           notEmpty: true, // Ensure name is not empty
         },
       },
-
-      purchase_price: {
-        type: DataTypes.INTEGER(10),
-        allowNull: false,
-        validate: {
-          notEmpty: true, // Ensure name is not empty
-        },
-      },
-      sale_price: {
-        type: DataTypes.INTEGER(10),
-        allowNull: false,
-        validate: {
-          notEmpty: true, // Ensure name is not empty
-        },
-      },
-
       quantity: {
         type: DataTypes.INTEGER(10),
         defaultValue: 0,
         allowNull: true,
       },
-      supplier: {
-        type: DataTypes.STRING,
+      warrantyValue: {
+        type: DataTypes.INTEGER,
         allowNull: true,
       },
-      note: {
+      warrantyUnit: {
         type: DataTypes.STRING,
         allowNull: true,
       },
@@ -73,5 +57,5 @@ module.exports = (sequelize, DataTypes) => {
     },
   );
 
-  return ReceivedProduct;
+  return WarrantyProduct;
 };

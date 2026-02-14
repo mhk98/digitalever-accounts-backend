@@ -115,8 +115,9 @@ const insertIntoDB = async (data) => {
   const payload = {
     name: productData.name,
     quantity,
-    purchase_price: Number(productData.purchase_price || 0),
-    sale_price: Number(productData.sale_price || 0),
+    purchase_price: productData.purchase_price * quantity,
+    sale_price: productData.sale_price * quantity,
+    price: Number(productData.sale_price || 0),
     supplier: productData.supplier,
     productId,
     status: finalStatus || "---",
@@ -262,6 +263,22 @@ const updateOneFromDB = async (id, payload) => {
     throw new ApiError(404, "Product not found");
   }
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+  const isApproved = String(status || "").trim() === "Approved";
+
+  const finalStatus = isApproved
+    ? "Approved"
+    : inputDateStr !== todayStr
+      ? "Pending"
+      : null;
+
+  const message =
+    finalStatus === "Approved"
+      ? "Purchase  product request approved"
+      : note || "Please approved my request";
+
   const data = {
     name: productData.name,
     quantity,
@@ -292,17 +309,12 @@ const updateOneFromDB = async (id, payload) => {
   console.log("users", users.length);
   if (!users.length) return updatedCount;
 
-  const message =
-    finalStatus === "Approved"
-      ? "Purchase  product request approved"
-      : finalNote || "Please approved my request";
-
   await Promise.all(
     users.map((u) =>
       Notification.create({
         userId: u.Id,
         message,
-        url: `http://localhost:5173/purchase-product`,
+        url: `/localhost:5173/purchase-product`,
       }),
     ),
   );

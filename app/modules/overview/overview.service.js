@@ -86,11 +86,11 @@ const getOverviewSummaryFromDB = async (filters) => {
     sumField(AssetsDamage, "quantity", dateWhere),
 
     // Inventory
-    sumField(ReceivedProduct, "quantity", dateWhere),
-    sumField(PurchaseReturnProduct, "quantity", dateWhere),
-    sumField(InTransitProduct, "quantity", dateWhere),
-    sumField(ReturnProduct, "quantity", dateWhere),
-    sumField(DamageProduct, "quantity", dateWhere),
+    sumField(ReceivedProduct, "purchase_price", dateWhere),
+    sumField(PurchaseReturnProduct, "purchase_price", dateWhere),
+    sumField(InTransitProduct, "purchase_price", dateWhere),
+    sumField(ReturnProduct, "purchase_price", dateWhere),
+    sumField(DamageProduct, "purchase_price", dateWhere),
 
     // Cash In/Out (same table, different status)
     sumField(CashInOut, "amount", { ...dateWhere, paymentStatus: "CashIn" }),
@@ -102,19 +102,29 @@ const getOverviewSummaryFromDB = async (filters) => {
     totalPurchaseAmount - (totalSaleAmount + totalDamageAmount),
   );
 
-  const totalInventoryExpense = n(
-    totalPurchaseReturnProductAmount +
-      totalIntransitProductAmount +
-      totalDamageProductProductAmount,
-  );
+  // const totalInventoryExpense = n(
+  //   totalPurchaseReturnProductAmount +
+  //     totalIntransitProductAmount +
+  //     totalDamageProductProductAmount,
+  // );
 
   const inventoryStock_AfterAdd_SalesReturnProduct = n(
     totalReceivedProductAmount + totalSalesReturnProductAmount,
   );
 
-  const remainingInventoryStock_AfterMinus_InventoryExpense = n(
-    inventoryStock_AfterAdd_SalesReturnProduct - totalInventoryExpense,
-  );
+  // const remainingInventoryStock_AfterMinus_InventoryExpense = n(
+  //   inventoryStock_AfterAdd_SalesReturnProduct - totalInventoryExpense,
+  // );
+
+  // console.log("totalInventoryExpense", totalInventoryExpense);
+  // console.log(
+  //   "inventoryStock_AfterAdd_SalesReturnProduct",
+  //   inventoryStock_AfterAdd_SalesReturnProduct,
+  // );
+  // console.log(
+  //   "remainingInventoryStock_AfterMinus_InventoryExpense",
+  //   remainingInventoryStock_AfterMinus_InventoryExpense,
+  // );
 
   return {
     // filters echo (optional)
@@ -132,7 +142,7 @@ const getOverviewSummaryFromDB = async (filters) => {
     totalIntransitProductAmount,
     totalSalesReturnProductAmount,
     totalDamageProductProductAmount,
-    remainingInventoryStock_AfterMinus_InventoryExpense,
+    inventoryStock_AfterAdd_SalesReturnProduct,
 
     // Expenses & Accounts
     totalMetaAmount,

@@ -7,6 +7,7 @@ const PosReport = db.posReport;
 const ReceivedProduct = db.receivedProduct;
 const Notification = db.notification;
 const User = db.user;
+const WarrantyProduct = db.warrantyProduct;
 
 // const insertIntoDB = async (data) => {
 //   const {
@@ -132,6 +133,127 @@ const User = db.user;
 //   });
 // };
 
+// const insertIntoDB = async (payload) => {
+//   const {
+//     name,
+//     date,
+//     note,
+//     mobile,
+//     address,
+//     subTotal,
+//     discount,
+//     deliveryCharge,
+//     total,
+//     paidAmount,
+//     // dueAmount,
+//     warrantyValue,
+//     warrantyUnit,
+//     status,
+//     items,
+//   } = payload || {};
+
+//   console.log("pos", payload);
+
+//   if (!name) throw new ApiError(400, "Customer name is required");
+//   if (!date) throw new ApiError(400, "Sell date is required");
+//   if (!Array.isArray(items) || items.length === 0)
+//     throw new ApiError(400, "Items are required");
+
+//   // Basic sanitize
+//   const finalPaid = Number(paidAmount) || 0;
+//   const finalTotal = Number(total) || 0;
+//   const finalDue = Math.max(0, finalTotal - finalPaid);
+
+//   const finalStatus =
+//     String(status || "").trim() || (finalDue > 0 ? "DUE" : "PAID");
+
+//   const todayStr = new Date().toISOString().slice(0, 10);
+//   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+//   // ✅ Approved হলে পুরোনো date-ও allow + save
+//   const isApproved = String(status || "").trim() === "Approved";
+
+//   // ✅ current date না হলে auto Pending
+//   const warrantyProductStatus = isApproved
+//     ? "Approved"
+//     : inputDateStr !== todayStr
+//       ? "Pending"
+//       : null;
+
+//   return await db.sequelize.transaction(async (t) => {
+//     // ✅ 1) Stock check + deduct
+//     for (const it of items) {
+//       const rid = Number(it.Id);
+//       const qty = Number(it.qty);
+
+//       if (!rid) throw new ApiError(400, "received_product_id is required");
+//       if (!qty || qty <= 0) throw new ApiError(400, "qty must be > 0");
+
+//       const received = await ReceivedProduct.findOne({
+//         where: { Id: rid },
+//         transaction: t,
+//         lock: t.LOCK.UPDATE,
+//       });
+
+//       if (!received)
+//         throw new ApiError(404, `Received product not found: ${rid}`);
+
+//       const oldQty = Number(received.quantity || 0);
+//       if (oldQty < qty) {
+//         throw new ApiError(
+//           400,
+//           `Not enough stock for received_product_id=${rid}. Available: ${oldQty}`,
+//         );
+//       }
+
+//       // ✅ quantity কমানো
+//       await ReceivedProduct.update(
+//         { quantity: oldQty - qty },
+//         { where: { Id: received.Id }, transaction: t },
+//       );
+
+//       // (Optional) যদি purchase_price/sale_price total হিসাব করে রাখো, এখানে pro-rate করে কমাতে পারো
+//       // কিন্তু safest: শুধু quantity কমাও, price totals অন্যভাবে handle করো।
+//     }
+
+//     // ✅ 2) PosReport create (items JSON সহ)
+//     const result = await PosReport.create(
+//       {
+//         name,
+//         date,
+//         note: note || null,
+//         mobile: mobile || null,
+//         address: address || null,
+
+//         subTotal: Number(subTotal) || 0,
+//         discount: Number(discount) || 0,
+//         deliveryCharge: Number(deliveryCharge) || 0,
+//         total: finalTotal,
+//         paidAmount: finalPaid,
+//         dueAmount: finalDue,
+
+//         status: finalStatus,
+//         amount: finalPaid, // ✅ যদি amount বলতে paidAmount বুঝাও
+//         items, // ✅ JSON 그대로 save হবে
+//       },
+//       { transaction: t },
+//     );
+
+//     if (result) {
+//       await WarrantyProduct.create({
+//         name: name,
+//         quantity,
+//         price,
+//         date: date,
+//         warrantyValue,
+//         warrantyUnit,
+//       });
+//     }
+
+//     return result;
+//   });
+// };
+
 const insertIntoDB = async (payload) => {
   const {
     name,
@@ -144,25 +266,34 @@ const insertIntoDB = async (payload) => {
     deliveryCharge,
     total,
     paidAmount,
-    // dueAmount,
+    warrantyValue,
+    warrantyUnit,
     status,
     items,
   } = payload || {};
-
-  console.log("pos", payload);
 
   if (!name) throw new ApiError(400, "Customer name is required");
   if (!date) throw new ApiError(400, "Sell date is required");
   if (!Array.isArray(items) || items.length === 0)
     throw new ApiError(400, "Items are required");
 
-  // Basic sanitize
   const finalPaid = Number(paidAmount) || 0;
   const finalTotal = Number(total) || 0;
   const finalDue = Math.max(0, finalTotal - finalPaid);
 
   const finalStatus =
     String(status || "").trim() || (finalDue > 0 ? "DUE" : "PAID");
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10);
+
+  const isApproved = String(status || "").trim() === "Approved";
+
+  const warrantyProductStatus = isApproved
+    ? "Approved"
+    : inputDateStr !== todayStr
+      ? "Pending"
+      : null;
 
   return await db.sequelize.transaction(async (t) => {
     // ✅ 1) Stock check + deduct
@@ -190,17 +321,13 @@ const insertIntoDB = async (payload) => {
         );
       }
 
-      // ✅ quantity কমানো
       await ReceivedProduct.update(
         { quantity: oldQty - qty },
         { where: { Id: received.Id }, transaction: t },
       );
-
-      // (Optional) যদি purchase_price/sale_price total হিসাব করে রাখো, এখানে pro-rate করে কমাতে পারো
-      // কিন্তু safest: শুধু quantity কমাও, price totals অন্যভাবে handle করো।
     }
 
-    // ✅ 2) PosReport create (items JSON সহ)
+    // ✅ 2) PosReport create
     const result = await PosReport.create(
       {
         name,
@@ -217,11 +344,38 @@ const insertIntoDB = async (payload) => {
         dueAmount: finalDue,
 
         status: finalStatus,
-        amount: finalPaid, // ✅ যদি amount বলতে paidAmount বুঝাও
-        items, // ✅ JSON 그대로 save হবে
+        amount: finalPaid,
+        items,
       },
       { transaction: t },
     );
+
+    // ✅ 3) WarrantyProduct insert from items
+    // warranty না থাকলে skip করতে চাইলে এই guard টা রাখো
+    if (Number(warrantyValue) > 0 && warrantyUnit) {
+      const warrantyRows = [];
+
+      for (const it of items) {
+        const qty = Number(it.qty) || 0;
+        const unitPrice = Number(it.price) || 0;
+        const itemName = (it.name && String(it.name).trim()) || "N/A"; // fallback
+
+        if (qty <= 0) continue;
+
+        warrantyRows.push({
+          name: itemName,
+          quantity: qty,
+          price: unitPrice * qty, // ✅ total price
+          date: date,
+          warrantyValue: Number(warrantyValue) || 0,
+          warrantyUnit: warrantyUnit || null,
+        });
+      }
+
+      if (warrantyRows.length) {
+        await WarrantyProduct.bulkCreate(warrantyRows, { transaction: t });
+      }
+    }
 
     return result;
   });
@@ -453,7 +607,7 @@ const deleteIdFromDB = async (id) => {
 //         Notification.create({
 //           userId: u.Id,
 //           message,
-//           url: `http://localhost:5173/intransit-product`,
+//           url: `/localhost:5173/intransit-product`,
 //         }),
 //       ),
 //     );

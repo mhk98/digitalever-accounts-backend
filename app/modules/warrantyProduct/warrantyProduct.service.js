@@ -2,27 +2,20 @@ const { Op, where } = require("sequelize"); // Ensure Op is imported
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
-const { ConfirmOrderSearchableFields } = require("./confirmOrder.constants");
+const {
+  WarrantyProductSearchableFields,
+} = require("./warrantyProduct.constants");
 
-const ConfirmOrder = db.confirmOrder;
+const WarrantyProduct = db.WarrantyProduct;
 const ReceivedProduct = db.receivedProduct;
 const Product = db.product;
 const Notification = db.notification;
 const User = db.user;
 const Sequelize = db.Sequelize;
-const WarrantyProduct = db.warrantyProduct;
 
 const insertIntoDB = async (data) => {
-  const {
-    quantity,
-    receivedId,
-    date,
-    note,
-    status,
-    userId,
-    warrantyValue,
-    warrantyUnit,
-  } = data;
+  const { quantity, date, note, status, userId, warrantyValue, warrantyUnit } =
+    data;
 
   const productData = await Product.findOne({
     where: {
@@ -57,20 +50,11 @@ const insertIntoDB = async (data) => {
     status: finalStatus || "---",
     note: note || "---",
     date: date,
+    warrantyValue,
+    warrantyUnit,
   };
 
-  const result = await ConfirmOrder.create(payload);
-
-  if (result) {
-    await WarrantyProduct.create({
-      name: productData.name,
-      quantity,
-      price: productData.sale_price * quantity,
-      date: date,
-      warrantyValue,
-      warrantyUnit,
-    });
-  }
+  const result = await WarrantyProduct.create(payload);
 
   const users = await User.findAll({
     attributes: ["Id", "role"],
@@ -109,7 +93,7 @@ const insertIntoDB = async (data) => {
 //   // ✅ Search (ILIKE on searchable fields)
 //   if (searchTerm && searchTerm.trim()) {
 //     andConditions.push({
-//       [Op.or]: ConfirmOrderSearchableFields.map((field) => ({
+//       [Op.or]: WarrantyProductSearchableFields.map((field) => ({
 //         [field]: { [Op.iLike]: `%${searchTerm.trim()}%` },
 //       })),
 //     });
@@ -146,7 +130,7 @@ const insertIntoDB = async (data) => {
 //     ? { [Op.and]: andConditions }
 //     : {};
 
-//   const result = await ConfirmOrder.findAll({
+//   const result = await WarrantyProduct.findAll({
 //     where: whereConditions,
 //     offset: skip,
 //     limit,
@@ -157,12 +141,12 @@ const insertIntoDB = async (data) => {
 //         : [["createdAt", "DESC"]],
 //   });
 
-//   // const total = await ConfirmOrder.count({ where: whereConditions });
+//   // const total = await WarrantyProduct.count({ where: whereConditions });
 
 //   // ✅ total count + total quantity (same filters)
 //   const [count, totalQuantity] = await Promise.all([
-//     ConfirmOrder.count({ where: whereConditions }),
-//     ConfirmOrder.sum("quantity", { where: whereConditions }),
+//     WarrantyProduct.count({ where: whereConditions }),
+//     WarrantyProduct.sum("quantity", { where: whereConditions }),
 //   ]);
 
 //   return {
@@ -183,7 +167,7 @@ const getAllFromDB = async (filters, options) => {
     const q = searchTerm.trim().toLowerCase();
 
     andConditions.push({
-      [Op.or]: ConfirmOrderSearchableFields.map((field) =>
+      [Op.or]: WarrantyProductSearchableFields.map((field) =>
         Sequelize.where(Sequelize.fn("LOWER", Sequelize.col(field)), {
           [Op.like]: `%${q}%`,
         }),
@@ -223,7 +207,7 @@ const getAllFromDB = async (filters, options) => {
     ? { [Op.and]: andConditions }
     : {};
 
-  const result = await ConfirmOrder.findAll({
+  const result = await WarrantyProduct.findAll({
     where: whereConditions,
     offset: skip,
     limit,
@@ -235,8 +219,8 @@ const getAllFromDB = async (filters, options) => {
   });
 
   const [count, totalQuantity] = await Promise.all([
-    ConfirmOrder.count({ where: whereConditions }),
-    ConfirmOrder.sum("quantity", { where: whereConditions }),
+    WarrantyProduct.count({ where: whereConditions }),
+    WarrantyProduct.sum("quantity", { where: whereConditions }),
   ]);
 
   return {
@@ -246,7 +230,7 @@ const getAllFromDB = async (filters, options) => {
 };
 
 const getDataById = async (id) => {
-  const result = await ConfirmOrder.findOne({
+  const result = await WarrantyProduct.findOne({
     where: {
       Id: id,
     },
@@ -256,49 +240,13 @@ const getDataById = async (id) => {
 };
 
 const deleteIdFromDB = async (id) => {
-  return await db.sequelize.transaction(async (t) => {
-    // 1) Return row খুঁজে বের করো
-    const ret = await ConfirmOrder.findOne({
-      where: { Id: id },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
-
-    if (!ret) throw new ApiError(404, "Return product not found");
-
-    const qty = Number(ret.quantity || 0);
-    if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
-
-    // 2) ReceivedProduct খুঁজে বের করো (Products.Id দিয়ে)
-    const received = await ReceivedProduct.findOne({
-      where: { productId: ret.productId }, // ✅ Products.Id
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
-
-    if (!received) throw new ApiError(404, "Received product not found");
-
-    // 3) stock ফিরিয়ে দাও
-    await ReceivedProduct.update(
-      {
-        quantity: Number(received.quantity || 0) + qty,
-        purchase_price:
-          Number(received.purchase_price || 0) +
-          Number(ret.purchase_price || 0),
-        sale_price:
-          Number(received.sale_price || 0) + Number(ret.sale_price || 0),
-      },
-      { where: { Id: received.Id }, transaction: t },
-    );
-
-    // 4) Return row delete
-    await ConfirmOrder.destroy({
-      where: { Id: id },
-      transaction: t,
-    });
-
-    return { deleted: true };
+  const result = await WarrantyProduct.destroy({
+    where: {
+      Id: id,
+    },
   });
+
+  return result;
 };
 
 const updateOneFromDB = async (id, data) => {
@@ -325,7 +273,7 @@ const updateOneFromDB = async (id, data) => {
     status: status ? status : "Pending",
   };
 
-  const [updatedCount] = await ConfirmOrder.update(payload, {
+  const [updatedCount] = await WarrantyProduct.update(payload, {
     where: {
       Id: id,
     },
@@ -360,12 +308,12 @@ const updateOneFromDB = async (id, data) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await ConfirmOrder.findAll();
+  const result = await WarrantyProduct.findAll();
 
   return result;
 };
 
-const ConfirmOrderService = {
+const WarrantyProductService = {
   getAllFromDB,
   insertIntoDB,
   deleteIdFromDB,
@@ -374,4 +322,4 @@ const ConfirmOrderService = {
   getAllFromDBWithoutQuery,
 };
 
-module.exports = ConfirmOrderService;
+module.exports = WarrantyProductService;

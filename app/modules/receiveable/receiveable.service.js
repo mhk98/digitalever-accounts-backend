@@ -157,7 +157,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `http://localhost:5173/receivable`,
+        url: `/localhost:5173/receivable`,
       }),
     ),
   );

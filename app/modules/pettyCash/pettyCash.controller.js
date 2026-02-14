@@ -4,6 +4,7 @@ const pick = require("../../../shared/pick");
 const db = require("../../../models");
 const PettyCashService = require("./pettyCash.service");
 const { pettyCashFilterAbleFields } = require("./pettyCash.constants");
+const { Op } = require("sequelize");
 const User = db.user;
 
 const insertIntoDB = catchAsync(async (req, res) => {

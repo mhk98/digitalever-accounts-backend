@@ -1,8 +1,8 @@
-const { Op, where } = require("sequelize"); // Ensure Op is imported
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { CashInOutSearchableFields } = require("./cashInOut.constants");
+const { Op } = require("sequelize");
 const CashInOut = db.cashInOut;
 const Notification = db.notification;
 const User = db.user;
@@ -233,7 +233,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `http://localhost:5173/book/${bookId}`,
+        url: `/localhost:5173/book/${bookId}`,
       }),
     ),
   );

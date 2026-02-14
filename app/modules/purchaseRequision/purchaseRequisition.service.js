@@ -56,7 +56,7 @@ const User = db.user;
 //       Notification.create({
 //         userId: u.Id,
 //         message,
-//         url: `http://localhost:5173/purchase-requisition`,
+//         url: `/localhost:5173/purchase-requisition`,
 //       }),
 //     ),
 //   );
@@ -182,7 +182,7 @@ const insertIntoDB = async (data) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `http://localhost:5173/purchase-requisition`,
+          url: `/localhost:5173/purchase-requisition`,
         }),
       ),
     );
@@ -352,7 +352,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `http://localhost:5173/purchase-product`,
+        url: `/localhost:5173/purchase-product`,
       }),
     ),
   );

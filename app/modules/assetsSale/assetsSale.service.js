@@ -293,7 +293,7 @@ const updateOneFromDB = async (id, data) => {
           {
             userId: u.Id,
             message,
-            url: `http://localhost:5173/assets-sale`,
+            url: `/localhost:5173/assets-sale`,
           },
           {
             transaction: t,

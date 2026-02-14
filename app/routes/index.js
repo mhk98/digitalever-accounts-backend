@@ -31,6 +31,7 @@ const DamageRepairedRoutes = require("../modules/damageRepaired/damageRepaired.r
 const PurchaseRequisitionRoutes = require("../modules/purchaseRequision/purchaseRequisition.routes");
 const AssetsRequisitionRoutes = require("../modules/assetsRequisition/assetsRequisition.routes");
 const PosReportRoutes = require("../modules/posReport/posReport.routes");
+const WarrantyProductRoutes = require("../modules/warrantyProduct/warrantyProduct.routes");
 
 const router = express.Router();
 
@@ -159,6 +160,10 @@ const moduleRoutes = [
   {
     path: "/pos-report",
     route: PosReportRoutes,
+  },
+  {
+    path: "/warranty-product",
+    route: WarrantyProductRoutes,
   },
   {
     path: "/notification",

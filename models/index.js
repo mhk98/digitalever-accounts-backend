@@ -32,6 +32,11 @@ db.confirmOrder = require("../app/modules/confirmOrder/confirmOrder.model")(
   db.sequelize,
   DataTypes,
 );
+db.warrantyProduct =
+  require("../app/modules/warrantyProduct/warrantyProduct.model")(
+    db.sequelize,
+    DataTypes,
+  );
 db.damageProduct = require("../app/modules/damageProduct/damageProduct.model")(
   db.sequelize,
   DataTypes,
@@ -177,7 +182,7 @@ db.assetsDamage.belongsTo(db.assetsPurchase, { foreignKey: "productId" });
 
 // Sync the database
 db.sequelize
-  .sync({ force: true })
+  .sync({ force: false })
   .then(() => {
     console.log("Connection re-synced successfully");
   })
