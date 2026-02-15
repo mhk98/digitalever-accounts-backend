@@ -7,6 +7,8 @@ const DamageProduct = db.damageProduct;
 const ReceivedProduct = db.receivedProduct;
 const Notification = db.notification;
 const User = db.user;
+const Supplier = db.supplier;
+const Warehouse = db.warehouse;
 
 // const insertIntoDB = async (data) => {
 //   const { quantity, productId } = data;
@@ -82,7 +84,16 @@ const User = db.user;
 // };
 
 const insertIntoDB = async (data) => {
-  const { quantity, receivedId, date, note, status, userId } = data;
+  const {
+    quantity,
+    receivedId,
+    date,
+    note,
+    status,
+    userId,
+    supplierId,
+    warehouseId,
+  } = data;
 
   console.log("Damage", data);
 
@@ -140,7 +151,8 @@ const insertIntoDB = async (data) => {
     const result = await DamageProduct.create(
       {
         name: received.name,
-        supplier: received.supplier,
+        supplierId,
+        warehouseId,
         quantity: returnQty,
         purchase_price: deductPurchase,
         sale_price: deductSale,
@@ -244,6 +256,18 @@ const getAllFromDB = async (filters, options) => {
     where: whereConditions,
     offset: skip,
     limit,
+    include: [
+      {
+        model: Supplier,
+        as: "supplier",
+        attributes: ["Id", "name"],
+      },
+      {
+        model: Warehouse,
+        as: "warehouse",
+        attributes: ["Id", "name"],
+      },
+    ],
     paranoid: true,
     order:
       options.sortBy && options.sortOrder
@@ -322,7 +346,15 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, data) => {
-  const { quantity, receivedId, note, status, userId } = data;
+  const {
+    quantity,
+    receivedId,
+    note,
+    status,
+    userId,
+    supplierId,
+    warehouseId,
+  } = data;
 
   console.log("Damage", data);
 
@@ -367,7 +399,8 @@ const updateOneFromDB = async (id, data) => {
     const [updatedCount] = await DamageProduct.update(
       {
         name: received.name,
-        supplier: received.supplier,
+        supplierId,
+        warehouseId,
         quantity: returnQty,
         purchase_price: deductPurchase,
         sale_price: deductSale,
@@ -419,7 +452,7 @@ const updateOneFromDB = async (id, data) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/localhost:5173/damage-product`,
+          url: `/apikafela.digitalever.com.bd/damage-product`,
         }),
       ),
     );

@@ -41,10 +41,7 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATEONLY,
         allowNull: true,
       },
-      supplier: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
+
       note: {
         type: DataTypes.STRING,
         allowNull: true,

@@ -101,7 +101,7 @@ server.listen(port, () => {
 
 // // Allowed frontend origins
 // const allowedOrigins = [
-//   "http://localhost:5173",
+//   "http://apikafela.digitalever.com.bd",
 //   "https://accounts.digitalever.com.bd",
 //   "https://digitalever.com.bd",
 // ];

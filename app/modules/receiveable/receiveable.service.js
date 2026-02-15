@@ -6,6 +6,9 @@ const { ReceiveableSearchableFields } = require("./receiveable.constants");
 const Receiveable = db.receiveable;
 const Notification = db.notification;
 const User = db.user;
+const Supplier = db.supplier;
+const Warehouse = db.warehouse;
+
 const insertIntoDB = async (data) => {
   const result = await Receiveable.create(data);
   return result;
@@ -85,6 +88,18 @@ const getAllFromDB = async (filters, options) => {
     where: whereConditions,
     offset: skip,
     limit,
+    include: [
+      {
+        model: Supplier,
+        as: "supplier",
+        attributes: ["Id", "name"],
+      },
+      {
+        model: Warehouse,
+        as: "warehouse",
+        attributes: ["Id", "name"],
+      },
+    ],
     paranoid: true,
     order,
   });
@@ -157,7 +172,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/localhost:5173/receivable`,
+        url: `/apikafela.digitalever.com.bd/receivable`,
       }),
     ),
   );

@@ -31,10 +31,7 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 0,
         allowNull: true,
       },
-      supplier: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
+
       remarks: {
         type: DataTypes.STRING,
         allowNull: true,

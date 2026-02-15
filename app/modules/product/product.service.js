@@ -4,16 +4,18 @@ const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { ProductSearchableFields } = require("./product.constants");
 const Product = db.product;
+const Supplier = db.supplier;
+const Warehouse = db.warehouse;
 
 const insertIntoDB = async (data) => {
-  const { name, supplier, purchase_price, sale_price, warehouse } = data;
+  const { name, supplierId, purchase_price, sale_price, warehouseId } = data;
 
   const payload = {
     name,
-    supplier,
+    supplierId,
     purchase_price,
     sale_price,
-    warehouseId: warehouse,
+    warehouseId,
   };
   console.log("data", data);
   const result = await Product.create(payload);
@@ -71,6 +73,18 @@ const getAllFromDB = async (filters, options) => {
     where: whereConditions,
     offset: skip,
     limit,
+    include: [
+      {
+        model: Supplier,
+        as: "supplier",
+        attributes: ["Id", "name"],
+      },
+      {
+        model: Warehouse,
+        as: "warehouse",
+        attributes: ["Id", "name"],
+      },
+    ],
     paranoid: true,
     order:
       options.sortBy && options.sortOrder
@@ -107,14 +121,14 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { name, supplier, purchase_price, sale_price, warehouse } = payload;
+  const { name, supplierId, purchase_price, sale_price, warehouseId } = payload;
 
   const data = {
     name,
-    supplier,
+    supplierId,
     purchase_price,
     sale_price,
-    warehouseId: warehouse,
+    warehouseId,
   };
   const result = await Product.update(data, {
     where: {

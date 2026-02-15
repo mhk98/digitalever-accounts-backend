@@ -10,6 +10,8 @@ const PurchaseRequisition = db.purchaseRequisition;
 const Product = db.product;
 const Notification = db.notification;
 const User = db.user;
+const Supplier = db.supplier;
+const Warehouse = db.warehouse;
 
 // const insertIntoDB = async (data) => {
 //   const { quantity, productId, userId, remarks, status } = data;
@@ -56,7 +58,7 @@ const User = db.user;
 //       Notification.create({
 //         userId: u.Id,
 //         message,
-//         url: `/localhost:5173/purchase-requisition`,
+//         url: `/apikafela.digitalever.com.bd/purchase-requisition`,
 //       }),
 //     ),
 //   );
@@ -125,7 +127,16 @@ const User = db.user;
 // };
 
 const insertIntoDB = async (data) => {
-  const { quantity, productId, userId, note, date, status } = data;
+  const {
+    quantity,
+    productId,
+    userId,
+    note,
+    date,
+    status,
+    supplierId,
+    warehouseId,
+  } = data;
 
   const productData = await Product.findOne({
     where: { Id: productId },
@@ -156,7 +167,8 @@ const insertIntoDB = async (data) => {
     date,
     purchase_price:
       Number(productData.purchase_price || 0) * Number(quantity || 0),
-    supplier: productData.supplier,
+    supplierId,
+    warehouseId,
     productId,
   };
 
@@ -182,7 +194,7 @@ const insertIntoDB = async (data) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/localhost:5173/purchase-requisition`,
+          url: `/apikafela.digitalever.com.bd/purchase-requisition`,
         }),
       ),
     );
@@ -243,6 +255,18 @@ const getAllFromDB = async (filters, options) => {
     where: whereConditions,
     offset: skip,
     limit,
+    include: [
+      {
+        model: Supplier,
+        as: "supplier",
+        attributes: ["Id", "name"],
+      },
+      {
+        model: Warehouse,
+        as: "warehouse",
+        attributes: ["Id", "name"],
+      },
+    ],
     paranoid: true,
     order:
       options.sortBy && options.sortOrder
@@ -352,7 +376,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/localhost:5173/purchase-product`,
+        url: `/apikafela.digitalever.com.bd/purchase-product`,
       }),
     ),
   );

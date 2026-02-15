@@ -150,7 +150,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/localhost:5173/petty-cash`,
+        url: `/apikafela.digitalever.com.bd/petty-cash`,
       }),
     ),
   );

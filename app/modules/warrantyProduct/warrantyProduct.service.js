@@ -6,7 +6,7 @@ const {
   WarrantyProductSearchableFields,
 } = require("./warrantyProduct.constants");
 
-const WarrantyProduct = db.WarrantyProduct;
+const WarrantyProduct = db.warrantyProduct;
 const ReceivedProduct = db.receivedProduct;
 const Product = db.product;
 const Notification = db.notification;
@@ -300,7 +300,7 @@ const updateOneFromDB = async (id, data) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/localhost:5173/confirm-order`,
+        url: `/apikafela.digitalever.com.bd/confirm-order`,
       }),
     ),
   );

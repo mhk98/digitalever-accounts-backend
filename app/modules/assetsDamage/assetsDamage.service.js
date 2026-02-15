@@ -295,7 +295,7 @@ const updateOneFromDB = async (id, data) => {
           {
             userId: u.Id,
             message,
-            url: `/localhost:5173/assets-damage`,
+            url: `/apikafela.digitalever.com.bd/assets-damage`,
           },
           { transaction: t },
         ),

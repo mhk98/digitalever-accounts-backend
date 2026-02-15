@@ -10,6 +10,8 @@ const ReceivedProduct = db.receivedProduct;
 const Product = db.product;
 const Notification = db.notification;
 const User = db.user;
+const Supplier = db.supplier;
+const Warehouse = db.warehouse;
 
 // const insertIntoDB = async (data) => {
 //   const { quantity, productId, date, status, note } = data;
@@ -94,7 +96,16 @@ const User = db.user;
 // };
 
 const insertIntoDB = async (data) => {
-  const { quantity, productId, date, status, note, userId } = data;
+  const {
+    quantity,
+    productId,
+    date,
+    status,
+    note,
+    userId,
+    supplierId,
+    warehouseId,
+  } = data;
 
   const productData = await Product.findOne({ where: { Id: productId } });
   if (!productData) throw new ApiError(404, "Product not found");
@@ -118,7 +129,8 @@ const insertIntoDB = async (data) => {
     purchase_price: productData.purchase_price * quantity,
     sale_price: productData.sale_price * quantity,
     price: Number(productData.sale_price || 0),
-    supplier: productData.supplier,
+    supplierId,
+    warehouseId,
     productId,
     status: finalStatus || "---",
     note: note || "---",
@@ -206,6 +218,18 @@ const getAllFromDB = async (filters, options) => {
     where: whereConditions,
     offset: skip,
     limit,
+    include: [
+      {
+        model: Supplier,
+        as: "supplier",
+        attributes: ["Id", "name"],
+      },
+      {
+        model: Warehouse,
+        as: "warehouse",
+        attributes: ["Id", "name"],
+      },
+    ],
     paranoid: true,
     order:
       options.sortBy && options.sortOrder
@@ -251,7 +275,17 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { quantity, productId, supplier, note, status, date, userId } = payload;
+  const {
+    quantity,
+    productId,
+    supplier,
+    note,
+    status,
+    date,
+    userId,
+    supplierId,
+    warehouseId,
+  } = payload;
 
   const productData = await Product.findOne({
     where: {
@@ -284,7 +318,8 @@ const updateOneFromDB = async (id, payload) => {
     quantity,
     purchase_price: productData.purchase_price * quantity,
     sale_price: productData.sale_price * quantity,
-    supplier,
+    supplierId,
+    warehouseId,
     productId,
 
     note: status === "Approved" ? "---" : note,
@@ -314,7 +349,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/localhost:5173/purchase-product`,
+        url: `/apikafela.digitalever.com.bd/purchase-product`,
       }),
     ),
   );

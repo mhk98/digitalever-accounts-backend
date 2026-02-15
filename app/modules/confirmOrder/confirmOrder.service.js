@@ -11,6 +11,8 @@ const Notification = db.notification;
 const User = db.user;
 const Sequelize = db.Sequelize;
 const WarrantyProduct = db.warrantyProduct;
+const Supplier = db.supplier;
+const Warehouse = db.warehouse;
 
 const insertIntoDB = async (data) => {
   const {
@@ -22,6 +24,8 @@ const insertIntoDB = async (data) => {
     userId,
     warrantyValue,
     warrantyUnit,
+    supplierId,
+    warehouseId,
   } = data;
 
   const productData = await Product.findOne({
@@ -52,7 +56,8 @@ const insertIntoDB = async (data) => {
     quantity,
     purchase_price: productData.purchase_price * quantity,
     sale_price: productData.sale_price * quantity,
-    supplier: productData.supplier,
+    supplierId,
+    warehouseId,
     productId: receivedId,
     status: finalStatus || "---",
     note: note || "---",
@@ -227,6 +232,18 @@ const getAllFromDB = async (filters, options) => {
     where: whereConditions,
     offset: skip,
     limit,
+    include: [
+      {
+        model: Supplier,
+        as: "supplier",
+        attributes: ["Id", "name"],
+      },
+      {
+        model: Warehouse,
+        as: "warehouse",
+        attributes: ["Id", "name"],
+      },
+    ],
     paranoid: true,
     order:
       options.sortBy && options.sortOrder
@@ -302,7 +319,15 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, data) => {
-  const { quantity, receivedId, note, status, userId } = data;
+  const {
+    quantity,
+    receivedId,
+    note,
+    status,
+    userId,
+    supplierId,
+    warehouseId,
+  } = data;
 
   const productData = await Product.findOne({
     where: {
@@ -319,7 +344,8 @@ const updateOneFromDB = async (id, data) => {
     quantity,
     purchase_price: productData.purchase_price * quantity,
     sale_price: productData.sale_price * quantity,
-    supplier: productData.supplier,
+    supplierId,
+    warehouseId,
     productId: receivedId,
     note: status === "Approved" ? "---" : note,
     status: status ? status : "Pending",
@@ -352,7 +378,7 @@ const updateOneFromDB = async (id, data) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/localhost:5173/confirm-order`,
+        url: `/apikafela.digitalever.com.bd/confirm-order`,
       }),
     ),
   );
