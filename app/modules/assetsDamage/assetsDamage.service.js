@@ -26,7 +26,10 @@ const insertIntoDB = async (data) => {
     ? "Approved"
     : inputDateStr !== todayStr
       ? "Pending"
-      : null;
+      : note
+        ? note
+        : "---";
+
   return await db.sequelize.transaction(async (t) => {
     // ✅ PurchaseProduct (তোমার schema অনুযায়ী Id/productId adjust করো)
     const purchase = await AssetsPurchase.findOne({
@@ -217,6 +220,36 @@ const updateOneFromDB = async (id, data) => {
     throw new ApiError(400, "Quantity must be greater than 0");
   }
 
+  const q = quantity === "" || quantity == null ? undefined : Number(quantity);
+  const p = price === "" || price == null ? undefined : Number(price);
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10);
+
+  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
+  const existing = await AssetsPurchase.findOne({
+    where: { Id: id },
+    attributes: ["Id", "note", "status"],
+  });
+
+  if (!existing) return 0;
+
+  const oldNote = String(existing.note || "").trim();
+  const newNote = String(note || "").trim();
+  const isNoteChanged = newNote && newNote !== oldNote;
+
+  // ---------- status rules ----------
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে status সবসময় Pending
+  // ✅ today হলে: Approved থাকবে শুধু তখনই যখন Approved + note change হয়নি
+  const finalStatus =
+    inputDateStr !== todayStr
+      ? "Pending"
+      : isApproved && !isNoteChanged
+        ? "Approved"
+        : "Pending";
+
   return await db.sequelize.transaction(async (t) => {
     // ✅ Fetch the product details from AssetsPurchase
     const purchase = await AssetsPurchase.findOne({
@@ -243,9 +276,9 @@ const updateOneFromDB = async (id, data) => {
       name: purchase.name,
       quantity: saleQty,
       price,
-      note: status === "Approved" ? "---" : note, // If Approved, no note
-      status: status ? status : "Pending", // Default status: Pending
-      total: price * quantity,
+      status: finalStatus,
+      total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
+      date: inputDateStr || undefined,
       productId,
     };
 

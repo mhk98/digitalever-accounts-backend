@@ -17,17 +17,20 @@ const insertIntoDB = async (data) => {
   const isApproved = String(status || "").trim() === "Approved";
 
   // ✅ current date না হলে auto Pending
+  // ✅ current date না হলে auto Pending
   const finalStatus = isApproved
     ? "Approved"
     : inputDateStr !== todayStr
       ? "Pending"
-      : null;
+      : note
+        ? note
+        : "---";
 
   const result = await Meta.create({
-    status: finalStatus || "---",
-    note: note || "---",
     date: date,
     amount,
+    status: finalStatus || "---",
+    note: note || "---",
     platform,
   });
 
@@ -38,6 +41,12 @@ const insertIntoDB = async (data) => {
       role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
     },
   });
+
+  const allowedPlatforms = ["meta", "google", "tiktok", "seo"];
+
+  const url = allowedPlatforms.includes(platform?.toLowerCase())
+    ? platform.toLowerCase()
+    : null;
 
   if (users.length) {
     const message =
@@ -50,7 +59,7 @@ const insertIntoDB = async (data) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: "/purchase-requisition",
+          url: `/apikafela.digitalever.com.bd/${url}`,
         }),
       ),
     );
@@ -151,11 +160,39 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { note, status, amount, userId } = payload;
+  const { note, status, amount, userId, date } = payload;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10);
+
+  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
+  const existing = await Meta.findOne({
+    where: { Id: id },
+    attributes: ["Id", "note", "status"],
+  });
+
+  if (!existing) return 0;
+
+  const oldNote = String(existing.note || "").trim();
+  const newNote = String(note || "").trim();
+  const isNoteChanged = newNote && newNote !== oldNote;
+
+  // ---------- status rules ----------
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে status সবসময় Pending
+  // ✅ today হলে: Approved থাকবে শুধু তখনই যখন Approved + note change হয়নি
+  const finalStatus =
+    inputDateStr !== todayStr
+      ? "Pending"
+      : isApproved && !isNoteChanged
+        ? "Approved"
+        : "Pending";
 
   const data = {
-    note: status === "Approved" ? "---" : note,
-    status: status ? status : "Pending",
+    date: inputDateStr || undefined,
+    note: newNote || "---",
+    status: finalStatus,
     amount,
   };
 
@@ -179,7 +216,7 @@ const updateOneFromDB = async (id, payload) => {
   const message =
     finalStatus === "Approved"
       ? "Digital Expense request approved"
-      : finalNote || "Digital Expense updated";
+      : note || "Digital Expense updated";
 
   await Promise.all(
     users.map((u) =>

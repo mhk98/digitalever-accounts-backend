@@ -23,7 +23,9 @@ const insertIntoDB = async (payload) => {
     ? "Approved"
     : inputDateStr !== todayStr
       ? "Pending"
-      : "Pending";
+      : note
+        ? note
+        : "---";
 
   const data = {
     name,
@@ -175,128 +177,150 @@ const deleteIdFromDB = async (id) => {
 };
 
 // const updateOneFromDB = async (id, payload) => {
-//   const { name, quantity, price, note, status, userId } = payload;
+//   const { name, quantity, price, note, date, status, userId } = payload;
+
+//   console.log("data", payload);
 
 //   const q = quantity === "" || quantity == null ? undefined : Number(quantity);
 //   const p = price === "" || price == null ? undefined : Number(price);
 
-//   const finalStatus = status ? status : "Pending";
-//   const finalNote = finalStatus === "Approved" ? "---" : note;
+//   const todayStr = new Date().toISOString().slice(0, 10);
+//   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+//   // ✅ Approved হলে পুরোনো date-ও allow + save
+//   const isApproved = String(status || "").trim() === "Approved";
+
+//   // ✅ current date না হলে auto Pending
+//   const finalStatus = isApproved
+//     ? "Approved"
+//     : inputDateStr !== todayStr
+//       ? "Pending"
+//       : "Pending";
 
 //   const data = {
 //     name: name === "" ? undefined : name,
 //     quantity: q,
 //     price: p,
-//     note: finalNote,
+//     note: note || "---",
 //     status: finalStatus,
-//     total: typeof p === "number" && typeof q === "number" ? p * q : undefined,
+//     total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
 //   };
 
-//   console.log("AssetsRequisitionPayload", payload);
-//   console.log("AssetsRequisitionData", data, id);
-
-//   // ✅ update first
 //   const [updatedCount] = await AssetsRequisition.update(data, {
 //     where: { Id: id },
 //   });
 
+//   // ✅ update না হলে এখানেই থামো
+//   if (updatedCount <= 0) return updatedCount;
+
+//   // ✅ শুধু admin/superAdmin/inventory রোলের ইউজার
 //   const users = await User.findAll({
+//     attributes: ["Id", "role"],
 //     where: {
-//       id: { [Op.ne]: userId }, // 👈 Exclude sender
-//       role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+//       Id: { [Op.ne]: userId }, // sender বাদ
+//       role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
 //     },
+//     transaction: t,
 //   });
 
-//   if (!users.length) {
-//     console.log("No users found for notification.");
-//     return [];
-//   }
+//   console.log("users", users.length);
+//   if (!users.length) return updatedCount;
 
-//   if (updatedCount > 0) {
-//     await Promise.all(
-//       users.map((user) =>
-//         Notification.create({
-//           userId: user.id,
-//           message:
-//             finalStatus === "Approved"
-//               ? `Approved inventors request for assets purchase`
-//               : `${finalNote}`,
-//           url: "/assets-purchase",
-//         }),
+//   const message =
+//     finalStatus === "Approved"
+//       ? "Assets purchase request approved"
+//       : note || "Assets purchase updated";
+
+//   await Promise.all(
+//     users.map((u) =>
+//       Notification.create(
+//         {
+//           userId: u.Id,
+//           message,
+//           url: `/apikafela.digitalever.com.bd/assets-purchase`,
+//         },
+//         {
+//           transaction: t,
+//         },
 //       ),
-//     );
-//   }
+//     ),
+//   );
 
-//   return updatedCount; // অথবা return { updatedCount }
+//   return updatedCount;
 // };
 
 const updateOneFromDB = async (id, payload) => {
   const { name, quantity, price, note, date, status, userId } = payload;
 
-  console.log("data", payload);
-
   const q = quantity === "" || quantity == null ? undefined : Number(quantity);
   const p = price === "" || price == null ? undefined : Number(price);
 
   const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+  const inputDateStr = String(date || "").slice(0, 10);
 
-  // ✅ Approved হলে পুরোনো date-ও allow + save
+  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
+  const existing = await AssetsRequisition.findOne({
+    where: { Id: id },
+    attributes: ["Id", "note", "status"],
+  });
+
+  if (!existing) return 0;
+
+  const oldNote = String(existing.note || "").trim();
+  const newNote = String(note || "").trim();
+  const isNoteChanged = newNote && newNote !== oldNote;
+
+  // ---------- status rules ----------
   const isApproved = String(status || "").trim() === "Approved";
 
-  // ✅ current date না হলে auto Pending
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
+  // ✅ current date না হলে status সবসময় Pending
+  // ✅ today হলে: Approved থাকবে শুধু তখনই যখন Approved + note change হয়নি
+  const finalStatus =
+    inputDateStr !== todayStr
       ? "Pending"
-      : "Pending";
+      : isApproved && !isNoteChanged
+        ? "Approved"
+        : "Pending";
 
+  // ---------- update payload ----------
   const data = {
-    name: name === "" ? undefined : name,
+    name: name === "" || name == null ? undefined : name,
     quantity: q,
     price: p,
-    note: finalNote || "---",
-    status: finalStatus,
     total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
+    date: inputDateStr || undefined,
+    note: newNote || "---",
+    status: finalStatus,
   };
 
   const [updatedCount] = await AssetsRequisition.update(data, {
     where: { Id: id },
   });
 
-  // ✅ update না হলে এখানেই থামো
   if (updatedCount <= 0) return updatedCount;
 
-  // ✅ শুধু admin/superAdmin/inventory রোলের ইউজার
   const users = await User.findAll({
     attributes: ["Id", "role"],
     where: {
-      Id: { [Op.ne]: userId }, // sender বাদ
-      role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
+      Id: { [Op.ne]: userId },
+      role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
     },
-    transaction: t,
   });
 
-  console.log("users", users.length);
   if (!users.length) return updatedCount;
 
   const message =
     finalStatus === "Approved"
-      ? "Assets purchase request approved"
-      : finalNote || "Assets purchase updated";
+      ? "Assets requisition request approved"
+      : newNote || "Assets requisition updated";
 
   await Promise.all(
     users.map((u) =>
-      Notification.create(
-        {
-          userId: u.Id,
-          message,
-          url: `/apikafela.digitalever.com.bd/assets-purchase`,
-        },
-        {
-          transaction: t,
-        },
-      ),
+      Notification.create({
+        userId: u.Id,
+        message,
+        url: `/apikafela.digitalever.com.bd/assets-requisition`,
+      }),
     ),
   );
 
