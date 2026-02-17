@@ -300,7 +300,7 @@ const updateOneFromDB = async (id, data) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/apikafela.digitalever.com.bd/confirm-order`,
+        url: `/kafelamart.digitalever.com.bd/confirm-order`,
       }),
     ),
   );

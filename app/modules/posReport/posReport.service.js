@@ -607,7 +607,7 @@ const deleteIdFromDB = async (id) => {
 //         Notification.create({
 //           userId: u.Id,
 //           message,
-//           url: `/apikafela.digitalever.com.bd/intransit-product`,
+//           url: `/kafelamart.digitalever.com.bd/intransit-product`,
 //         }),
 //       ),
 //     );

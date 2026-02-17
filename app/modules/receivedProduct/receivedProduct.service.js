@@ -121,7 +121,9 @@ const insertIntoDB = async (data) => {
     ? "Approved"
     : inputDateStr !== todayStr
       ? "Pending"
-      : null;
+      : note
+        ? note
+        : "---";
 
   const payload = {
     name: productData.name,
@@ -278,7 +280,6 @@ const updateOneFromDB = async (id, payload) => {
   const {
     quantity,
     productId,
-    supplier,
     note,
     status,
     date,
@@ -298,15 +299,31 @@ const updateOneFromDB = async (id, payload) => {
   }
 
   const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+  const inputDateStr = String(date || "").slice(0, 10);
 
+  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
+  const existing = await ReceivedProduct.findOne({
+    where: { Id: id },
+    attributes: ["Id", "note", "status"],
+  });
+
+  if (!existing) return 0;
+
+  const oldNote = String(existing.note || "").trim();
+  const newNote = String(note || "").trim();
+  const isNoteChanged = newNote && newNote !== oldNote;
+
+  // ---------- status rules ----------
   const isApproved = String(status || "").trim() === "Approved";
 
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
+  // ✅ current date না হলে status সবসময় Pending
+  // ✅ today হলে: Approved থাকবে শুধু তখনই যখন Approved + note change হয়নি
+  const finalStatus =
+    inputDateStr !== todayStr
       ? "Pending"
-      : null;
+      : isApproved && !isNoteChanged
+        ? "Approved"
+        : "Pending";
 
   const message =
     finalStatus === "Approved"
@@ -321,10 +338,9 @@ const updateOneFromDB = async (id, payload) => {
     supplierId,
     warehouseId,
     productId,
-
-    note: status === "Approved" ? "---" : note,
-    status: status ? status : "Pending",
-    date,
+    note: newNote || "---",
+    status: finalStatus,
+    date: inputDateStr || undefined,
   };
 
   const [updatedCount] = await ReceivedProduct.update(data, {
@@ -349,7 +365,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/apikafela.digitalever.com.bd/purchase-product`,
+        url: `/kafelamart.digitalever.com.bd/purchase-product`,
       }),
     ),
   );

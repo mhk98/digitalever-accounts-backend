@@ -200,7 +200,7 @@ const deleteIdFromDB = async (id) => {
 //         {
 //           userId: u.Id,
 //           message,
-//           url: `/apikafela.digitalever.com.bd/assets-purchase`,
+//           url: `/kafelamart.digitalever.com.bd/assets-purchase`,
 //         },
 //         {
 //           transaction: t,
@@ -252,8 +252,8 @@ const updateOneFromDB = async (id, payload) => {
     price: p,
     note: newNote || "---",
     status: finalStatus,
-    total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
     date: inputDateStr || undefined,
+    total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
   };
 
   const [updatedCount] = await AssetsPurchase.update(data, {
@@ -282,7 +282,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/apikafela.digitalever.com.bd/assets-purchase`,
+        url: `/kafelamart.digitalever.com.bd/assets-purchase`,
       }),
     ),
   );

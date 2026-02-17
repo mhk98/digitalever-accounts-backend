@@ -58,7 +58,7 @@ const insertIntoDB = async (payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/apikafela.digitalever.com.bd/assets-requisition`,
+          url: `/kafelamart.digitalever.com.bd/assets-requisition`,
         }),
       ),
     );
@@ -237,7 +237,7 @@ const deleteIdFromDB = async (id) => {
 //         {
 //           userId: u.Id,
 //           message,
-//           url: `/apikafela.digitalever.com.bd/assets-purchase`,
+//           url: `/kafelamart.digitalever.com.bd/assets-purchase`,
 //         },
 //         {
 //           transaction: t,
@@ -319,7 +319,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/apikafela.digitalever.com.bd/assets-requisition`,
+        url: `/kafelamart.digitalever.com.bd/assets-requisition`,
       }),
     ),
   );

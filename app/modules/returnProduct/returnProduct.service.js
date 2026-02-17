@@ -43,7 +43,9 @@ const insertIntoDB = async (data) => {
     ? "Approved"
     : inputDateStr !== todayStr
       ? "Pending"
-      : null;
+      : note
+        ? note
+        : "---";
 
   return await db.sequelize.transaction(async (t) => {
     const received = await ReceivedProduct.findOne({
@@ -275,6 +277,7 @@ const updateOneFromDB = async (id, data) => {
     quantity,
     receivedId,
     note,
+    date,
     status,
     userId,
     supplierId,
@@ -282,6 +285,33 @@ const updateOneFromDB = async (id, data) => {
   } = data;
 
   console.log("Return", data);
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10);
+
+  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
+  const existing = await ReturnProduct.findOne({
+    where: { Id: id },
+    attributes: ["Id", "note", "status"],
+  });
+
+  if (!existing) return 0;
+
+  const oldNote = String(existing.note || "").trim();
+  const newNote = String(note || "").trim();
+  const isNoteChanged = newNote && newNote !== oldNote;
+
+  // ---------- status rules ----------
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে status সবসময় Pending
+  // ✅ today হলে: Approved থাকবে শুধু তখনই যখন Approved + note change হয়নি
+  const finalStatus =
+    inputDateStr !== todayStr
+      ? "Pending"
+      : isApproved && !isNoteChanged
+        ? "Approved"
+        : "Pending";
 
   const returnQty = Number(quantity);
   const rid = Number(receivedId);
@@ -330,8 +360,9 @@ const updateOneFromDB = async (id, data) => {
         purchase_price: deductPurchase,
         sale_price: deductSale,
         productId: realProductId, // ✅ Products.Id (FK)
-        note: status === "Approved" ? "---" : note,
-        status: status ? status : "Pending",
+        note: newNote || "---",
+        status: finalStatus,
+        date: inputDateStr || undefined,
       },
       {
         where: { Id: id },
@@ -370,14 +401,14 @@ const updateOneFromDB = async (id, data) => {
     const message =
       finalStatus === "Approved"
         ? "Sales return request approved"
-        : finalNote || "Sales return updated";
+        : note || "Sales return updated";
 
     await Promise.all(
       users.map((u) =>
         Notification.create({
           userId: u.Id,
           message,
-          url: `/apikafela.digitalever.com.bd/sales-return`,
+          url: `/kafelamart.digitalever.com.bd/sales-return`,
         }),
       ),
     );
