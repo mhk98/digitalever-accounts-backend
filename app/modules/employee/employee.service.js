@@ -70,10 +70,10 @@ const getAllFromDB = async (filters, options) => {
         : [["createdAt", "DESC"]],
   });
 
-  const total = await Employee.count({ where: whereConditions });
+  const count = await Employee.count({ where: whereConditions });
 
   return {
-    meta: { total, page, limit },
+    meta: { count, page, limit },
     data: result,
   };
 };

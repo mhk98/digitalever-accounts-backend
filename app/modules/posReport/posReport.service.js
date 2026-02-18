@@ -281,19 +281,34 @@ const insertIntoDB = async (payload) => {
   const finalTotal = Number(total) || 0;
   const finalDue = Math.max(0, finalTotal - finalPaid);
 
-  const finalStatus =
-    String(status || "").trim() || (finalDue > 0 ? "DUE" : "PAID");
+  // const finalStatus =
+  //   String(status || "").trim() || (finalDue > 0 ? "DUE" : "PAID");
+
+  // const todayStr = new Date().toISOString().slice(0, 10);
+  // const inputDateStr = String(date || "").slice(0, 10);
+
+  // const isApproved = String(status || "").trim() === "Approved";
+
+  // const warrantyProductStatus = isApproved
+  //   ? "Approved"
+  //   : inputDateStr !== todayStr
+  //     ? "Pending"
+  //     : null;
 
   const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
 
+  // ✅ Approved হলে পুরোনো date-ও allow + save
   const isApproved = String(status || "").trim() === "Approved";
 
-  const warrantyProductStatus = isApproved
+  // ✅ current date না হলে auto Pending
+  const finalStatus = isApproved
     ? "Approved"
     : inputDateStr !== todayStr
       ? "Pending"
-      : null;
+      : note
+        ? note
+        : "---";
 
   return await db.sequelize.transaction(async (t) => {
     // ✅ 1) Stock check + deduct
@@ -331,19 +346,17 @@ const insertIntoDB = async (payload) => {
     const result = await PosReport.create(
       {
         name,
-        date,
-        note: note || null,
+        note: note || "---",
+        date: date,
         mobile: mobile || null,
         address: address || null,
-
         subTotal: Number(subTotal) || 0,
         discount: Number(discount) || 0,
         deliveryCharge: Number(deliveryCharge) || 0,
         total: finalTotal,
         paidAmount: finalPaid,
         dueAmount: finalDue,
-
-        status: finalStatus,
+        status: finalStatus || "---",
         amount: finalPaid,
         items,
       },
@@ -640,17 +653,31 @@ const updateOneFromDB = async (data) => {
   }
 
   const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+  const inputDateStr = String(date || "").slice(0, 10);
 
-  // ✅ Approved হলে পুরোনো date-ও allow + save
+  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
+  const existing = await PosReport.findOne({
+    where: { Id: id },
+    attributes: ["Id", "note", "status"],
+  });
+
+  if (!existing) return 0;
+
+  const oldNote = String(existing.note || "").trim();
+  const newNote = String(note || "").trim();
+  const isNoteChanged = newNote && newNote !== oldNote;
+
+  // ---------- status rules ----------
   const isApproved = String(status || "").trim() === "Approved";
 
-  // ✅ current date না হলে auto Pending
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
+  // ✅ current date না হলে status সবসময় Pending
+  // ✅ today হলে: Approved থাকবে শুধু তখনই যখন Approved + note change হয়নি
+  const finalStatus =
+    inputDateStr !== todayStr
       ? "Pending"
-      : null;
+      : isApproved && !isNoteChanged
+        ? "Approved"
+        : "Pending";
 
   return await db.sequelize.transaction(async (t) => {
     const received = await ReceivedProduct.findOne({
@@ -688,9 +715,9 @@ const updateOneFromDB = async (data) => {
         quantity: returnQty,
         price,
         productId: realProductId, // ✅ Products.Id (FK)
-        status: finalStatus || "---",
-        note: note || "---",
-        date: date,
+        note: newNote || "---",
+        status: finalStatus,
+        date: inputDateStr || undefined,
         amount,
         mobile,
         address,

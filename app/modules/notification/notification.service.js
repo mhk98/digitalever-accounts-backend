@@ -21,14 +21,14 @@ const getNotificationByUser = async (payload, options) => {
     order: [["createdAt", "DESC"]],
   });
 
-  let total = await Notification.count({
+  let count = await Notification.count({
     where: {
       userId: userId,
     },
   });
 
   return {
-    meta: { total, page, limit },
+    meta: { count, page, limit },
     data: result,
   };
 };

@@ -144,10 +144,10 @@ const getAllUserFromDB = async (filters, options) => {
         : [["createdAt", "DESC"]],
   });
 
-  const total = await User.count({ where: whereConditions });
+  const count = await User.count({ where: whereConditions });
 
   return {
-    meta: { total, page, limit },
+    meta: { count, page, limit },
     data: result,
   };
 };

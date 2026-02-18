@@ -6,8 +6,6 @@ const { ReceiveableSearchableFields } = require("./receiveable.constants");
 const Receiveable = db.receiveable;
 const Notification = db.notification;
 const User = db.user;
-const Supplier = db.supplier;
-const Warehouse = db.warehouse;
 
 const insertIntoDB = async (data) => {
   const result = await Receiveable.create(data);
@@ -88,18 +86,6 @@ const getAllFromDB = async (filters, options) => {
     where: whereConditions,
     offset: skip,
     limit,
-    include: [
-      {
-        model: Supplier,
-        as: "supplier",
-        attributes: ["Id", "name"],
-      },
-      {
-        model: Warehouse,
-        as: "warehouse",
-        attributes: ["Id", "name"],
-      },
-    ],
     paranoid: true,
     order,
   });

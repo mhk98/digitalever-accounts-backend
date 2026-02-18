@@ -6,6 +6,7 @@ const CashInOutService = require("./cashInOut.service");
 const { CashInOutFilterAbleFields } = require("./cashInOut.constants");
 const { Op } = require("sequelize");
 const User = db.user;
+const CashInOut = db.cashInOut;
 
 const insertIntoDB = catchAsync(async (req, res) => {
   const {
@@ -62,7 +63,9 @@ const insertIntoDB = catchAsync(async (req, res) => {
     ? "Approved"
     : inputDateStr !== todayStr
       ? "Pending"
-      : null;
+      : note
+        ? note
+        : "---";
 
   const data = {
     name: name || null,
@@ -221,6 +224,33 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     throw new ApiError(400, "Amount must be greater than 0");
   }
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10);
+
+  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
+  const existing = await CashInOut.findOne({
+    where: { Id: id },
+    attributes: ["Id", "note", "status"],
+  });
+
+  if (!existing) return 0;
+
+  const oldNote = String(existing.note || "").trim();
+  const newNote = String(note || "").trim();
+  const isNoteChanged = newNote && newNote !== oldNote;
+
+  // ---------- status rules ----------
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে status সবসময় Pending
+  // ✅ today হলে: Approved থাকবে শুধু তখনই যখন Approved + note change হয়নি
+  const finalStatus =
+    inputDateStr !== todayStr
+      ? "Pending"
+      : isApproved && !isNoteChanged
+        ? "Approved"
+        : "Pending";
+
   const data = {
     name: name ?? undefined,
     paymentMode: paymentMode ?? undefined,
@@ -228,8 +258,9 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     bankName: isBank ? bankName || "" : "", // ✅ Bank না হলে blank
     bankAccount: isBank ? bankAccountNumber : null, // ✅ Bank না হলে NULL
     remarks: remarks ?? undefined,
-    note: status === "Approved" ? "---" : note,
-    status: status ? status : "Pending",
+    note: newNote || "---",
+    status: finalStatus,
+    date: inputDateStr || undefined,
     bookId: bookId ?? undefined,
     ...(amountNumber !== undefined ? { amount: amountNumber } : {}),
 

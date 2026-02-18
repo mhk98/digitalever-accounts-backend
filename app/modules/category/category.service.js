@@ -66,10 +66,10 @@ const getAllFromDB = async (filters, options) => {
         : [["createdAt", "DESC"]],
   });
 
-  const total = await Category.count({ where: whereConditions });
+  const count = await Category.count({ where: whereConditions });
 
   return {
-    meta: { total, page, limit },
+    meta: { count, page, limit },
     data: result,
   };
 };

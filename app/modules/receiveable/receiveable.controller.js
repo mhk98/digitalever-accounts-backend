@@ -6,6 +6,7 @@ const { ReceiveableFilterAbleFields } = require("./receiveable.constants");
 const db = require("../../../models");
 const { Op } = require("sequelize");
 const User = db.user;
+const Receiveable = db.receiveable;
 
 const insertIntoDB = catchAsync(async (req, res) => {
   const { name, amount, remarks, note, status, date, userId } = req.body;
@@ -22,7 +23,9 @@ const insertIntoDB = catchAsync(async (req, res) => {
     ? "Approved"
     : inputDateStr !== todayStr
       ? "Pending"
-      : null;
+      : note
+        ? note
+        : "---";
 
   const data = {
     name,
@@ -96,30 +99,44 @@ const getDataById = catchAsync(async (req, res) => {
 
 const updateOneFromDB = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const { name, amount, remarks, note, status, date } = req.body;
+  const { name, amount, remarks, note, status, date, userId } = req.body;
 
   const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
 
   const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+  const inputDateStr = String(date || "").slice(0, 10);
 
-  // ✅ Approved হলে পুরোনো date-ও allow + save
+  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
+  const existing = await Receiveable.findOne({
+    where: { Id: id },
+    attributes: ["Id", "note", "status"],
+  });
+
+  if (!existing) return 0;
+
+  const oldNote = String(existing.note || "").trim();
+  const newNote = String(note || "").trim();
+  const isNoteChanged = newNote && newNote !== oldNote;
+
+  // ---------- status rules ----------
   const isApproved = String(status || "").trim() === "Approved";
 
-  // ✅ current date না হলে auto Pending
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
+  // ✅ current date না হলে status সবসময় Pending
+  // ✅ today হলে: Approved থাকবে শুধু তখনই যখন Approved + note change হয়নি
+  const finalStatus =
+    inputDateStr !== todayStr
       ? "Pending"
-      : null;
+      : isApproved && !isNoteChanged
+        ? "Approved"
+        : "Pending";
 
   const data = {
     name,
     amount,
     remarks,
-    status: finalStatus || "---",
-    note: note || "---",
-    date: date,
+    note: newNote || "---",
+    status: finalStatus,
+    date: inputDateStr || undefined,
     file,
   };
 
