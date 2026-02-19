@@ -7,6 +7,7 @@ const { CashInOutFilterAbleFields } = require("./cashInOut.constants");
 const { Op } = require("sequelize");
 const User = db.user;
 const CashInOut = db.cashInOut;
+const Notification = db.notification;
 
 const insertIntoDB = catchAsync(async (req, res) => {
   const {
@@ -17,6 +18,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
     bankAccount,
     amount,
     remarks,
+    category,
     date,
     note,
     status,
@@ -79,6 +81,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
     note: note || "---",
     date: date,
     file, // null allowed
+    category,
     bookId,
   };
 
@@ -101,7 +104,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: "/purchase-requisition",
+          url: "/apikafela.digitalever.com.bd/purchase-requisition",
         }),
       ),
     );
@@ -187,7 +190,9 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     bankAccount,
     amount,
     remarks,
+    date,
     note,
+    category,
     status,
     bookId,
     userId,
@@ -261,7 +266,8 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     note: newNote || "---",
     status: finalStatus,
     date: inputDateStr || undefined,
-    bookId: bookId ?? undefined,
+    category,
+    bookId: bookId,
     ...(amountNumber !== undefined ? { amount: amountNumber } : {}),
 
     // ✅ file only include if uploaded
@@ -289,7 +295,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/book/${bookId}`,
+          url: `/apikafela.digitalever.com.bd/book/${bookId}`,
         }),
       ),
     );

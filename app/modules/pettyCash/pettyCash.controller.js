@@ -6,6 +6,8 @@ const PettyCashService = require("./pettyCash.service");
 const { pettyCashFilterAbleFields } = require("./pettyCash.constants");
 const { Op } = require("sequelize");
 const User = db.user;
+const Notification = db.notification;
+const PettyCash = db.pettyCash;
 
 const insertIntoDB = catchAsync(async (req, res) => {
   const {
@@ -18,6 +20,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
     note,
     date,
     status,
+    category,
     userId,
   } = req.body;
   // const file = req.file.path.replace(/\\/g, "/");
@@ -49,6 +52,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
     status: finalStatus || "---",
     note: note || "---",
     date: date,
+    category,
   };
 
   const users = await User.findAll({
@@ -70,7 +74,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: "/purchase-requisition",
+          url: "/apikafela.digitalever.com.bd/purchase-requisition",
         }),
       ),
     );
@@ -121,6 +125,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     note,
     date,
     status,
+    category,
     remarks,
     userId,
   } = req.body;
@@ -131,7 +136,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
   const inputDateStr = String(date || "").slice(0, 10);
 
   // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
-  const existing = await CashInOut.findOne({
+  const existing = await PettyCash.findOne({
     where: { Id: id },
     attributes: ["Id", "note", "status"],
   });
@@ -164,6 +169,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     status: finalStatus,
     date: inputDateStr || undefined,
     remarks,
+    category,
     file,
   };
   const result = await PettyCashService.updateOneFromDB(id, data);
@@ -187,7 +193,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: "/petty-cash",
+          url: "/apikafela.digitalever.com.bd/petty-cash",
         }),
       ),
     );
