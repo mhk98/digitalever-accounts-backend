@@ -12,17 +12,30 @@ const sequelize = new Sequelize(
   {
     host: process.env.DB_HOST, // Use host from environment variable
     dialect: "mysql",
-    pool: {
-      max: 10,
-      min: 0,
-      idle: 10000,
-      acquire: 30000, // Add acquire timeout (default 60s)
+    // pool: {
+    //   max: 10,
+    //   min: 0,
+    //   idle: 10000,
+    //   acquire: 30000, // Add acquire timeout (default 60s)
+    // },
+    dialectOptions: {
+      connectTimeout: 60000,
     },
+    retry: {
+      max: 5,
+    },
+    pool: {
+      max: 5,
+      min: 0,
+      acquire: 60000,
+      idle: 10000,
+    },
+
     // logging: process.env.NODE_ENV !== 'production',  // Enable logging only in non-prod
     logging: false,
     timezone: "+06:00", // Timezone
     port: process.env.DB_PORT || 3306, // Optionally use the DB_PORT from env
-  }
+  },
 );
 
 // Test the connection
