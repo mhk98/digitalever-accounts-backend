@@ -122,8 +122,8 @@ const insertIntoDB = async (data) => {
     : inputDateStr !== todayStr
       ? "Pending"
       : note
-        ? note
-        : "---";
+        ? "Pending"
+        : "Active";
 
   const payload = {
     name: productData.name,
@@ -135,7 +135,7 @@ const insertIntoDB = async (data) => {
     warehouseId,
     productId,
     status: finalStatus || "---",
-    note: note || "---",
+    note: note || null,
     date: date,
   };
 
@@ -338,7 +338,7 @@ const updateOneFromDB = async (id, payload) => {
     supplierId,
     warehouseId,
     productId,
-    note: newNote || "---",
+    note: newNote || null,
     status: finalStatus,
     date: inputDateStr || undefined,
   };

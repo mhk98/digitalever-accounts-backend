@@ -48,7 +48,7 @@ const insertIntoDB = async (data) => {
     supplier: productData.supplier,
     productId: receivedId,
     status: finalStatus || "---",
-    note: note || "---",
+    note: note || null,
     date: date,
     warrantyValue,
     warrantyUnit,

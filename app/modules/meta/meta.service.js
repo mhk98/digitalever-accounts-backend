@@ -23,14 +23,14 @@ const insertIntoDB = async (data) => {
     : inputDateStr !== todayStr
       ? "Pending"
       : note
-        ? note
-        : "---";
+        ? "Pending"
+        : "Active";
 
   const result = await Meta.create({
     date: date,
     amount,
     status: finalStatus || "---",
-    note: note || "---",
+    note: note || null,
     platform,
   });
 
@@ -191,7 +191,7 @@ const updateOneFromDB = async (id, payload) => {
 
   const data = {
     date: inputDateStr || undefined,
-    note: newNote || "---",
+    note: newNote || null,
     status: finalStatus,
     amount,
   };

@@ -27,8 +27,8 @@ const insertIntoDB = async (data) => {
     : inputDateStr !== todayStr
       ? "Pending"
       : note
-        ? note
-        : "---";
+        ? "Pending"
+        : "Active";
 
   return await db.sequelize.transaction(async (t) => {
     // ✅ PurchaseProduct (তোমার schema অনুযায়ী Id/productId adjust করো)
@@ -59,7 +59,7 @@ const insertIntoDB = async (data) => {
       total: price * quantity,
       productId,
       status: finalStatus || "---",
-      note: note || "---",
+      note: note || null,
       date: date,
     };
 
@@ -273,7 +273,7 @@ const updateOneFromDB = async (id, data) => {
       name: purchase.name,
       quantity: saleQty,
       price,
-      note: newNote || "---",
+      note: newNote || null,
       status: finalStatus,
       total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
       date: inputDateStr || undefined,

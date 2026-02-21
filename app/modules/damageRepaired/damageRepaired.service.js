@@ -48,8 +48,8 @@ const insertIntoDB = async (data) => {
     : inputDateStr !== todayStr
       ? "Pending"
       : note
-        ? note
-        : "---";
+        ? "Pending"
+        : "Active";
 
   return await db.sequelize.transaction(async (t) => {
     const damageRepair = await DamageRepair.findOne({
@@ -90,7 +90,7 @@ const insertIntoDB = async (data) => {
         sale_price: deductSale,
         productId: realDamageProductId, // ✅ Products.Id (FK)
         status: finalStatus || "---",
-        note: note || "---",
+        note: note || null,
         date: date,
       },
       { transaction: t },
@@ -394,7 +394,7 @@ const updateOneFromDB = async (id, data) => {
         quantity: returnQty,
         purchase_price: deductPurchase,
         sale_price: deductSale,
-        note: newNote || "---",
+        note: newNote || null,
         status: finalStatus,
         date: inputDateStr || undefined,
         productId: realProductId, // ✅ Products.Id (FK)

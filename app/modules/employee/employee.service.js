@@ -119,8 +119,32 @@ const updateOneFromDB = async (id, payload) => {
     userId,
   } = payload;
 
-  const finalStatus = status || "Pending";
-  const finalNote = finalStatus === "Approved" ? "---" : note;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10);
+
+  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
+  const existing = await AssetsPurchase.findOne({
+    where: { Id: id },
+    attributes: ["Id", "note", "status"],
+  });
+
+  if (!existing) return 0;
+
+  const oldNote = String(existing.note || "").trim();
+  const newNote = String(note || "").trim();
+  const isNoteChanged = newNote && newNote !== oldNote;
+
+  // ---------- status rules ----------
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে status সবসময় Pending
+  // ✅ today হলে: Approved থাকবে শুধু তখনই যখন Approved + note change হয়নি
+  const finalStatus =
+    inputDateStr !== todayStr
+      ? "Pending"
+      : isApproved && !isNoteChanged
+        ? "Approved"
+        : "Pending";
 
   const data = {
     name,
@@ -136,7 +160,9 @@ const updateOneFromDB = async (id, payload) => {
     friday_absent,
     unapproval_absent,
     net_salary,
-    note: finalNote,
+    note: newNote || null,
+    status: finalStatus,
+    date: inputDateStr || undefined,
     remarks,
     status: finalStatus,
   };

@@ -23,8 +23,8 @@ const insertIntoDB = async (payload) => {
     : inputDateStr !== todayStr
       ? "Pending"
       : note
-        ? note
-        : "---";
+        ? "Pending"
+        : "Active";
 
   const data = {
     name,
@@ -33,7 +33,7 @@ const insertIntoDB = async (payload) => {
     date,
     total: Number(price * quantity),
     status: finalStatus || "---",
-    note: note || "---",
+    note: note || null,
     date: date,
   };
   const result = await AssetsPurchase.create(data);
@@ -250,7 +250,7 @@ const updateOneFromDB = async (id, payload) => {
     name: name === "" || name == null ? undefined : name,
     quantity: q,
     price: p,
-    note: newNote || "---",
+    note: newNote || null,
     status: finalStatus,
     date: inputDateStr || undefined,
     total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,

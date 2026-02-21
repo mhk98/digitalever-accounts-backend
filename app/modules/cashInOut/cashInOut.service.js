@@ -85,11 +85,12 @@ const getAllFromDB = async (filters, options) => {
 
   const andConditions = [];
 
-  // ✅ searchTerm -> ILIKE on searchable fields
-  if (searchTerm && searchTerm.trim()) {
+  console.log("searchTerm", searchTerm);
+
+  if (searchTerm) {
     andConditions.push({
       [Op.or]: CashInOutSearchableFields.map((field) => ({
-        [field]: { [Op.iLike]: `%${searchTerm.trim()}%` },
+        [field]: { [Op.like]: `%${searchTerm}%` }, // Postgres হলে Op.iLike
       })),
     });
   }

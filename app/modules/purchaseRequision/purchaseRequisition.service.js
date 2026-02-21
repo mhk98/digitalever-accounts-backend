@@ -158,14 +158,14 @@ const insertIntoDB = async (data) => {
     : inputDateStr !== todayStr
       ? "Pending"
       : note
-        ? note
-        : "---";
+        ? "Pending"
+        : "Active";
 
   const payload = {
     name: productData.name,
     quantity: Number(quantity),
     status: finalStatus || "---",
-    note: note || "---",
+    note: note || null,
     date: date,
     purchase_price:
       Number(productData.purchase_price || 0) * Number(quantity || 0),
@@ -367,7 +367,7 @@ const updateOneFromDB = async (id, payload) => {
     quantity,
     purchase_price: productData.purchase_price * quantity,
     sale_price: productData.sale_price * quantity,
-    note: newNote || "---",
+    note: newNote || null,
     status: finalStatus,
     date: inputDateStr || undefined,
     supplierId,

@@ -24,8 +24,8 @@ const insertIntoDB = async (payload) => {
     : inputDateStr !== todayStr
       ? "Pending"
       : note
-        ? note
-        : "---";
+        ? "Pending"
+        : "Active";
 
   const data = {
     name,
@@ -34,7 +34,7 @@ const insertIntoDB = async (payload) => {
     date,
     total: Number(price * quantity),
     status: finalStatus || "---",
-    note: note || "---",
+    note: note || null,
     date: date,
   };
   const result = await AssetsRequisition.create(data);
@@ -201,7 +201,7 @@ const deleteIdFromDB = async (id) => {
 //     name: name === "" ? undefined : name,
 //     quantity: q,
 //     price: p,
-//     note: note || "---",
+//     note: note || null,
 //     status: finalStatus,
 //     total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
 //   };
@@ -289,7 +289,7 @@ const updateOneFromDB = async (id, payload) => {
     price: p,
     total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
     date: inputDateStr || undefined,
-    note: newNote || "---",
+    note: newNote || null,
     status: finalStatus,
   };
 

@@ -5,10 +5,17 @@ const CashInOutFilterAbleFields = [
   "paymentStatus",
   "startDate",
   "endDate",
+  "category",
   "bookId",
 ];
 
-const CashInOutSearchableFields = ["name", "remarks"]; // ✅ এখানে searchTerm দিবে না
+const CashInOutSearchableFields = [
+  "status",
+  "remarks",
+  "paymentMode",
+  "paymentStatus",
+  "category",
+]; // ✅ এখানে searchTerm দিবে না
 
 module.exports = {
   CashInOutFilterAbleFields,

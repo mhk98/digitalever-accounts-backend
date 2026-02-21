@@ -25,8 +25,8 @@ const insertIntoDB = catchAsync(async (req, res) => {
     : inputDateStr !== todayStr
       ? "Pending"
       : note
-        ? note
-        : "---";
+        ? "Pending"
+        : "Active";
 
   const data = {
     name,
@@ -34,7 +34,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
     remarks,
     file,
     status: finalStatus || "---",
-    note: note || "---",
+    note: note || null,
     date: date,
   };
 
@@ -133,7 +133,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     name,
     amount,
     remarks,
-    note: newNote || "---",
+    note: newNote || null,
     status: finalStatus,
     date: inputDateStr || undefined,
     file,

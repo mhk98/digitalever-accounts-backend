@@ -83,7 +83,7 @@ const WarrantyProduct = db.warrantyProduct;
 //         price,
 //         productId: realProductId, // ✅ Products.Id (FK)
 //         status: finalStatus || "---",
-//         note: note || "---",
+//         note: note || null,
 //         date: date,
 //         amount,
 //         mobile,
@@ -307,8 +307,8 @@ const insertIntoDB = async (payload) => {
     : inputDateStr !== todayStr
       ? "Pending"
       : note
-        ? note
-        : "---";
+        ? "Pending"
+        : "Active";
 
   return await db.sequelize.transaction(async (t) => {
     // ✅ 1) Stock check + deduct
@@ -346,7 +346,7 @@ const insertIntoDB = async (payload) => {
     const result = await PosReport.create(
       {
         name,
-        note: note || "---",
+        note: note || null,
         date: date,
         mobile: mobile || null,
         address: address || null,
@@ -715,7 +715,7 @@ const updateOneFromDB = async (data) => {
         quantity: returnQty,
         price,
         productId: realProductId, // ✅ Products.Id (FK)
-        note: newNote || "---",
+        note: newNote || null,
         status: finalStatus,
         date: inputDateStr || undefined,
         amount,

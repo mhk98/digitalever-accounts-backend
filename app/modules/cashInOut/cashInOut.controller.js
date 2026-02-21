@@ -66,8 +66,8 @@ const insertIntoDB = catchAsync(async (req, res) => {
     : inputDateStr !== todayStr
       ? "Pending"
       : note
-        ? note
-        : "---";
+        ? "Pending"
+        : "Active";
 
   const data = {
     name: name || null,
@@ -78,7 +78,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
     amount: amountNumber,
     remarks: remarks || "",
     status: finalStatus || "---",
-    note: note || "---",
+    note: note || null,
     date: date,
     file, // null allowed
     category,
@@ -263,7 +263,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     bankName: isBank ? bankName || "" : "", // ✅ Bank না হলে blank
     bankAccount: isBank ? bankAccountNumber : null, // ✅ Bank না হলে NULL
     remarks: remarks ?? undefined,
-    note: newNote || "---",
+    note: newNote || null,
     status: finalStatus,
     date: inputDateStr || undefined,
     category,
