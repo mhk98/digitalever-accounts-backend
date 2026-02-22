@@ -384,6 +384,11 @@ db.receivedProduct =
     db.sequelize,
     DataTypes,
   );
+db.inventoryMaster =
+  require("../app/modules/inventoryMaster/inventoryMaster.model")(
+    db.sequelize,
+    DataTypes,
+  );
 
 db.inTransitProduct =
   require("../app/modules/inTransitProduct/inTransitProduct.model")(
@@ -463,6 +468,15 @@ db.expense = require("../app/modules/expense/expense.model")(
 );
 
 db.book = require("../app/modules/book/book.model")(db.sequelize, DataTypes);
+db.marketingBook = require("../app/modules/marketingBook/marketingBook.model")(
+  db.sequelize,
+  DataTypes,
+);
+db.marketingExpense =
+  require("../app/modules/marketingExpense/marketingExpense.model")(
+    db.sequelize,
+    DataTypes,
+  );
 
 db.category = require("../app/modules/category/category.model")(
   db.sequelize,
@@ -540,14 +554,23 @@ db.posReport = require("../app/modules/posReport/posReport.model")(
 db.product.hasMany(db.receivedProduct, { foreignKey: "productId" });
 db.receivedProduct.belongsTo(db.product, { foreignKey: "productId" });
 
-db.receivedProduct.hasMany(db.returnProduct, { foreignKey: "productId" });
-db.returnProduct.belongsTo(db.receivedProduct, { foreignKey: "productId" });
+db.receivedProduct.hasMany(db.inventoryMaster, { foreignKey: "productId" });
+db.inventoryMaster.belongsTo(db.receivedProduct, { foreignKey: "productId" });
 
-db.receivedProduct.hasMany(db.inTransitProduct, { foreignKey: "productId" });
-db.inTransitProduct.belongsTo(db.receivedProduct, { foreignKey: "productId" });
+db.supplier.hasMany(db.inventoryMaster, { foreignKey: "supplierId" });
+db.inventoryMaster.belongsTo(db.supplier, { foreignKey: "supplierId" });
 
-db.receivedProduct.hasMany(db.damageProduct, { foreignKey: "productId" });
-db.damageProduct.belongsTo(db.receivedProduct, { foreignKey: "productId" });
+db.warehouse.hasMany(db.inventoryMaster, { foreignKey: "warehousId" });
+db.inventoryMaster.belongsTo(db.warehouse, { foreignKey: "warehousId" });
+
+db.inventoryMaster.hasMany(db.returnProduct, { foreignKey: "productId" });
+db.returnProduct.belongsTo(db.inventoryMaster, { foreignKey: "productId" });
+
+db.inventoryMaster.hasMany(db.inTransitProduct, { foreignKey: "productId" });
+db.inTransitProduct.belongsTo(db.inventoryMaster, { foreignKey: "productId" });
+
+db.inventoryMaster.hasMany(db.damageProduct, { foreignKey: "productId" });
+db.damageProduct.belongsTo(db.inventoryMaster, { foreignKey: "productId" });
 
 db.damageProduct.hasMany(db.damageRepair, { foreignKey: "productId" });
 db.damageRepair.belongsTo(db.damageProduct, { foreignKey: "productId" });
@@ -555,9 +578,11 @@ db.damageRepair.belongsTo(db.damageProduct, { foreignKey: "productId" });
 db.damageRepair.hasMany(db.damageRepaired, { foreignKey: "productId" });
 db.damageRepaired.belongsTo(db.damageRepair, { foreignKey: "productId" });
 
-db.product.hasMany(db.purchaseReturnProduct, { foreignKey: "productId" });
+db.inventoryMaster.hasMany(db.purchaseReturnProduct, {
+  foreignKey: "productId",
+});
 // NOTE: আপনার আগের মতোই রেখেছি (যদি ভুল হয়, receivedProduct/ product কোনটা হবে সেটা আপনার ডাটা কাঠামো অনুযায়ী ঠিক করবেন)
-db.purchaseReturnProduct.belongsTo(db.receivedProduct, {
+db.purchaseReturnProduct.belongsTo(db.inventoryMaster, {
   foreignKey: "productId",
 });
 
@@ -566,6 +591,9 @@ db.confirmOrder.belongsTo(db.product, { foreignKey: "productId" });
 
 db.book.hasMany(db.cashInOut, { foreignKey: "bookId" });
 db.cashInOut.belongsTo(db.book, { foreignKey: "bookId" });
+
+db.marketingBook.hasMany(db.marketingExpense, { foreignKey: "bookId" });
+db.marketingExpense.belongsTo(db.marketingBook, { foreignKey: "bookId" });
 
 // =====================
 // Standard Supplier + Warehouse relations

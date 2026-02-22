@@ -4,9 +4,16 @@ const pettyCashFilterAbleFields = [
   "paymentStatus",
   "startDate",
   "endDate",
+  "category",
 ];
 
-const pettyCashSearchableFields = ["remarks"]; // ✅ এখানে searchTerm দিবে না
+const pettyCashSearchableFields = [
+  "status",
+  "remarks",
+  "paymentMode",
+  "paymentStatus",
+  "category",
+]; // ✅ এখানে searchTerm দিবে না
 
 module.exports = {
   pettyCashFilterAbleFields,

@@ -32,6 +32,9 @@ const PurchaseRequisitionRoutes = require("../modules/purchaseRequision/purchase
 const AssetsRequisitionRoutes = require("../modules/assetsRequisition/assetsRequisition.routes");
 const PosReportRoutes = require("../modules/posReport/posReport.routes");
 const WarrantyProductRoutes = require("../modules/warrantyProduct/warrantyProduct.routes");
+const MarketingBookRoutes = require("../modules/marketingBook/marketingBook.routes");
+const MarketingExpenseRoutes = require("../modules/marketingExpense/marketingExpense.routes");
+const InventoryMasterRoutes = require("../modules/inventoryMaster/inventoryMaster.routes");
 
 const router = express.Router();
 
@@ -52,6 +55,10 @@ const moduleRoutes = [
   {
     path: "/received-product",
     route: ReceivedProductRoutes,
+  },
+  {
+    path: "/inventory-master",
+    route: InventoryMasterRoutes,
   },
   {
     path: "/intransit-product",
@@ -116,6 +123,14 @@ const moduleRoutes = [
   {
     path: "/book",
     route: BookRoutes,
+  },
+  {
+    path: "/marketing-book",
+    route: MarketingBookRoutes,
+  },
+  {
+    path: "/marketing-expense",
+    route: MarketingExpenseRoutes,
   },
   {
     path: "/category",

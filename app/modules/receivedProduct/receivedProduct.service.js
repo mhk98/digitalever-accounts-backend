@@ -1,4 +1,4 @@
-const { Op } = require("sequelize"); // Ensure Op is imported
+const { Op, where } = require("sequelize"); // Ensure Op is imported
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
@@ -12,9 +12,19 @@ const Notification = db.notification;
 const User = db.user;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
+const InventoryMaster = db.inventoryMaster;
 
 // const insertIntoDB = async (data) => {
-//   const { quantity, productId, date, status, note } = data;
+//   const {
+//     quantity,
+//     productId,
+//     date,
+//     status,
+//     note,
+//     userId,
+//     supplierId,
+//     warehouseId,
+//   } = data;
 
 //   const productData = await Product.findOne({ where: { Id: productId } });
 //   if (!productData) throw new ApiError(404, "Product not found");
@@ -22,77 +32,73 @@ const Warehouse = db.warehouse;
 //   const todayStr = new Date().toISOString().slice(0, 10);
 //   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
 
+//   // ✅ Approved হলে পুরোনো date-ও allow + save
+//   const isApproved = String(status || "").trim() === "Approved";
+
+//   // ✅ current date না হলে auto Pending
+//   const finalStatus = isApproved
+//     ? "Approved"
+//     : inputDateStr !== todayStr
+//       ? "Pending"
+//       : note
+//         ? "Pending"
+//         : "Active";
+
 //   const payload = {
 //     name: productData.name,
 //     quantity,
 //     purchase_price: productData.purchase_price * quantity,
 //     sale_price: productData.sale_price * quantity,
-//     supplier: productData.supplier,
+//     price: Number(productData.sale_price || 0),
+//     supplierId,
+//     warehouseId,
 //     productId,
+//     status: finalStatus || "---",
+//     note: note || null,
+//     date: date,
 //   };
 
 //   const result = await ReceivedProduct.create(payload);
-//   return result;
-// };
 
-// const getAllFromDB = async (filters, options) => {
-//   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
+//   const data = {
+//     quantity,
+//     supplierId,
+//     warehouseId,
+//   };
 
-//   const { searchTerm, startDate, endDate, ...otherFilters } = filters;
-
-//   const andConditions = [];
-
-//   // ✅ Search (ILIKE on searchable fields)
-//   if (searchTerm && searchTerm.trim()) {
-//     andConditions.push({
-//       [Op.or]: ReceivedProductSearchableFields.map((field) => ({
-//         [field]: { [Op.iLike]: `%${searchTerm.trim()}%` },
-//       })),
+//   if (result) {
+//     await InventoryMaster.update({
+//       where: {
+//         Id: productId,
+//       },
 //     });
 //   }
 
-//   // ✅ Exact filters (e.g. name)
-//   if (Object.keys(otherFilters).length) {
-//     andConditions.push(
-//       ...Object.entries(otherFilters).map(([key, value]) => ({
-//         [key]: { [Op.eq]: value },
-//       })),
-//     );
-//   }
-
-//   // ✅ Date range filter (createdAt)
-//   if (startDate && endDate) {
-//     const start = new Date(startDate);
-//     start.setHours(0, 0, 0, 0);
-
-//     const end = new Date(endDate);
-//     end.setHours(23, 59, 59, 999);
-
-//     andConditions.push({
-//       createdAt: { [Op.between]: [start, end] },
-//     });
-//   }
-
-//   const whereConditions = andConditions.length
-//     ? { [Op.and]: andConditions }
-//     : {};
-
-//   const result = await ReceivedProduct.findAll({
-//     where: whereConditions,
-//     offset: skip,
-//     limit,
-//     order:
-//       options.sortBy && options.sortOrder
-//         ? [[options.sortBy, options.sortOrder.toUpperCase()]]
-//         : [["createdAt", "DESC"]],
+//   const users = await User.findAll({
+//     attributes: ["Id", "role"],
+//     where: {
+//       Id: { [Op.ne]: userId },
+//       role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+//     },
 //   });
 
-//   const total = await ReceivedProduct.count({ where: whereConditions });
+//   if (users.length) {
+//     const message =
+//       status === "Approved"
+//         ? "Received product request approved"
+//         : note || "Please approved my request";
 
-//   return {
-//     meta: { total, page, limit },
-//     data: result,
-//   };
+//     await Promise.all(
+//       users.map((u) =>
+//         Notification.create({
+//           userId: u.Id,
+//           message,
+//           url: "/purchase-requisition",
+//         }),
+//       ),
+//     );
+//   }
+//   return result;
 // };
 
 const insertIntoDB = async (data) => {
@@ -141,6 +147,31 @@ const insertIntoDB = async (data) => {
 
   const result = await ReceivedProduct.create(payload);
 
+  if (result) {
+    // Update InventoryMaster if result is success
+    const inventoryUpdate = await InventoryMaster.findOne({
+      where: {
+        productId,
+        supplierId,
+        warehouseId,
+      },
+    });
+
+    if (inventoryUpdate) {
+      const updatedQuantity = inventoryUpdate.quantity + quantity;
+      await InventoryMaster.update(
+        { quantity: updatedQuantity },
+        {
+          where: {
+            productId,
+            supplierId,
+            warehouseId,
+          },
+        },
+      );
+    }
+  }
+
   const users = await User.findAll({
     attributes: ["Id", "role"],
     where: {
@@ -153,7 +184,7 @@ const insertIntoDB = async (data) => {
     const message =
       status === "Approved"
         ? "Received product request approved"
-        : note || "Please approved my request";
+        : note || "Please approve my request";
 
     await Promise.all(
       users.map((u) =>
@@ -165,9 +196,9 @@ const insertIntoDB = async (data) => {
       ),
     );
   }
+
   return result;
 };
-
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
 

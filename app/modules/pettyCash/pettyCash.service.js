@@ -20,10 +20,18 @@ const getAllFromDB = async (filters, options) => {
   const andConditions = [];
 
   // ✅ Search (ILIKE on searchable fields)
-  if (searchTerm && searchTerm.trim()) {
+  // if (searchTerm && searchTerm.trim()) {
+  //   andConditions.push({
+  //     [Op.or]: pettyCashSearchableFields.map((field) => ({
+  //       [field]: { [Op.like]: `%${searchTerm.trim()}%` },
+  //     })),
+  //   });
+  // }
+
+  if (searchTerm) {
     andConditions.push({
       [Op.or]: pettyCashSearchableFields.map((field) => ({
-        [field]: { [Op.iLike]: `%${searchTerm.trim()}%` },
+        [field]: { [Op.like]: `%${searchTerm}%` }, // Postgres হলে Op.iLike
       })),
     });
   }
