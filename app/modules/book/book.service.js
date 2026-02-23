@@ -103,6 +103,8 @@ const deleteIdFromDB = async (id) => {
 const updateOneFromDB = async (id, payload) => {
   const { name, note, status } = payload;
 
+  console.log("Accounting book", payload);
+
   const data = {
     name,
     note: status === "Approved" ? "---" : note,

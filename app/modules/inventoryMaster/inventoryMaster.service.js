@@ -50,7 +50,7 @@ const getAllFromDB = async (filters, options) => {
     end.setHours(23, 59, 59, 999);
 
     andConditions.push({
-      date: { [Op.between]: [start, end] },
+      createdAt: { [Op.between]: [start, end] },
     });
   }
 
@@ -68,18 +68,6 @@ const getAllFromDB = async (filters, options) => {
     where: whereConditions,
     offset: skip,
     limit,
-    include: [
-      {
-        model: Supplier,
-        as: "supplier",
-        attributes: ["Id", "name"],
-      },
-      {
-        model: Warehouse,
-        as: "warehouse",
-        attributes: ["Id", "name"],
-      },
-    ],
     paranoid: true,
     order:
       options.sortBy && options.sortOrder

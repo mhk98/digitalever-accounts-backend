@@ -8,11 +8,11 @@ const {
 const DamageRepaired = db.damageRepaired;
 const DamageRepair = db.damageRepair;
 const DamageProduct = db.damageProduct;
-const ReceivedProduct = db.receivedProduct;
 const Notification = db.notification;
 const User = db.user;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
+const InventoryMaster = db.inventoryMaster;
 
 const insertIntoDB = async (data) => {
   const {
@@ -119,26 +119,26 @@ const insertIntoDB = async (data) => {
 
     if (!damageProduct) throw new ApiError(404, "Damage product not found");
 
-    const receivedProduct = await ReceivedProduct.findOne({
+    const InventoryMaster = await InventoryMaster.findOne({
       where: { Id: damageProduct.productId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (!receivedProduct) throw new ApiError(404, "Damage product not found");
+    if (!InventoryMaster) throw new ApiError(404, "Damage product not found");
 
-    const receivedOldQty = Number(receivedProduct.quantity || 0);
+    const receivedOldQty = Number(InventoryMaster.quantity || 0);
 
-    const realreceivedProductId = Number(receivedOldQty.Id);
+    const realInventoryMasterId = Number(receivedOldQty.Id);
     if (!realDamageProductId) {
       throw new ApiError(400, "DamageRepair productId missing (Products.Id)");
     }
 
-    await ReceivedProduct.update(
+    await InventoryMaster.update(
       {
         quantity: receivedOldQty + returnQty,
       },
-      { where: { Id: receivedProduct.Id }, transaction: t },
+      { where: { Id: InventoryMaster.Id }, transaction: t },
     );
 
     const users = await User.findAll({
@@ -277,7 +277,7 @@ const deleteIdFromDB = async (id) => {
     const qty = Number(ret.quantity || 0);
     if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
 
-    // 2) ReceivedProduct খুঁজে বের করো (Products.Id দিয়ে)
+    // 2) InventoryMaster খুঁজে বের করো (Products.Id দিয়ে)
     const received = await DamageRepair.findOne({
       where: { productId: ret.productId }, // ✅ Products.Id
       transaction: t,

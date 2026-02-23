@@ -1,8 +1,6 @@
 const { Op, where } = require("sequelize"); // Ensure Op is imported
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
-const ApiError = require("../../../error/ApiError");
-const { MarketingBookSearchableFields } = require("./marketingBook.constants");
 const MarketingBook = db.marketingBook;
 
 const insertIntoDB = async (data) => {
@@ -103,6 +101,7 @@ const deleteIdFromDB = async (id) => {
 const updateOneFromDB = async (id, payload) => {
   const { name, note, status } = payload;
 
+  console.log("marketing book", payload);
   const data = {
     name,
     note: status === "Approved" ? "---" : note,

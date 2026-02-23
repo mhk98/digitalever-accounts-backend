@@ -2,7 +2,7 @@ const catchAsync = require("../../../shared/catchAsync");
 const sendResponse = require("../../../shared/sendResponse");
 const pick = require("../../../shared/pick");
 const { MarketingBookFilterAbleFileds } = require("./marketingBook.constants");
-const MarketingBookService = require("./MarketingBook.service");
+const MarketingBookService = require("./marketingBook.service");
 
 const insertIntoDB = catchAsync(async (req, res) => {
   const result = await MarketingBookService.insertIntoDB(req.body);

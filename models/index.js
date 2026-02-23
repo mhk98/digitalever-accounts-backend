@@ -554,14 +554,14 @@ db.posReport = require("../app/modules/posReport/posReport.model")(
 db.product.hasMany(db.receivedProduct, { foreignKey: "productId" });
 db.receivedProduct.belongsTo(db.product, { foreignKey: "productId" });
 
-db.receivedProduct.hasMany(db.inventoryMaster, { foreignKey: "productId" });
-db.inventoryMaster.belongsTo(db.receivedProduct, { foreignKey: "productId" });
+db.product.hasMany(db.inventoryMaster, { foreignKey: "productId" });
+db.inventoryMaster.belongsTo(db.product, { foreignKey: "productId" });
 
-db.supplier.hasMany(db.inventoryMaster, { foreignKey: "supplierId" });
-db.inventoryMaster.belongsTo(db.supplier, { foreignKey: "supplierId" });
+// db.supplier.hasMany(db.inventoryMaster, { foreignKey: "supplierId" });
+// db.inventoryMaster.belongsTo(db.supplier, { foreignKey: "supplierId" });
 
-db.warehouse.hasMany(db.inventoryMaster, { foreignKey: "warehousId" });
-db.inventoryMaster.belongsTo(db.warehouse, { foreignKey: "warehousId" });
+// db.warehouse.hasMany(db.inventoryMaster, { foreignKey: "warehousId" });
+// db.inventoryMaster.belongsTo(db.warehouse, { foreignKey: "warehousId" });
 
 db.inventoryMaster.hasMany(db.returnProduct, { foreignKey: "productId" });
 db.returnProduct.belongsTo(db.inventoryMaster, { foreignKey: "productId" });

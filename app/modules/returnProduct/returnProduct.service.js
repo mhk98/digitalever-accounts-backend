@@ -4,11 +4,11 @@ const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { ReturnProductSearchableFields } = require("./returnProduct.constants");
 const ReturnProduct = db.returnProduct;
-const ReceivedProduct = db.receivedProduct;
 const Notification = db.notification;
 const User = db.user;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
+const InventoryMaster = db.inventoryMaster;
 
 const insertIntoDB = async (data) => {
   const {
@@ -48,38 +48,38 @@ const insertIntoDB = async (data) => {
         : "Active";
 
   return await db.sequelize.transaction(async (t) => {
-    const received = await ReceivedProduct.findOne({
+    const inventory = await InventoryMaster.findOne({
       where: { Id: rid },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (!received) throw new ApiError(404, "Received product not found");
+    if (!inventory) throw new ApiError(404, "inventory product not found");
 
-    const oldQty = Number(received.quantity || 0);
+    const oldQty = Number(inventory.quantity || 0);
     if (oldQty < returnQty) {
       throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
     }
 
     const perUnitPurchase =
-      oldQty > 0 ? Number(received.purchase_price || 0) / oldQty : 0;
+      oldQty > 0 ? Number(inventory.purchase_price || 0) / oldQty : 0;
     const perUnitSale =
-      oldQty > 0 ? Number(received.sale_price || 0) / oldQty : 0;
+      oldQty > 0 ? Number(inventory.sale_price || 0) / oldQty : 0;
 
     const deductPurchase = perUnitPurchase * returnQty;
     const deductSale = perUnitSale * returnQty;
 
-    const realProductId = Number(received.productId);
+    const realProductId = Number(inventory.productId);
     if (!realProductId) {
       throw new ApiError(
         400,
-        "ReceivedProduct.productId missing (Products.Id)",
+        "InventoryMaster.productId missing (Products.Id)",
       );
     }
 
     const result = await ReturnProduct.create(
       {
-        name: received.name,
+        name: inventory.name,
         supplierId,
         warehouseId,
         quantity: returnQty,
@@ -93,16 +93,16 @@ const insertIntoDB = async (data) => {
       { transaction: t },
     );
 
-    await ReceivedProduct.update(
+    await InventoryMaster.update(
       {
         quantity: oldQty + returnQty,
         purchase_price: Math.max(
           0,
-          Number(received.purchase_price || 0) - deductPurchase,
+          Number(inventory.purchase_price || 0) - deductPurchase,
         ),
-        sale_price: Math.max(0, Number(received.sale_price || 0) - deductSale),
+        sale_price: Math.max(0, Number(inventory.sale_price || 0) - deductSale),
       },
-      { where: { Id: received.Id }, transaction: t },
+      { where: { Id: inventory.Id }, transaction: t },
     );
 
     const users = await User.findAll({
@@ -240,8 +240,8 @@ const deleteIdFromDB = async (id) => {
     const qty = Number(ret.quantity || 0);
     if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
 
-    // 2) ReceivedProduct খুঁজে বের করো (Products.Id দিয়ে)
-    const received = await ReceivedProduct.findOne({
+    // 2) InventoryMaster খুঁজে বের করো (Products.Id দিয়ে)
+    const received = await InventoryMaster.findOne({
       where: { productId: ret.productId }, // ✅ Products.Id
       transaction: t,
       lock: t.LOCK.UPDATE,
@@ -250,7 +250,7 @@ const deleteIdFromDB = async (id) => {
     if (!received) throw new ApiError(404, "Received product not found");
 
     // 3) stock ফিরিয়ে দাও
-    await ReceivedProduct.update(
+    await InventoryMaster.update(
       {
         quantity: Number(received.quantity || 0) - qty,
         purchase_price:
@@ -322,38 +322,38 @@ const updateOneFromDB = async (id, data) => {
   }
 
   return await db.sequelize.transaction(async (t) => {
-    const received = await ReceivedProduct.findOne({
+    const inventory = await InventoryMaster.findOne({
       where: { Id: rid },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (!received) throw new ApiError(404, "Received product not found");
+    if (!inventory) throw new ApiError(404, "inventory product not found");
 
-    const oldQty = Number(received.quantity || 0);
+    const oldQty = Number(inventory.quantity || 0);
     if (oldQty < returnQty) {
       throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
     }
 
     const perUnitPurchase =
-      oldQty > 0 ? Number(received.purchase_price || 0) / oldQty : 0;
+      oldQty > 0 ? Number(inventory.purchase_price || 0) / oldQty : 0;
     const perUnitSale =
-      oldQty > 0 ? Number(received.sale_price || 0) / oldQty : 0;
+      oldQty > 0 ? Number(inventory.sale_price || 0) / oldQty : 0;
 
     const deductPurchase = perUnitPurchase * returnQty;
     const deductSale = perUnitSale * returnQty;
 
-    const realProductId = Number(received.productId);
+    const realProductId = Number(inventory.productId);
     if (!realProductId) {
       throw new ApiError(
         400,
-        "ReceivedProduct.productId missing (Products.Id)",
+        "InventoryMaster.productId missing (Products.Id)",
       );
     }
 
     const [updatedCount] = await ReturnProduct.update(
       {
-        name: received.name,
+        name: inventory.name,
         supplierId,
         warehouseId,
         quantity: returnQty,
@@ -371,19 +371,19 @@ const updateOneFromDB = async (id, data) => {
     );
 
     if (status === "Approved") {
-      await ReceivedProduct.update(
+      await InventoryMaster.update(
         {
           quantity: oldQty - returnQty,
           purchase_price: Math.max(
             0,
-            Number(received.purchase_price || 0) - deductPurchase,
+            Number(inventory.purchase_price || 0) - deductPurchase,
           ),
           sale_price: Math.max(
             0,
-            Number(received.sale_price || 0) - deductSale,
+            Number(inventory.sale_price || 0) - deductSale,
           ),
         },
-        { where: { Id: received.Id }, transaction: t },
+        { where: { Id: inventory.Id }, transaction: t },
       );
     }
 

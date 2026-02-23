@@ -17,8 +17,8 @@ const PurchaseReturnProduct = db.purchaseReturnProduct;
 const InTransitProduct = db.inTransitProduct;
 const ReturnProduct = db.returnProduct; // sales return
 const DamageProduct = db.damageProduct;
-
 const CashInOut = db.cashInOut;
+const InventoryMaster = db.inventoryMaster;
 
 // ✅ helper: safe number
 const n = (v) => Number(v || 0);
@@ -40,7 +40,7 @@ const buildDateWhere = (from, to) => {
   end.setHours(23, 59, 59, 999);
 
   return {
-    date: { [Op.between]: [start, end] },
+    createdAt: { [Op.between]: [start, end] },
   };
 };
 
@@ -70,6 +70,8 @@ const getOverviewSummaryFromDB = async (filters) => {
     totalSalesReturnProductAmount,
     totalDamageProductProductAmount,
 
+    totalInventoryOverview,
+
     totalCashInAmount,
     totalCashOutAmount,
   ] = await Promise.all([
@@ -92,15 +94,19 @@ const getOverviewSummaryFromDB = async (filters) => {
     sumField(ReturnProduct, "purchase_price", dateWhere),
     sumField(DamageProduct, "purchase_price", dateWhere),
 
+    // Inventory Overview
+    sumField(InventoryMaster, "purchase_price", dateWhere),
+
     // Cash In/Out (same table, different status)
     sumField(CashInOut, "amount", { ...dateWhere, paymentStatus: "CashIn" }),
     sumField(CashInOut, "amount", { ...dateWhere, paymentStatus: "CashOut" }),
   ]);
 
   // ✅ তোমার UI logic অনুযায়ী হিসাব
-  const remainingAmount = n(
-    totalPurchaseAmount - (totalSaleAmount + totalDamageAmount),
-  );
+
+  // const remainingAmount = n(
+  //   totalPurchaseAmount - (totalSaleAmount + totalDamageAmount),
+  // );
 
   // const totalInventoryExpense = n(
   //   totalPurchaseReturnProductAmount +
@@ -133,8 +139,8 @@ const getOverviewSummaryFromDB = async (filters) => {
 
     // Assets
     totalPurchaseAmount,
-    totalSaleAmount,
-    remainingAmount,
+    // totalSaleAmount,
+    // remainingAmount,
 
     // Inventory
     totalReceivedProductAmount,
@@ -143,6 +149,9 @@ const getOverviewSummaryFromDB = async (filters) => {
     totalSalesReturnProductAmount,
     totalDamageProductProductAmount,
     inventoryStock_AfterAdd_SalesReturnProduct,
+
+    //Inventory Overview
+    totalInventoryOverview,
 
     // Expenses & Accounts
     totalMetaAmount,

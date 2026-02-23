@@ -4,11 +4,11 @@ const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { DamageProductSearchableFields } = require("./damageProduct.constants");
 const DamageProduct = db.damageProduct;
-const ReceivedProduct = db.receivedProduct;
 const Notification = db.notification;
 const User = db.user;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
+const InventoryMaster = db.inventoryMaster;
 
 // const insertIntoDB = async (data) => {
 //   const { quantity, productId } = data;
@@ -20,9 +20,9 @@ const Warehouse = db.warehouse;
 //   }
 
 //   return await db.sequelize.transaction(async (t) => {
-//     // ✅ ReceivedProduct (stock)
-//     // ⚠️ যদি তোমার ReceivedProduct এ productId নামে কলাম থাকে, তাহলে where: { productId } করবে
-//     const received = await ReceivedProduct.findOne({
+//     // ✅ InventoryMaster (stock)
+//     // ⚠️ যদি তোমার InventoryMaster এ productId নামে কলাম থাকে, তাহলে where: { productId } করবে
+//     const received = await InventoryMaster.findOne({
 //       where: { Id: productId },
 //       transaction: t,
 //       lock: t.LOCK.UPDATE,
@@ -57,7 +57,7 @@ const Warehouse = db.warehouse;
 //       transaction: t,
 //     });
 
-//     // ✅ Update ReceivedProduct (subtract qty & totals)
+//     // ✅ Update InventoryMaster (subtract qty & totals)
 //     const newQty = availableQty - qty;
 
 //     const newPurchaseTotal = Math.max(
@@ -67,7 +67,7 @@ const Warehouse = db.warehouse;
 
 //     const newSaleTotal = Math.max(0, Number(received.sale_price) - returnSale);
 
-//     await ReceivedProduct.update(
+//     await InventoryMaster.update(
 //       {
 //         quantity: newQty,
 //         purchase_price: newPurchaseTotal,
@@ -121,7 +121,7 @@ const insertIntoDB = async (data) => {
         : "Active";
 
   return await db.sequelize.transaction(async (t) => {
-    const received = await ReceivedProduct.findOne({
+    const received = await InventoryMaster.findOne({
       where: { Id: rid },
       transaction: t,
       lock: t.LOCK.UPDATE,
@@ -146,7 +146,7 @@ const insertIntoDB = async (data) => {
     if (!realProductId) {
       throw new ApiError(
         400,
-        "ReceivedProduct.productId missing (Products.Id)",
+        "InventoryMaster.productId missing (Products.Id)",
       );
     }
 
@@ -166,7 +166,7 @@ const insertIntoDB = async (data) => {
       { transaction: t },
     );
 
-    await ReceivedProduct.update(
+    await InventoryMaster.update(
       {
         quantity: oldQty - returnQty,
         purchase_price: Math.max(
@@ -315,8 +315,8 @@ const deleteIdFromDB = async (id) => {
     const qty = Number(ret.quantity || 0);
     // if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
 
-    // 2) ReceivedProduct খুঁজে বের করো (Products.Id দিয়ে)
-    const received = await ReceivedProduct.findOne({
+    // 2) InventoryMaster খুঁজে বের করো (Products.Id দিয়ে)
+    const received = await InventoryMaster.findOne({
       where: { productId: ret.productId }, // ✅ Products.Id
       transaction: t,
       lock: t.LOCK.UPDATE,
@@ -325,7 +325,7 @@ const deleteIdFromDB = async (id) => {
     if (!received) throw new ApiError(404, "Received product not found");
 
     // 3) stock ফিরিয়ে দাও
-    await ReceivedProduct.update(
+    await InventoryMaster.update(
       {
         quantity: Number(received.quantity || 0) + qty,
         purchase_price:
@@ -397,7 +397,7 @@ const updateOneFromDB = async (id, data) => {
   }
 
   return await db.sequelize.transaction(async (t) => {
-    const received = await ReceivedProduct.findOne({
+    const received = await InventoryMaster.findOne({
       where: { Id: rid },
       transaction: t,
       lock: t.LOCK.UPDATE,
@@ -422,7 +422,7 @@ const updateOneFromDB = async (id, data) => {
     if (!realProductId) {
       throw new ApiError(
         400,
-        "ReceivedProduct.productId missing (Products.Id)",
+        "InventoryMaster.productId missing (Products.Id)",
       );
     }
 
@@ -445,7 +445,7 @@ const updateOneFromDB = async (id, data) => {
     );
 
     if (status === "Approved") {
-      await ReceivedProduct.update(
+      await InventoryMaster.update(
         {
           quantity: oldQty - returnQty,
           purchase_price: Math.max(

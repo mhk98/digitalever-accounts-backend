@@ -14,93 +14,6 @@ const Supplier = db.supplier;
 const Warehouse = db.warehouse;
 const InventoryMaster = db.inventoryMaster;
 
-// const insertIntoDB = async (data) => {
-//   const {
-//     quantity,
-//     productId,
-//     date,
-//     status,
-//     note,
-//     userId,
-//     supplierId,
-//     warehouseId,
-//   } = data;
-
-//   const productData = await Product.findOne({ where: { Id: productId } });
-//   if (!productData) throw new ApiError(404, "Product not found");
-
-//   const todayStr = new Date().toISOString().slice(0, 10);
-//   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
-
-//   // ✅ Approved হলে পুরোনো date-ও allow + save
-//   const isApproved = String(status || "").trim() === "Approved";
-
-//   // ✅ current date না হলে auto Pending
-//   const finalStatus = isApproved
-//     ? "Approved"
-//     : inputDateStr !== todayStr
-//       ? "Pending"
-//       : note
-//         ? "Pending"
-//         : "Active";
-
-//   const payload = {
-//     name: productData.name,
-//     quantity,
-//     purchase_price: productData.purchase_price * quantity,
-//     sale_price: productData.sale_price * quantity,
-//     price: Number(productData.sale_price || 0),
-//     supplierId,
-//     warehouseId,
-//     productId,
-//     status: finalStatus || "---",
-//     note: note || null,
-//     date: date,
-//   };
-
-//   const result = await ReceivedProduct.create(payload);
-
-//   const data = {
-//     quantity,
-//     supplierId,
-//     warehouseId,
-//   };
-
-//   if (result) {
-//     await InventoryMaster.update({
-//       where: {
-//         Id: productId,
-//       },
-//     });
-//   }
-
-//   const users = await User.findAll({
-//     attributes: ["Id", "role"],
-//     where: {
-//       Id: { [Op.ne]: userId },
-//       role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
-//     },
-//   });
-
-//   if (users.length) {
-//     const message =
-//       status === "Approved"
-//         ? "Received product request approved"
-//         : note || "Please approved my request";
-
-//     await Promise.all(
-//       users.map((u) =>
-//         Notification.create({
-//           userId: u.Id,
-//           message,
-//           url: "/purchase-requisition",
-//         }),
-//       ),
-//     );
-//   }
-//   return result;
-// };
-
 const insertIntoDB = async (data) => {
   const {
     quantity,
@@ -117,12 +30,10 @@ const insertIntoDB = async (data) => {
   if (!productData) throw new ApiError(404, "Product not found");
 
   const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+  const inputDateStr = String(date || "").slice(0, 10);
 
-  // ✅ Approved হলে পুরোনো date-ও allow + save
   const isApproved = String(status || "").trim() === "Approved";
 
-  // ✅ current date না হলে auto Pending
   const finalStatus = isApproved
     ? "Approved"
     : inputDateStr !== todayStr
@@ -131,74 +42,88 @@ const insertIntoDB = async (data) => {
         ? "Pending"
         : "Active";
 
-  const payload = {
-    name: productData.name,
-    quantity,
-    purchase_price: productData.purchase_price * quantity,
-    sale_price: productData.sale_price * quantity,
-    price: Number(productData.sale_price || 0),
-    supplierId,
-    warehouseId,
-    productId,
-    status: finalStatus || "---",
-    note: note || null,
-    date: date,
-  };
+  return db.sequelize.transaction(async (t) => {
+    const payload = {
+      name: productData.name,
+      quantity,
+      purchase_price: productData.purchase_price * quantity,
+      sale_price: productData.sale_price * quantity,
+      price: Number(productData.sale_price || 0),
+      supplierId,
+      warehouseId,
+      productId,
+      status: finalStatus || "---",
+      note: note || null,
+      date: date,
+    };
 
-  const result = await ReceivedProduct.create(payload);
+    const result = await ReceivedProduct.create(payload, { transaction: t });
 
-  if (result) {
-    // Update InventoryMaster if result is success
-    const inventoryUpdate = await InventoryMaster.findOne({
+    // ✅ InventoryMaster: থাকলে update, না থাকলে insert
+    if (result) {
+      const inv = await InventoryMaster.findOne({
+        where: { productId },
+        transaction: t,
+        lock: t.LOCK.UPDATE, // optional but helpful
+      });
+
+      if (inv) {
+        await inv.update(
+          {
+            quantity: Number(inv.quantity || 0) + Number(quantity || 0),
+            purchase_price:
+              Number(inv.purchase_price || 0) +
+              Number(productData.purchase_price * quantity),
+            sale_price:
+              Number(inv.sale_price || 0) +
+              Number(productData.sale_price * quantity),
+          },
+          { transaction: t },
+        );
+      } else {
+        await InventoryMaster.create(
+          {
+            productId,
+            name: productData.name,
+            quantity: Number(quantity || 0),
+            price: productData.sale_price,
+            purchase_price: productData.purchase_price * quantity,
+            sale_price: productData.sale_price * quantity,
+          },
+          { transaction: t },
+        );
+      }
+    }
+
+    const users = await User.findAll({
+      attributes: ["Id", "role"],
       where: {
-        productId,
-        supplierId,
-        warehouseId,
+        Id: { [Op.ne]: userId },
+        role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
       },
+      transaction: t,
     });
 
-    if (inventoryUpdate) {
-      const updatedQuantity = inventoryUpdate.quantity + quantity;
-      await InventoryMaster.update(
-        { quantity: updatedQuantity },
-        {
-          where: {
-            productId,
-            supplierId,
-            warehouseId,
-          },
-        },
+    if (users.length) {
+      const message =
+        status === "Approved"
+          ? "Received product request approved"
+          : note || "Please approve my request";
+
+      await Promise.all(
+        users.map((u) =>
+          Notification.create(
+            { userId: u.Id, message, url: "/purchase-requisition" },
+            { transaction: t },
+          ),
+        ),
       );
     }
-  }
 
-  const users = await User.findAll({
-    attributes: ["Id", "role"],
-    where: {
-      Id: { [Op.ne]: userId },
-      role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
-    },
+    return result;
   });
-
-  if (users.length) {
-    const message =
-      status === "Approved"
-        ? "Received product request approved"
-        : note || "Please approve my request";
-
-    await Promise.all(
-      users.map((u) =>
-        Notification.create({
-          userId: u.Id,
-          message,
-          url: "/purchase-requisition",
-        }),
-      ),
-    );
-  }
-
-  return result;
 };
+
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
 
