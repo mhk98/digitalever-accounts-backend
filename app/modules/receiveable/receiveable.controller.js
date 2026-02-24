@@ -99,7 +99,8 @@ const getDataById = catchAsync(async (req, res) => {
 
 const updateOneFromDB = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const { name, amount, remarks, note, status, date, userId } = req.body;
+  const { name, amount, remarks, note, status, date, userId, actorRole } =
+    req.body;
 
   const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
 
@@ -116,19 +117,32 @@ const updateOneFromDB = catchAsync(async (req, res) => {
 
   const oldNote = String(existing.note || "").trim();
   const newNote = String(note || "").trim();
-  const isNoteChanged = newNote && newNote !== oldNote;
 
-  // ---------- status rules ----------
-  const isApproved = String(status || "").trim() === "Approved";
+  // ✅ newNote খালি না হলে + oldNote থেকে আলাদা হলে => pending trigger
+  const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
 
-  // ✅ current date না হলে status সবসময় Pending
-  // ✅ today হলে: Approved থাকবে শুধু তখনই যখন Approved + note change হয়নি
-  const finalStatus =
-    inputDateStr !== todayStr
-      ? "Pending"
-      : isApproved && !isNoteChanged
-        ? "Approved"
-        : "Pending";
+  // ✅ today না হলে pending trigger (date না পাঠালে trigger হবে না)
+  const dateTriggersPending =
+    Boolean(inputDateStr) && inputDateStr !== todayStr;
+
+  const inputStatus = String(status || "").trim();
+
+  let finalStatus = existing.status || "Pending";
+
+  const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
+
+  if (isPrivileged) {
+    // ✅ superAdmin/admin: যা পাঠাবে সেটাই
+    finalStatus = inputStatus || finalStatus;
+  } else {
+    // ✅ others: today date না হলে বা new note হলে Pending override
+    if (dateTriggersPending || noteTriggersPending) {
+      finalStatus = "Pending";
+    } else {
+      // ✅ otherwise: status পাঠালে সেটাই, না পাঠালে আগেরটা
+      finalStatus = inputStatus || finalStatus;
+    }
+  }
 
   const data = {
     name,

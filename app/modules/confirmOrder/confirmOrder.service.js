@@ -1,4 +1,4 @@
-const { Op, where } = require("sequelize"); // Ensure Op is imported
+const { Op, where, fn, col, literal } = require("sequelize"); // Ensure Op is imported
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
@@ -264,6 +264,57 @@ const getAllFromDB = async (filters, options) => {
   };
 };
 
+const getTrendingProductsFromDB = async (query) => {
+  const days = Number(query?.days || 7);
+  const limit = Number(query?.limit || 10);
+  const sortBy = String(query?.sortBy || "soldQty"); // soldQty | revenue
+
+  if (!Number.isFinite(days) || days <= 0) {
+    throw new ApiError(400, "days must be a positive number");
+  }
+
+  const to = new Date();
+  const from = new Date();
+  from.setDate(to.getDate() - (days - 1));
+
+  const fromStr = from.toISOString().slice(0, 10);
+  const toStr = to.toISOString().slice(0, 10);
+
+  const result = await ConfirmOrder.findAll({
+    attributes: [
+      "productId",
+      [fn("SUM", col("ConfirmOrder.quantity")), "soldQty"],
+      [fn("SUM", col("ConfirmOrder.sale_price")), "revenue"],
+    ],
+    where: {
+      date: { [Op.between]: [fromStr, toStr] },
+      status: { [Op.in]: ["Approved", "Active"] },
+    },
+    include: [
+      {
+        model: Product,
+        as: "product",
+        attributes: ["Id", "name"],
+        required: false,
+      },
+    ],
+    group: ["ConfirmOrder.productId", "product.Id", "product.name"],
+    order: [[literal(sortBy === "revenue" ? "revenue" : "soldQty"), "DESC"]],
+    limit,
+  });
+
+  return {
+    meta: {
+      days,
+      from: fromStr,
+      to: toStr,
+      limit,
+      sortBy: sortBy === "revenue" ? "revenue" : "soldQty",
+    },
+    data: result,
+  };
+};
+
 const getDataById = async (id) => {
   const result = await ConfirmOrder.findOne({
     where: {
@@ -330,44 +381,49 @@ const updateOneFromDB = async (id, data) => {
     date,
     supplierId,
     warehouseId,
+    actorRole,
   } = data;
 
-  const productData = await Product.findOne({
-    where: {
-      Id: receivedId,
-    },
-  });
-
-  if (!productData) {
-    throw new ApiError(404, "Product not found");
-  }
+  const productData = await Product.findOne({ where: { Id: receivedId } });
+  if (!productData) throw new ApiError(404, "Product not found");
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10);
 
-  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
   const existing = await ConfirmOrder.findOne({
     where: { Id: id },
     attributes: ["Id", "note", "status"],
   });
-
   if (!existing) return 0;
 
   const oldNote = String(existing.note || "").trim();
   const newNote = String(note || "").trim();
-  const isNoteChanged = newNote && newNote !== oldNote;
 
-  // ---------- status rules ----------
-  const isApproved = String(status || "").trim() === "Approved";
+  // ✅ newNote খালি না হলে + oldNote থেকে আলাদা হলে => pending trigger
+  const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
 
-  // ✅ current date না হলে status সবসময় Pending
-  // ✅ today হলে: Approved থাকবে শুধু তখনই যখন Approved + note change হয়নি
-  const finalStatus =
-    inputDateStr !== todayStr
-      ? "Pending"
-      : isApproved && !isNoteChanged
-        ? "Approved"
-        : "Pending";
+  // ✅ today না হলে pending trigger (date না পাঠালে trigger হবে না)
+  const dateTriggersPending =
+    Boolean(inputDateStr) && inputDateStr !== todayStr;
+
+  const inputStatus = String(status || "").trim();
+
+  let finalStatus = existing.status || "Pending";
+
+  const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
+
+  if (isPrivileged) {
+    // ✅ superAdmin/admin: যা পাঠাবে সেটাই
+    finalStatus = inputStatus || finalStatus;
+  } else {
+    // ✅ others: today date না হলে বা new note হলে Pending override
+    if (dateTriggersPending || noteTriggersPending) {
+      finalStatus = "Pending";
+    } else {
+      // ✅ otherwise: status পাঠালে সেটাই, না পাঠালে আগেরটা
+      finalStatus = inputStatus || finalStatus;
+    }
+  }
 
   const payload = {
     name: productData.name,
@@ -377,42 +433,43 @@ const updateOneFromDB = async (id, data) => {
     supplierId,
     warehouseId,
     productId: receivedId,
-    note: newNote || null,
+    note: newNote || null, // ✅ newNote "" হলে null যাবে
     status: finalStatus,
-    date: inputDateStr || undefined,
+    date: inputDateStr || null,
   };
 
   const [updatedCount] = await ConfirmOrder.update(payload, {
-    where: {
-      Id: id,
-    },
+    where: { Id: id },
   });
 
+  // notification (optional)
   const users = await User.findAll({
     attributes: ["Id", "role"],
     where: {
-      Id: { [Op.ne]: userId }, // sender বাদ
-      role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
+      Id: { [Op.ne]: userId },
+      role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
     },
   });
 
-  console.log("users", users.length);
-  if (!users.length) return updatedCount;
+  if (users.length) {
+    const message =
+      finalStatus === "Approved"
+        ? "Confirm order request approved"
+        : finalStatus === "Pending"
+          ? "Confirm order moved to pending"
+          : "Confirm order updated";
 
-  const message =
-    finalStatus === "Approved"
-      ? "Confirm order request approved"
-      : note || "Confirm order updated";
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: `/kafelamart.digitalever.com.bd/confirm-order`,
+        }),
+      ),
+    );
+  }
 
-  await Promise.all(
-    users.map((u) =>
-      Notification.create({
-        userId: u.Id,
-        message,
-        url: `/kafelamart.digitalever.com.bd/confirm-order`,
-      }),
-    ),
-  );
   return updatedCount;
 };
 
@@ -429,6 +486,7 @@ const ConfirmOrderService = {
   updateOneFromDB,
   getDataById,
   getAllFromDBWithoutQuery,
+  getTrendingProductsFromDB,
 };
 
 module.exports = ConfirmOrderService;

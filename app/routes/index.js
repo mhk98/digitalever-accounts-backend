@@ -35,6 +35,7 @@ const WarrantyProductRoutes = require("../modules/warrantyProduct/warrantyProduc
 const MarketingBookRoutes = require("../modules/marketingBook/marketingBook.routes");
 const MarketingExpenseRoutes = require("../modules/marketingExpense/marketingExpense.routes");
 const InventoryMasterRoutes = require("../modules/inventoryMaster/inventoryMaster.routes");
+const InventoryOverviewRoutes = require("../modules/inventoryOverview/inventoryOverview.routes");
 
 const router = express.Router();
 
@@ -187,6 +188,10 @@ const moduleRoutes = [
   {
     path: "/overview",
     route: OverviewRoutes,
+  },
+  {
+    path: "/inventory",
+    route: InventoryOverviewRoutes,
   },
 ];
 

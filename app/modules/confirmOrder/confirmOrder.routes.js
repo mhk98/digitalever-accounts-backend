@@ -13,6 +13,7 @@ router.post(
   ConfirmOrderController.insertIntoDB,
 );
 router.get("/", ConfirmOrderController.getAllFromDB);
+router.get("/trending-products", ConfirmOrderController.getTrendingProducts);
 router.get("/all", ConfirmOrderController.getAllFromDBWithoutQuery);
 router.get("/", ConfirmOrderController.getDataById);
 router.delete(

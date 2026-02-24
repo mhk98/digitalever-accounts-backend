@@ -586,8 +586,17 @@ db.purchaseReturnProduct.belongsTo(db.inventoryMaster, {
   foreignKey: "productId",
 });
 
-db.product.hasMany(db.confirmOrder, { foreignKey: "productId" });
-db.confirmOrder.belongsTo(db.product, { foreignKey: "productId" });
+// db.product.hasMany(db.confirmOrder, { foreignKey: "productId" });
+// db.confirmOrder.belongsTo(db.product, { foreignKey: "productId" });
+
+db.confirmOrder.belongsTo(db.product, {
+  foreignKey: "productId",
+  as: "product",
+});
+db.product.hasMany(db.confirmOrder, {
+  foreignKey: "productId",
+  as: "confirmOrders",
+});
 
 db.book.hasMany(db.cashInOut, { foreignKey: "bookId" });
 db.cashInOut.belongsTo(db.book, { foreignKey: "bookId" });

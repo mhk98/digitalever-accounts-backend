@@ -213,7 +213,8 @@ const deleteIdFromDB = async (id) => {
 // };
 
 const updateOneFromDB = async (id, payload) => {
-  const { name, quantity, price, note, date, status, userId } = payload;
+  const { name, quantity, price, note, date, status, userId, actorRole } =
+    payload;
 
   const q = quantity === "" || quantity == null ? undefined : Number(quantity);
   const p = price === "" || price == null ? undefined : Number(price);
@@ -231,19 +232,32 @@ const updateOneFromDB = async (id, payload) => {
 
   const oldNote = String(existing.note || "").trim();
   const newNote = String(note || "").trim();
-  const isNoteChanged = newNote && newNote !== oldNote;
 
-  // ---------- status rules ----------
-  const isApproved = String(status || "").trim() === "Approved";
+  // ✅ newNote খালি না হলে + oldNote থেকে আলাদা হলে => pending trigger
+  const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
 
-  // ✅ current date না হলে status সবসময় Pending
-  // ✅ today হলে: Approved থাকবে শুধু তখনই যখন Approved + note change হয়নি
-  const finalStatus =
-    inputDateStr !== todayStr
-      ? "Pending"
-      : isApproved && !isNoteChanged
-        ? "Approved"
-        : "Pending";
+  // ✅ today না হলে pending trigger (date না পাঠালে trigger হবে না)
+  const dateTriggersPending =
+    Boolean(inputDateStr) && inputDateStr !== todayStr;
+
+  const inputStatus = String(status || "").trim();
+
+  let finalStatus = existing.status || "Pending";
+
+  const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
+
+  if (isPrivileged) {
+    // ✅ superAdmin/admin: যা পাঠাবে সেটাই
+    finalStatus = inputStatus || finalStatus;
+  } else {
+    // ✅ others: today date না হলে বা new note হলে Pending override
+    if (dateTriggersPending || noteTriggersPending) {
+      finalStatus = "Pending";
+    } else {
+      // ✅ otherwise: status পাঠালে সেটাই, না পাঠালে আগেরটা
+      finalStatus = inputStatus || finalStatus;
+    }
+  }
 
   // ---------- update payload ----------
   const data = {
