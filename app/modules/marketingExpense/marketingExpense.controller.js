@@ -8,7 +8,7 @@ const {
 } = require("./marketingExpense.constants");
 const { Op } = require("sequelize");
 const User = db.user;
-const MarketingExpense = db.MarketingExpense;
+const MarketingExpense = db.marketingExpense;
 const Notification = db.notification;
 
 const insertIntoDB = catchAsync(async (req, res) => {

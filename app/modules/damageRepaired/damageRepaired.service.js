@@ -120,7 +120,7 @@ const insertIntoDB = async (data) => {
     if (!damageProduct) throw new ApiError(404, "Damage product not found");
 
     const InventoryMaster = await InventoryMaster.findOne({
-      where: { Id: damageProduct.productId },
+      where: { productId: damageProduct.productId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -130,7 +130,7 @@ const insertIntoDB = async (data) => {
     const receivedOldQty = Number(InventoryMaster.quantity || 0);
 
     const realInventoryMasterId = Number(receivedOldQty.Id);
-    if (!realDamageProductId) {
+    if (!realInventoryMasterId) {
       throw new ApiError(400, "DamageRepair productId missing (Products.Id)");
     }
 

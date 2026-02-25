@@ -7,7 +7,63 @@ const Employee = db.employee;
 const Notification = db.notification;
 const User = db.user;
 
-const insertIntoDB = async (data) => {
+const insertIntoDB = async (payload) => {
+  const {
+    name,
+    employee_id,
+    basic_salary,
+    incentive,
+    holiday_payment,
+    total_salary,
+    advance,
+    late,
+    early_leave,
+    absent,
+    friday_absent,
+    unapproval_absent,
+    net_salary,
+    note,
+    remarks,
+    status,
+    userId,
+    date,
+  } = payload;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+  // ✅ Approved হলে পুরোনো date-ও allow + save
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে auto Pending
+  const finalStatus = isApproved
+    ? "Approved"
+    : inputDateStr !== todayStr
+      ? "Pending"
+      : note
+        ? "Pending"
+        : "Active";
+
+  const data = {
+    name,
+    employee_id,
+    basic_salary,
+    incentive,
+    holiday_payment,
+    total_salary,
+    advance,
+    late,
+    early_leave,
+    absent,
+    friday_absent,
+    unapproval_absent,
+    net_salary,
+    note,
+    remarks,
+    status: finalStatus,
+    userId,
+    date,
+  };
   const result = await Employee.create(data);
   return result;
 };
@@ -117,6 +173,7 @@ const updateOneFromDB = async (id, payload) => {
     remarks,
     status,
     userId,
+    date,
     actorRole,
   } = payload;
 
@@ -124,7 +181,7 @@ const updateOneFromDB = async (id, payload) => {
   const inputDateStr = String(date || "").slice(0, 10);
 
   // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
-  const existing = await AssetsPurchase.findOne({
+  const existing = await Employee.findOne({
     where: { Id: id },
     attributes: ["Id", "note", "status"],
   });
@@ -201,7 +258,7 @@ const updateOneFromDB = async (id, payload) => {
   const message =
     finalStatus === "Approved"
       ? "Employee salary calculation request approved"
-      : finalNote || "Employee salary calculation updated";
+      : note || "Employee salary calculation updated";
 
   await Promise.all(
     users.map((u) =>

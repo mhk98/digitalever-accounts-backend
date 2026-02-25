@@ -122,7 +122,7 @@ const insertIntoDB = async (data) => {
 
   return await db.sequelize.transaction(async (t) => {
     const received = await InventoryMaster.findOne({
-      where: { Id: rid },
+      where: { productId: rid },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -412,7 +412,7 @@ const updateOneFromDB = async (id, data) => {
 
   return await db.sequelize.transaction(async (t) => {
     const received = await InventoryMaster.findOne({
-      where: { Id: rid },
+      where: { productId: rid },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -489,7 +489,7 @@ const updateOneFromDB = async (id, data) => {
     const message =
       finalStatus === "Approved"
         ? "Damage product request approved"
-        : finalNote || "Damage product updated";
+        : note || "Damage product updated";
 
     await Promise.all(
       users.map((u) =>

@@ -222,14 +222,70 @@ const getDataById = async (id) => {
   return result;
 };
 
-const deleteIdFromDB = async (id) => {
-  const result = await ReceivedProduct.destroy({
-    where: {
-      Id: id,
-    },
-  });
+// const deleteIdFromDB = async (id) => {
+//   const result = await ReceivedProduct.destroy({
+//     where: {
+//       Id: id,
+//     },
+//   });
 
-  return result;
+//   return result;
+// };
+
+const deleteIdFromDB = async (id) => {
+  return db.sequelize.transaction(async (t) => {
+    // ✅ 1) row খুঁজে বের করো
+    const existing = await ReceivedProduct.findOne({
+      where: { Id: id },
+      attributes: [
+        "Id",
+        "productId",
+        "quantity",
+        "purchase_price",
+        "sale_price",
+      ],
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!existing) throw new ApiError(404, "Received product not found");
+
+    const productId = Number(existing.productId);
+    const qty = Number(existing.quantity || 0);
+    const purchaseTotal = Number(existing.purchase_price || 0);
+    const saleTotal = Number(existing.sale_price || 0);
+
+    // ✅ 2) InventoryMaster subtract
+    const inv = await InventoryMaster.findOne({
+      where: { productId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (inv) {
+      const nextQty = Number(inv.quantity || 0) - qty;
+
+      // চাইলে negative prevent করতে পারেন
+      // if (nextQty < 0) throw new ApiError(400, "Inventory cannot be negative");
+
+      await inv.update(
+        {
+          quantity: nextQty,
+          purchase_price: Number(inv.purchase_price || 0) - purchaseTotal,
+          sale_price: Number(inv.sale_price || 0) - saleTotal,
+        },
+        { transaction: t },
+      );
+    }
+
+    // ✅ 3) ReceivedProduct delete (paranoid true হলে soft delete হবে)
+    await ReceivedProduct.destroy({
+      where: { Id: id },
+      transaction: t,
+    });
+
+    return { deleted: true };
+  });
 };
 
 const updateOneFromDB = async (id, payload) => {

@@ -413,7 +413,7 @@ const updateOneFromDB = async (id, data) => {
     const message =
       finalStatus === "Approved"
         ? "Damage product request approved"
-        : finalNote || "Damage product updated";
+        : note || "Damage product updated";
 
     await Promise.all(
       users.map((u) =>

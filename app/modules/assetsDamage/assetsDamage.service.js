@@ -212,7 +212,8 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, data) => {
-  const { productId, quantity, price, note, status, userId, actorRole } = data;
+  const { productId, quantity, price, note, status, userId, actorRole, date } =
+    data;
 
   console.log(data);
   // Validating quantity
@@ -333,7 +334,7 @@ const updateOneFromDB = async (id, data) => {
     const message =
       finalStatus === "Approved"
         ? "Assets damage request approved"
-        : finalNote || "Assets damage updated";
+        : note || "Assets damage updated";
 
     await Promise.all(
       users.map((u) =>

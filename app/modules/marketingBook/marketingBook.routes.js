@@ -8,7 +8,7 @@ router.post(
   auth(
     ENUM_USER_ROLE.SUPER_ADMIN,
     ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.ACCOUNTANT,
+    ENUM_USER_ROLE.MARKETER,
   ),
   MarketingBookController.insertIntoDB,
 );
@@ -25,7 +25,7 @@ router.patch(
   auth(
     ENUM_USER_ROLE.SUPER_ADMIN,
     ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.ACCOUNTANT,
+    ENUM_USER_ROLE.MARKETER,
   ),
   MarketingBookController.updateOneFromDB,
 );

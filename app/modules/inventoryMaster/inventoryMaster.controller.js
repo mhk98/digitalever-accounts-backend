@@ -5,7 +5,7 @@ const pick = require("../../../shared/pick");
 const {
   InventoryMasterFilterAbleFileds,
 } = require("./inventoryMaster.constants");
-const InventoryMasterService = require("./InventoryMaster.service");
+const InventoryMasterService = require("./inventoryMaster.service");
 
 const insertIntoDB = catchAsync(async (req, res) => {
   const result = await InventoryMasterService.insertIntoDB(req.body);

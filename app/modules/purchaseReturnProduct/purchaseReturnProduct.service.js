@@ -6,7 +6,6 @@ const {
   PurchaseReturnProductSearchableFields,
 } = require("./purchaseReturnProduct.constants");
 const PurchaseReturnProduct = db.purchaseReturnProduct;
-const ReceivedProduct = db.receivedProduct;
 const Notification = db.notification;
 const User = db.user;
 const Supplier = db.supplier;
@@ -242,8 +241,8 @@ const deleteIdFromDB = async (id) => {
     const qty = Number(ret.quantity || 0);
     if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
 
-    // 2) ReceivedProduct খুঁজে বের করো (Products.Id দিয়ে)
-    const received = await ReceivedProduct.findOne({
+    // 2) InventoryMaster খুঁজে বের করো (Products.Id দিয়ে)
+    const received = await InventoryMaster.findOne({
       where: { productId: ret.productId }, // ✅ Products.Id
       transaction: t,
       lock: t.LOCK.UPDATE,
@@ -252,7 +251,7 @@ const deleteIdFromDB = async (id) => {
     if (!received) throw new ApiError(404, "Received product not found");
 
     // 3) stock ফিরিয়ে দাও
-    await ReceivedProduct.update(
+    await InventoryMaster.update(
       {
         quantity: Number(received.quantity || 0) + qty,
         purchase_price:

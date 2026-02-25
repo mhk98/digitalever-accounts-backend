@@ -211,7 +211,8 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, data) => {
-  const { productId, quantity, price, note, status, userId, actorRole } = data;
+  const { productId, quantity, price, note, status, date, userId, actorRole } =
+    data;
 
   if (!quantity || quantity <= 0) {
     throw new ApiError(400, "Quantity must be greater than 0");
@@ -331,7 +332,7 @@ const updateOneFromDB = async (id, data) => {
     const message =
       finalStatus === "Approved"
         ? "Assets sale request approved"
-        : finalNote || "Assets sale updated";
+        : note || "Assets sale updated";
 
     await Promise.all(
       users.map((u) =>

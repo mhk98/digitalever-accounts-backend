@@ -4,10 +4,10 @@ const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { PosReportSearchableFields } = require("./posReport.constants");
 const PosReport = db.posReport;
-const ReceivedProduct = db.receivedProduct;
 const Notification = db.notification;
 const User = db.user;
 const WarrantyProduct = db.warrantyProduct;
+const InventoryMaster = db.inventoryMaster;
 
 // const insertIntoDB = async (data) => {
 //   const {
@@ -316,29 +316,29 @@ const insertIntoDB = async (payload) => {
       const rid = Number(it.Id);
       const qty = Number(it.qty);
 
-      if (!rid) throw new ApiError(400, "received_product_id is required");
+      if (!rid) throw new ApiError(400, "inventory id is required");
       if (!qty || qty <= 0) throw new ApiError(400, "qty must be > 0");
 
-      const received = await ReceivedProduct.findOne({
-        where: { Id: rid },
+      const inventory = await InventoryMaster.findOne({
+        where: { productId: rid },
         transaction: t,
         lock: t.LOCK.UPDATE,
       });
 
-      if (!received)
-        throw new ApiError(404, `Received product not found: ${rid}`);
+      if (!inventory)
+        throw new ApiError(404, `inventory product not found: ${rid}`);
 
-      const oldQty = Number(received.quantity || 0);
+      const oldQty = Number(inventory.quantity || 0);
       if (oldQty < qty) {
         throw new ApiError(
           400,
-          `Not enough stock for received_product_id=${rid}. Available: ${oldQty}`,
+          `Not enough stock for inventory_id=${rid}. Available: ${oldQty}`,
         );
       }
 
-      await ReceivedProduct.update(
+      await InventoryMaster.update(
         { quantity: oldQty - qty },
-        { where: { Id: received.Id }, transaction: t },
+        { where: { Id: inventory.Id }, transaction: t },
       );
     }
 
@@ -490,8 +490,8 @@ const deleteIdFromDB = async (id) => {
     const qty = Number(ret.quantity || 0);
     if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
 
-    // 2) ReceivedProduct খুঁজে বের করো (Products.Id দিয়ে)
-    const received = await ReceivedProduct.findOne({
+    // 2) InventoryMaster খুঁজে বের করো (Products.Id দিয়ে)
+    const received = await InventoryMaster.findOne({
       where: { productId: ret.productId }, // ✅ Products.Id
       transaction: t,
       lock: t.LOCK.UPDATE,
@@ -500,7 +500,7 @@ const deleteIdFromDB = async (id) => {
     if (!received) throw new ApiError(404, "Received product not found");
 
     // 3) stock ফিরিয়ে দাও
-    await ReceivedProduct.update(
+    await InventoryMaster.update(
       {
         quantity: Number(received.quantity || 0) + qty,
         purchase_price:
@@ -694,8 +694,8 @@ const updateOneFromDB = async (data) => {
   }
 
   return await db.sequelize.transaction(async (t) => {
-    const received = await ReceivedProduct.findOne({
-      where: { Id: rid },
+    const received = await InventoryMaster.findOne({
+      where: { productId: rid },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -719,7 +719,7 @@ const updateOneFromDB = async (data) => {
     if (!realProductId) {
       throw new ApiError(
         400,
-        "ReceivedProduct.productId missing (Products.Id)",
+        "InventoryMaster.productId missing (Products.Id)",
       );
     }
 
@@ -739,7 +739,7 @@ const updateOneFromDB = async (data) => {
       { transaction: t },
     );
 
-    await ReceivedProduct.update(
+    await InventoryMaster.update(
       {
         quantity: oldQty - returnQty,
         purchase_price: Math.max(

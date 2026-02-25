@@ -51,7 +51,7 @@ const insertIntoDB = async (data) => {
 
   return await db.sequelize.transaction(async (t) => {
     const inventory = await InventoryMaster.findOne({
-      where: { Id: rid },
+      where: { productId: rid },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });

@@ -293,7 +293,7 @@ const updateOneFromDB = async (id, data) => {
   const message =
     finalStatus === "Approved"
       ? "Confirm order request approved"
-      : finalNote || "Confirm order updated";
+      : note || "Confirm order updated";
 
   await Promise.all(
     users.map((u) =>
