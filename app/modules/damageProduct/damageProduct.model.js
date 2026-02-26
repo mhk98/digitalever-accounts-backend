@@ -41,7 +41,6 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 0,
         allowNull: true,
       },
-
       note: {
         type: DataTypes.STRING,
         allowNull: true,

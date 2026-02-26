@@ -58,6 +58,8 @@ const insertIntoDB = async (data) => {
       lock: t.LOCK.UPDATE,
     });
 
+    console.log("DamageRepair", rid);
+
     if (!damageRepair)
       throw new ApiError(404, "DamageRepair product not found");
 
@@ -112,25 +114,25 @@ const insertIntoDB = async (data) => {
     );
 
     const damageProduct = await DamageProduct.findOne({
-      where: { Id: realDamageProductId },
+      where: { productId: realDamageProductId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
     if (!damageProduct) throw new ApiError(404, "Damage product not found");
 
-    const InventoryMaster = await InventoryMaster.findOne({
+    const inventory = await InventoryMaster.findOne({
       where: { productId: damageProduct.productId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (!InventoryMaster) throw new ApiError(404, "Damage product not found");
+    if (!inventory) throw new ApiError(404, "Damage product not found");
 
-    const receivedOldQty = Number(InventoryMaster.quantity || 0);
+    const receivedOldQty = Number(inventory.quantity || 0);
 
-    const realInventoryMasterId = Number(receivedOldQty.Id);
-    if (!realInventoryMasterId) {
+    const realinventoryId = Number(inventory.productId);
+    if (!realinventoryId) {
       throw new ApiError(400, "DamageRepair productId missing (Products.Id)");
     }
 
@@ -138,7 +140,7 @@ const insertIntoDB = async (data) => {
       {
         quantity: receivedOldQty + returnQty,
       },
-      { where: { Id: InventoryMaster.Id }, transaction: t },
+      { where: { Id: inventory.Id }, transaction: t },
     );
 
     const users = await User.findAll({
@@ -309,10 +311,166 @@ const deleteIdFromDB = async (id) => {
   });
 };
 
+// const updateOneFromDB = async (id, data) => {
+//   const {
+//     quantity,
+//     receivedId,
+//     note,
+//     date,
+//     status,
+//     userId,
+//     supplierId,
+//     warehouseId,
+//     actorRole,
+//   } = data;
+
+//   console.log("Damage", data);
+
+//   const todayStr = new Date().toISOString().slice(0, 10);
+//   const inputDateStr = String(date || "").slice(0, 10);
+
+//   // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
+//   const existing = await DamageRepair.findOne({
+//     where: { Id: id },
+//     attributes: ["Id", "note", "status"],
+//   });
+
+//   if (!existing) return 0;
+
+//   const oldNote = String(existing.note || "").trim();
+//   const newNote = String(note || "").trim();
+
+//   // ✅ newNote খালি না হলে + oldNote থেকে আলাদা হলে => pending trigger
+//   const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
+
+//   // ✅ today না হলে pending trigger (date না পাঠালে trigger হবে না)
+//   const dateTriggersPending =
+//     Boolean(inputDateStr) && inputDateStr !== todayStr;
+
+//   const inputStatus = String(status || "").trim();
+
+//   let finalStatus = existing.status || "Pending";
+
+//   const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
+
+//   if (isPrivileged) {
+//     // ✅ superAdmin/admin: যা পাঠাবে সেটাই
+//     finalStatus = inputStatus || finalStatus;
+//   } else {
+//     // ✅ others: today date না হলে বা new note হলে Pending override
+//     if (dateTriggersPending || noteTriggersPending) {
+//       finalStatus = "Pending";
+//     } else {
+//       // ✅ otherwise: status পাঠালে সেটাই, না পাঠালে আগেরটা
+//       finalStatus = inputStatus || finalStatus;
+//     }
+//   }
+
+//   const returnQty = Number(quantity);
+//   const rid = Number(receivedId);
+
+//   if (!rid) throw new ApiError(400, "receivedId is required");
+//   if (!returnQty || returnQty <= 0) {
+//     throw new ApiError(400, "Quantity must be greater than 0");
+//   }
+
+//   return await db.sequelize.transaction(async (t) => {
+//     const received = await DamageRepair.findOne({
+//       where: { Id: rid },
+//       transaction: t,
+//       lock: t.LOCK.UPDATE,
+//     });
+
+//     if (!received) throw new ApiError(404, "Received product not found");
+
+//     const oldQty = Number(received.quantity || 0);
+//     if (oldQty < returnQty) {
+//       throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
+//     }
+
+//     const perUnitPurchase =
+//       oldQty > 0 ? Number(received.purchase_price || 0) / oldQty : 0;
+//     const perUnitSale =
+//       oldQty > 0 ? Number(received.sale_price || 0) / oldQty : 0;
+
+//     const deductPurchase = perUnitPurchase * returnQty;
+//     const deductSale = perUnitSale * returnQty;
+
+//     const realProductId = Number(received.productId);
+//     if (!realProductId) {
+//       throw new ApiError(400, "DamageRepair.productId missing (Products.Id)");
+//     }
+
+//     const [updatedCount] = await DamageRepaired.update(
+//       {
+//         name: received.name,
+//         supplierId,
+//         warehouseId,
+//         remarks: received.remarks,
+//         quantity: returnQty,
+//         purchase_price: deductPurchase,
+//         sale_price: deductSale,
+//         note: newNote || null,
+//         status: finalStatus,
+//         date: inputDateStr || undefined,
+//         productId: realProductId, // ✅ Products.Id (FK)
+//       },
+//       {
+//         where: { Id: id },
+//         transaction: t,
+//       },
+//     );
+
+//     if (status === "Approved") {
+//       await DamageRepair.update(
+//         {
+//           quantity: oldQty - returnQty,
+//           purchase_price: Math.max(
+//             0,
+//             Number(received.purchase_price || 0) - deductPurchase,
+//           ),
+//           sale_price: Math.max(
+//             0,
+//             Number(received.sale_price || 0) - deductSale,
+//           ),
+//         },
+//         { where: { Id: received.Id }, transaction: t },
+//       );
+//     }
+
+//     const users = await User.findAll({
+//       attributes: ["Id", "role"],
+//       where: {
+//         Id: { [Op.ne]: userId }, // sender বাদ
+//         role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
+//       },
+//     });
+
+//     console.log("users", users.length);
+//     if (!users.length) return updatedCount;
+
+//     const message =
+//       finalStatus === "Approved"
+//         ? "Damage product request approved"
+//         : note || "Damage product updated";
+
+//     await Promise.all(
+//       users.map((u) =>
+//         Notification.create({
+//           userId: u.Id,
+//           message,
+//           url: `/kafelamart.digitalever.com.bd/damage-product`,
+//         }),
+//       ),
+//     );
+//     return updatedCount;
+//   });
+// };
+
 const updateOneFromDB = async (id, data) => {
   const {
     quantity,
-    receivedId,
+    receivedId, // এটা DamageRepair.Id (source)
     note,
     date,
     status,
@@ -322,47 +480,11 @@ const updateOneFromDB = async (id, data) => {
     actorRole,
   } = data;
 
-  console.log("Damage", data);
-
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10);
 
-  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
-  const existing = await DamageRepair.findOne({
-    where: { Id: id },
-    attributes: ["Id", "note", "status"],
-  });
-
-  if (!existing) return 0;
-
-  const oldNote = String(existing.note || "").trim();
-  const newNote = String(note || "").trim();
-
-  // ✅ newNote খালি না হলে + oldNote থেকে আলাদা হলে => pending trigger
-  const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
-
-  // ✅ today না হলে pending trigger (date না পাঠালে trigger হবে না)
-  const dateTriggersPending =
-    Boolean(inputDateStr) && inputDateStr !== todayStr;
-
   const inputStatus = String(status || "").trim();
-
-  let finalStatus = existing.status || "Pending";
-
   const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
-
-  if (isPrivileged) {
-    // ✅ superAdmin/admin: যা পাঠাবে সেটাই
-    finalStatus = inputStatus || finalStatus;
-  } else {
-    // ✅ others: today date না হলে বা new note হলে Pending override
-    if (dateTriggersPending || noteTriggersPending) {
-      finalStatus = "Pending";
-    } else {
-      // ✅ otherwise: status পাঠালে সেটাই, না পাঠালে আগেরটা
-      finalStatus = inputStatus || finalStatus;
-    }
-  }
 
   const returnQty = Number(quantity);
   const rid = Number(receivedId);
@@ -373,32 +495,67 @@ const updateOneFromDB = async (id, data) => {
   }
 
   return await db.sequelize.transaction(async (t) => {
+    // ✅ 0) যে রেকর্ডটা update হবে (DamageRepaired) সেটাই আগে lock করে আনো
+    const existingRepaired = await DamageRepaired.findOne({
+      where: { Id: id },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!existingRepaired) return 0;
+
+    const oldRepairedQty = Number(existingRepaired.quantity || 0);
+    const oldRepairedStatus = String(existingRepaired.status || "").trim();
+
+    const oldNote = String(existingRepaired.note || "").trim();
+    const newNote = String(note || "").trim();
+
+    const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
+    const dateTriggersPending =
+      Boolean(inputDateStr) && inputDateStr !== todayStr;
+
+    // ✅ finalStatus (তোমার আগের লজিকের মতোই রাখা)
+    let finalStatus = oldRepairedStatus || "Pending";
+    if (isPrivileged) {
+      finalStatus = inputStatus || finalStatus;
+    } else {
+      if (dateTriggersPending || noteTriggersPending) {
+        finalStatus = "Pending";
+      } else {
+        finalStatus = inputStatus || finalStatus;
+      }
+    }
+
+    const newStatus = String(finalStatus || "").trim();
+
+    // ✅ 1) source DamageRepair (lock)
     const received = await DamageRepair.findOne({
       where: { Id: rid },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (!received) throw new ApiError(404, "Received product not found");
+    if (!received) throw new ApiError(404, "DamageRepair product not found");
 
-    const oldQty = Number(received.quantity || 0);
-    if (oldQty < returnQty) {
-      throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
-    }
+    const sourceQtyNow = Number(received.quantity || 0);
 
+    // ✅ per-unit হিসাব (source values থেকে)
     const perUnitPurchase =
-      oldQty > 0 ? Number(received.purchase_price || 0) / oldQty : 0;
+      sourceQtyNow > 0
+        ? Number(received.purchase_price || 0) / sourceQtyNow
+        : 0;
     const perUnitSale =
-      oldQty > 0 ? Number(received.sale_price || 0) / oldQty : 0;
+      sourceQtyNow > 0 ? Number(received.sale_price || 0) / sourceQtyNow : 0;
 
-    const deductPurchase = perUnitPurchase * returnQty;
-    const deductSale = perUnitSale * returnQty;
+    const deductPurchaseNew = perUnitPurchase * returnQty;
+    const deductSaleNew = perUnitSale * returnQty;
 
     const realProductId = Number(received.productId);
     if (!realProductId) {
       throw new ApiError(400, "DamageRepair.productId missing (Products.Id)");
     }
 
+    // ✅ 2) DamageRepaired row update (main update)
     const [updatedCount] = await DamageRepaired.update(
       {
         name: received.name,
@@ -406,65 +563,152 @@ const updateOneFromDB = async (id, data) => {
         warehouseId,
         remarks: received.remarks,
         quantity: returnQty,
-        purchase_price: deductPurchase,
-        sale_price: deductSale,
+        purchase_price: deductPurchaseNew,
+        sale_price: deductSaleNew,
         note: newNote || null,
         status: finalStatus,
         date: inputDateStr || undefined,
-        productId: realProductId, // ✅ Products.Id (FK)
+        productId: realProductId,
       },
-      {
-        where: { Id: id },
-        transaction: t,
-      },
+      { where: { Id: id }, transaction: t },
     );
 
-    if (status === "Approved") {
-      await DamageRepair.update(
-        {
-          quantity: oldQty - returnQty,
-          purchase_price: Math.max(
-            0,
-            Number(received.purchase_price || 0) - deductPurchase,
-          ),
-          sale_price: Math.max(
-            0,
-            Number(received.sale_price || 0) - deductSale,
-          ),
-        },
-        { where: { Id: received.Id }, transaction: t },
-      );
+    // ✅ 3) Side effects ONLY when admin/superAdmin AND newStatus Approved
+    // (তুমি চাইলে Active-ও add করতে পারো)
+    const isStockStatus = (s) => s === "Approved"; // দরকার হলে: s === "Approved" || s === "Active"
+
+    const oldWasStock = isStockStatus(oldRepairedStatus);
+    const newIsStock = isStockStatus(newStatus);
+
+    // 👉 কত qty ইনভেন্টরিতে add/remove হবে (double add prevent)
+    let inventoryDelta = 0;
+
+    if (!oldWasStock && newIsStock) {
+      // Pending -> Approved : add full new qty
+      inventoryDelta = returnQty;
+    } else if (oldWasStock && newIsStock) {
+      // Approved -> Approved : add only diff
+      inventoryDelta = returnQty - oldRepairedQty;
+    } else if (oldWasStock && !newIsStock) {
+      // Approved -> Pending : reverse করতে চাইলে অন করো
+      // inventoryDelta = -oldRepairedQty;
+      inventoryDelta = 0;
+    } else {
+      inventoryDelta = 0;
     }
 
+    // 👉 DamageRepair (source) কতটা কমবে/বাড়বে
+    // Pending->Approved: source থেকে returnQty কমবে
+    // Approved->Approved: diff অনুযায়ী adjust (qty কমলে source বাড়বে, qty বাড়লে source কমবে)
+    // Approved->Pending reverse চাইলে source ফেরত যাবে
+    let sourceDelta = 0; // source quantity change (negative মানে কমবে)
+
+    if (!oldWasStock && newIsStock) {
+      sourceDelta = -returnQty;
+    } else if (oldWasStock && newIsStock) {
+      // if new is larger => need take more from source (-diff)
+      // if new is smaller => give back to source (+abs(diff))
+      sourceDelta = -(returnQty - oldRepairedQty);
+    } else if (oldWasStock && !newIsStock) {
+      // reverse চাইলে:
+      // sourceDelta = +oldRepairedQty;
+      sourceDelta = 0;
+    } else {
+      sourceDelta = 0;
+    }
+
+    // ✅ 4) Apply inventory + source changes (only if privileged + new approved OR old approved->approved diff)
+    //    (উপরে inventoryDelta/sourceDelta 0 না হলে apply হবে)
+    if (
+      isPrivileged &&
+      (inventoryDelta !== 0 || sourceDelta !== 0) &&
+      (newIsStock || oldWasStock)
+    ) {
+      // 4.1) source update (DamageRepair)
+      if (sourceDelta !== 0) {
+        const newSourceQty = Number(received.quantity || 0) + sourceDelta;
+
+        if (newSourceQty < 0) {
+          throw new ApiError(
+            400,
+            `Not enough stock. Available: ${Number(received.quantity || 0)}`,
+          );
+        }
+
+        // source totals proportional adjust (approx) — তোমার insert-এর স্টাইল ধরে
+        const newPurchaseTotal = Math.max(
+          0,
+          Number(received.purchase_price || 0) + perUnitPurchase * sourceDelta,
+        );
+        const newSaleTotal = Math.max(
+          0,
+          Number(received.sale_price || 0) + perUnitSale * sourceDelta,
+        );
+
+        await DamageRepair.update(
+          {
+            quantity: newSourceQty,
+            purchase_price: newPurchaseTotal,
+            sale_price: newSaleTotal,
+          },
+          { where: { Id: received.Id }, transaction: t },
+        );
+      }
+
+      // 4.2) inventory update (InventoryMaster)
+      if (inventoryDelta !== 0) {
+        const inventory = await InventoryMaster.findOne({
+          where: { productId: realProductId },
+          transaction: t,
+          lock: t.LOCK.UPDATE,
+        });
+
+        if (!inventory) throw new ApiError(404, "Inventory not found");
+
+        const newInvQty = Number(inventory.quantity || 0) + inventoryDelta;
+        if (newInvQty < 0)
+          throw new ApiError(400, "Inventory cannot be negative");
+
+        await InventoryMaster.update(
+          { quantity: newInvQty },
+          { where: { Id: inventory.Id }, transaction: t },
+        );
+      }
+    }
+
+    // ✅ 5) Notification
     const users = await User.findAll({
       attributes: ["Id", "role"],
       where: {
-        Id: { [Op.ne]: userId }, // sender বাদ
-        role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
+        Id: { [Op.ne]: userId },
+        role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
       },
+      transaction: t,
     });
 
-    console.log("users", users.length);
-    if (!users.length) return updatedCount;
+    if (users.length) {
+      const msg =
+        newStatus === "Approved"
+          ? "Damage product request approved"
+          : newNote || "Damage product updated";
 
-    const message =
-      finalStatus === "Approved"
-        ? "Damage product request approved"
-        : note || "Damage product updated";
+      await Promise.all(
+        users.map((u) =>
+          Notification.create(
+            {
+              userId: u.Id,
+              message: msg,
+              url: `/kafelamart.digitalever.com.bd/damage-product`,
+            },
+            { transaction: t },
+          ),
+        ),
+      );
+    }
 
-    await Promise.all(
-      users.map((u) =>
-        Notification.create({
-          userId: u.Id,
-          message,
-          url: `/kafelamart.digitalever.com.bd/damage-product`,
-        }),
-      ),
-    );
     return updatedCount;
   });
 };
-
 const getAllFromDBWithoutQuery = async () => {
   const result = await DamageRepaired.findAll();
 
