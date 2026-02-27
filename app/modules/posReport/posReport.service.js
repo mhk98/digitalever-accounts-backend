@@ -8,251 +8,7 @@ const Notification = db.notification;
 const User = db.user;
 const WarrantyProduct = db.warrantyProduct;
 const InventoryMaster = db.inventoryMaster;
-
-// const insertIntoDB = async (data) => {
-//   const {
-//     name,
-//     date,
-//     note,
-//     amount,
-//     mobile,
-//     address,
-//     status,
-//     quantity,
-//     userId,
-//     productId,
-//   } = data;
-
-//   console.log("InTransit", data);
-
-//   const returnQty = Number(quantity);
-//   const rid = Number(productId);
-
-//   if (!rid) throw new ApiError(400, "productId is required");
-//   if (!returnQty || returnQty <= 0) {
-//     throw new ApiError(400, "Quantity must be greater than 0");
-//   }
-
-//   const todayStr = new Date().toISOString().slice(0, 10);
-//   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
-
-//   // ✅ Approved হলে পুরোনো date-ও allow + save
-//   const isApproved = String(status || "").trim() === "Approved";
-
-//   // ✅ current date না হলে auto Pending
-//   const finalStatus = isApproved
-//     ? "Approved"
-//     : inputDateStr !== todayStr
-//       ? "Pending"
-//       : null;
-
-//   return await db.sequelize.transaction(async (t) => {
-//     const received = await ReceivedProduct.findOne({
-//       where: { Id: rid },
-//       transaction: t,
-//       lock: t.LOCK.UPDATE,
-//     });
-
-//     if (!received) throw new ApiError(404, "Received product not found");
-
-//     const oldQty = Number(received.quantity || 0);
-//     if (oldQty < returnQty) {
-//       throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
-//     }
-
-//     const perUnitPurchase =
-//       oldQty > 0 ? Number(received.purchase_price || 0) / oldQty : 0;
-//     const perUnitSale =
-//       oldQty > 0 ? Number(received.sale_price || 0) / oldQty : 0;
-
-//     const deductPurchase = perUnitPurchase * returnQty;
-//     const deductSale = perUnitSale * returnQty;
-
-//     const realProductId = Number(received.productId);
-//     if (!realProductId) {
-//       throw new ApiError(
-//         400,
-//         "ReceivedProduct.productId missing (Products.Id)",
-//       );
-//     }
-
-//     const result = await PosReport.create(
-//       {
-//         name,
-//         quantity: returnQty,
-//         price,
-//         productId: realProductId, // ✅ Products.Id (FK)
-//         status: finalStatus || "---",
-//         note: note || null,
-//         date: date,
-//         amount,
-//         mobile,
-//         address,
-//       },
-//       { transaction: t },
-//     );
-
-//     await ReceivedProduct.update(
-//       {
-//         quantity: oldQty - returnQty,
-//         purchase_price: Math.max(
-//           0,
-//           Number(received.purchase_price || 0) - deductPurchase,
-//         ),
-//         sale_price: Math.max(0, Number(received.sale_price || 0) - deductSale),
-//       },
-//       { where: { Id: received.Id }, transaction: t },
-//     );
-
-//     const users = await User.findAll({
-//       attributes: ["Id", "role"],
-//       where: {
-//         Id: { [Op.ne]: userId },
-//         role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
-//       },
-//     });
-
-//     if (users.length) {
-//       const message =
-//         status === "Approved"
-//           ? "Received product request approved"
-//           : note || "Please approved my request";
-
-//       await Promise.all(
-//         users.map((u) =>
-//           Notification.create({
-//             userId: u.Id,
-//             message,
-//             url: "/purchase-requisition",
-//           }),
-//         ),
-//       );
-//     }
-
-//     return result;
-//   });
-// };
-
-// const insertIntoDB = async (payload) => {
-//   const {
-//     name,
-//     date,
-//     note,
-//     mobile,
-//     address,
-//     subTotal,
-//     discount,
-//     deliveryCharge,
-//     total,
-//     paidAmount,
-//     // dueAmount,
-//     warrantyValue,
-//     warrantyUnit,
-//     status,
-//     items,
-//   } = payload || {};
-
-//   console.log("pos", payload);
-
-//   if (!name) throw new ApiError(400, "Customer name is required");
-//   if (!date) throw new ApiError(400, "Sell date is required");
-//   if (!Array.isArray(items) || items.length === 0)
-//     throw new ApiError(400, "Items are required");
-
-//   // Basic sanitize
-//   const finalPaid = Number(paidAmount) || 0;
-//   const finalTotal = Number(total) || 0;
-//   const finalDue = Math.max(0, finalTotal - finalPaid);
-
-//   const finalStatus =
-//     String(status || "").trim() || (finalDue > 0 ? "DUE" : "PAID");
-
-//   const todayStr = new Date().toISOString().slice(0, 10);
-//   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
-
-//   // ✅ Approved হলে পুরোনো date-ও allow + save
-//   const isApproved = String(status || "").trim() === "Approved";
-
-//   // ✅ current date না হলে auto Pending
-//   const warrantyProductStatus = isApproved
-//     ? "Approved"
-//     : inputDateStr !== todayStr
-//       ? "Pending"
-//       : null;
-
-//   return await db.sequelize.transaction(async (t) => {
-//     // ✅ 1) Stock check + deduct
-//     for (const it of items) {
-//       const rid = Number(it.Id);
-//       const qty = Number(it.qty);
-
-//       if (!rid) throw new ApiError(400, "received_product_id is required");
-//       if (!qty || qty <= 0) throw new ApiError(400, "qty must be > 0");
-
-//       const received = await ReceivedProduct.findOne({
-//         where: { Id: rid },
-//         transaction: t,
-//         lock: t.LOCK.UPDATE,
-//       });
-
-//       if (!received)
-//         throw new ApiError(404, `Received product not found: ${rid}`);
-
-//       const oldQty = Number(received.quantity || 0);
-//       if (oldQty < qty) {
-//         throw new ApiError(
-//           400,
-//           `Not enough stock for received_product_id=${rid}. Available: ${oldQty}`,
-//         );
-//       }
-
-//       // ✅ quantity কমানো
-//       await ReceivedProduct.update(
-//         { quantity: oldQty - qty },
-//         { where: { Id: received.Id }, transaction: t },
-//       );
-
-//       // (Optional) যদি purchase_price/sale_price total হিসাব করে রাখো, এখানে pro-rate করে কমাতে পারো
-//       // কিন্তু safest: শুধু quantity কমাও, price totals অন্যভাবে handle করো।
-//     }
-
-//     // ✅ 2) PosReport create (items JSON সহ)
-//     const result = await PosReport.create(
-//       {
-//         name,
-//         date,
-//         note: note || null,
-//         mobile: mobile || null,
-//         address: address || null,
-
-//         subTotal: Number(subTotal) || 0,
-//         discount: Number(discount) || 0,
-//         deliveryCharge: Number(deliveryCharge) || 0,
-//         total: finalTotal,
-//         paidAmount: finalPaid,
-//         dueAmount: finalDue,
-
-//         status: finalStatus,
-//         amount: finalPaid, // ✅ যদি amount বলতে paidAmount বুঝাও
-//         items, // ✅ JSON 그대로 save হবে
-//       },
-//       { transaction: t },
-//     );
-
-//     if (result) {
-//       await WarrantyProduct.create({
-//         name: name,
-//         quantity,
-//         price,
-//         date: date,
-//         warrantyValue,
-//         warrantyUnit,
-//       });
-//     }
-
-//     return result;
-//   });
-// };
+const ConfirmOrder = db.confirmOrder;
 
 const insertIntoDB = async (payload) => {
   const {
@@ -363,6 +119,29 @@ const insertIntoDB = async (payload) => {
       { transaction: t },
     );
 
+    if (items.length > 0) {
+      const cart = [];
+      for (const it of items) {
+        const productId = Number(it.Id) || 0;
+        const qty = Number(it.qty) || 0;
+        const unitPrice = Number(it.price) || 0;
+        const itemName = (it.name && String(it.name).trim()) || "N/A"; // fallback
+
+        if (qty <= 0) continue;
+
+        cart.push({
+          name: itemName,
+          quantity: qty,
+          sale_price: unitPrice * qty, // ✅ total price
+          date: date,
+          productId: productId,
+        });
+      }
+
+      if (cart.length) {
+        await ConfirmOrder.bulkCreate(cart, { transaction: t });
+      }
+    }
     // ✅ 3) WarrantyProduct insert from items
     // warranty না থাকলে skip করতে চাইলে এই guard টা রাখো
     if (Number(warrantyValue) > 0 && warrantyUnit) {

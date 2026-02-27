@@ -46,6 +46,11 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 0,
         allowNull: true,
       },
+      duePayment: {
+        type: DataTypes.INTEGER(10),
+        defaultValue: 0,
+        allowNull: true,
+      },
 
       note: {
         type: DataTypes.STRING,
@@ -56,6 +61,10 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
       },
       status: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      file: {
         type: DataTypes.STRING,
         allowNull: true,
       },

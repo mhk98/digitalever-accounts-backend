@@ -11,10 +11,10 @@ module.exports = (sequelize, DataTypes) => {
         autoIncrement: true,
         allowNull: false,
       },
-      name: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
+      // name: {
+      //   type: DataTypes.STRING,
+      //   allowNull: true,
+      // },
       amount: {
         type: DataTypes.FLOAT,
         allowNull: false,
@@ -33,6 +33,11 @@ module.exports = (sequelize, DataTypes) => {
       note: {
         type: DataTypes.STRING,
         allowNull: true,
+      },
+      paymentStatus: {
+        type: DataTypes.ENUM("Paid", "Unpaid"),
+        allowNull: true,
+        defaultValue: "Unpaid",
       },
       status: {
         type: DataTypes.STRING,

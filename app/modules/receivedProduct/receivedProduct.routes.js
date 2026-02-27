@@ -1,10 +1,12 @@
 const { ENUM_USER_ROLE } = require("../../enums/user");
 const auth = require("../../middlewares/auth");
+const { uploadFile } = require("../../middlewares/upload");
 const ReceivedProductController = require("./receivedProduct.controller");
 const router = require("express").Router();
 
 router.post(
   "/create",
+  uploadFile,
   auth(
     ENUM_USER_ROLE.SUPER_ADMIN,
     ENUM_USER_ROLE.ADMIN,
@@ -22,6 +24,7 @@ router.delete(
 );
 router.patch(
   "/:id",
+  uploadFile,
   auth(
     ENUM_USER_ROLE.SUPER_ADMIN,
     ENUM_USER_ROLE.ADMIN,

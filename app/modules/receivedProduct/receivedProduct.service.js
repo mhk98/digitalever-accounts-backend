@@ -13,14 +13,16 @@ const User = db.user;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
 const InventoryMaster = db.inventoryMaster;
+const Payable = db.payable;
 
-const insertIntoDB = async (data) => {
+const insertIntoDB = async (data, file) => {
   const {
     quantity,
     productId,
     date,
     status,
     note,
+    duePayment,
     userId,
     supplierId,
     warehouseId,
@@ -59,6 +61,14 @@ const insertIntoDB = async (data) => {
 
     const result = await ReceivedProduct.create(payload, { transaction: t });
 
+    const payableData = {
+      supplierId,
+      amount: duePayment,
+      date,
+      file,
+    };
+
+    await Payable.create(payableData, { transaction: t });
     // ✅ InventoryMaster: থাকলে update, না থাকলে insert
     if (result) {
       const inv = await InventoryMaster.findOne({

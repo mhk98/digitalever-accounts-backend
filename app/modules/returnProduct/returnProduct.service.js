@@ -9,6 +9,7 @@ const User = db.user;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
 const InventoryMaster = db.inventoryMaster;
+const Product = db.product;
 
 const insertIntoDB = async (data) => {
   const {

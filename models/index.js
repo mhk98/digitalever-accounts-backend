@@ -744,6 +744,10 @@ db.assetsSale.belongsTo(db.assetsPurchase, { foreignKey: "productId" });
 db.assetsPurchase.hasMany(db.assetsDamage, { foreignKey: "productId" });
 db.assetsDamage.belongsTo(db.assetsPurchase, { foreignKey: "productId" });
 
+// Payable relations
+db.supplier.hasMany(db.payable, { foreignKey: "supplierId" });
+db.payable.belongsTo(db.supplier, { foreignKey: "supplierId", as: "supplier" });
+
 // =====================
 // Sync
 // NOTE: production এ force:true দিবেন না
