@@ -5,8 +5,10 @@ const db = require("../../../models");
 const MarketingExpenseService = require("./marketingExpense.service");
 const {
   MarketingExpenseFilterAbleFields,
+  MarketingExpenseOverviewFilterAbleFileds,
 } = require("./marketingExpense.constants");
 const { Op } = require("sequelize");
+const marketingExpenseOverview = require("./marketingExpenseOverview");
 const User = db.user;
 const MarketingExpense = db.marketingExpense;
 const Notification = db.notification;
@@ -345,6 +347,19 @@ const getAllFromDBWithoutQuery = catchAsync(async (req, res) => {
   });
 });
 
+const getOverviewSummaryFromDB = catchAsync(async (req, res) => {
+  const filters = pick(req.query, MarketingExpenseOverviewFilterAbleFileds);
+
+  const result =
+    await marketingExpenseOverview.getOverviewSummaryFromDB(filters);
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Overview summary fetched!!",
+    data: result,
+  });
+});
 const MarketingExpenseController = {
   getAllFromDB,
   insertIntoDB,
@@ -352,6 +367,7 @@ const MarketingExpenseController = {
   updateOneFromDB,
   deleteIdFromDB,
   getAllFromDBWithoutQuery,
+  getOverviewSummaryFromDB,
 };
 
 module.exports = MarketingExpenseController;

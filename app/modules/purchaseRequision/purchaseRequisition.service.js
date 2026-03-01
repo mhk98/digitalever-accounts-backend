@@ -129,6 +129,8 @@ const Warehouse = db.warehouse;
 const insertIntoDB = async (data) => {
   const {
     quantity,
+    purchase_price,
+    sale_price,
     productId,
     userId,
     note,
@@ -167,8 +169,8 @@ const insertIntoDB = async (data) => {
     status: finalStatus || "---",
     note: note || null,
     date: date,
-    purchase_price:
-      Number(productData.purchase_price || 0) * Number(quantity || 0),
+    purchase_price: Number(purchase_price || 0) * Number(quantity || 0),
+    sale_price: Number(sale_price || 0) * Number(quantity || 0),
     supplierId,
     warehouseId,
     productId,
@@ -323,6 +325,8 @@ const updateOneFromDB = async (id, payload) => {
     userId,
     supplierId,
     warehouseId,
+    purchase_price,
+    sale_price,
     actorRole,
   } = payload;
 
@@ -379,8 +383,8 @@ const updateOneFromDB = async (id, payload) => {
   const data = {
     name: productData.name,
     quantity,
-    purchase_price: productData.purchase_price * quantity,
-    sale_price: productData.sale_price * quantity,
+    purchase_price: purchase_price * quantity,
+    sale_price: sale_price * quantity,
     note: newNote || null,
     status: finalStatus,
     date: inputDateStr || undefined,

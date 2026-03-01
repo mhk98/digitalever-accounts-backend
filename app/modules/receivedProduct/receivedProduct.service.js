@@ -23,6 +23,8 @@ const insertIntoDB = async (data, file) => {
     status,
     note,
     duePayment,
+    purchase_price,
+    sale_price,
     userId,
     supplierId,
     warehouseId,
@@ -48,9 +50,8 @@ const insertIntoDB = async (data, file) => {
     const payload = {
       name: productData.name,
       quantity,
-      purchase_price: productData.purchase_price * quantity,
-      sale_price: productData.sale_price * quantity,
-      price: Number(productData.sale_price || 0),
+      purchase_price: Number(purchase_price),
+      sale_price: Number(sale_price),
       supplierId,
       warehouseId,
       productId,
@@ -81,12 +82,6 @@ const insertIntoDB = async (data, file) => {
         await inv.update(
           {
             quantity: Number(inv.quantity || 0) + Number(quantity || 0),
-            purchase_price:
-              Number(inv.purchase_price || 0) +
-              Number(productData.purchase_price * quantity),
-            sale_price:
-              Number(inv.sale_price || 0) +
-              Number(productData.sale_price * quantity),
           },
           { transaction: t },
         );
@@ -96,9 +91,8 @@ const insertIntoDB = async (data, file) => {
             productId,
             name: productData.name,
             quantity: Number(quantity || 0),
-            price: productData.sale_price,
-            purchase_price: productData.purchase_price * quantity,
-            sale_price: productData.sale_price * quantity,
+            purchase_price,
+            sale_price,
           },
           { transaction: t },
         );

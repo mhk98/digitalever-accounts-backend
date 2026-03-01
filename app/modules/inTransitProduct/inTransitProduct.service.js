@@ -64,13 +64,13 @@ const insertIntoDB = async (data) => {
       throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
     }
 
-    const perUnitPurchase =
-      oldQty > 0 ? Number(inventory.purchase_price || 0) / oldQty : 0;
-    const perUnitSale =
-      oldQty > 0 ? Number(inventory.sale_price || 0) / oldQty : 0;
+    // const perUnitPurchase =
+    //   oldQty > 0 ? Number(inventory.purchase_price || 0) / oldQty : 0;
+    // const perUnitSale =
+    //   oldQty > 0 ? Number(inventory.sale_price || 0) / oldQty : 0;
 
-    const deductPurchase = perUnitPurchase * returnQty;
-    const deductSale = perUnitSale * returnQty;
+    // const deductPurchase = perUnitPurchase * returnQty;
+    // const deductSale = perUnitSale * returnQty;
 
     const realProductId = Number(inventory.productId);
     if (!realProductId) {
@@ -86,8 +86,8 @@ const insertIntoDB = async (data) => {
         supplierId,
         warehouseId,
         quantity: returnQty,
-        purchase_price: deductPurchase,
-        sale_price: deductSale,
+        purchase_price: Number(inventory.purchase_price * returnQty),
+        sale_price: Number(inventory.sale_price * returnQty),
         productId: realProductId, // ✅ Products.Id (FK)
         status: finalStatus || "---",
         note: note || null,
@@ -96,14 +96,13 @@ const insertIntoDB = async (data) => {
       { transaction: t },
     );
 
+    const finalQuantity = oldQty - returnQty;
+
     await InventoryMaster.update(
       {
-        quantity: oldQty - returnQty,
-        purchase_price: Math.max(
-          0,
-          Number(inventory.purchase_price || 0) - deductPurchase,
-        ),
-        sale_price: Math.max(0, Number(inventory.sale_price || 0) - deductSale),
+        quantity: finalQuantity,
+        purchase_price: Number(inventory.purchase_price * finalQuantity),
+        sale_price: Number(inventory.sale_price * finalQuantity),
       },
       { where: { Id: inventory.Id }, transaction: t },
     );
@@ -253,15 +252,13 @@ const deleteIdFromDB = async (id) => {
 
     if (!received) throw new ApiError(404, "Received product not found");
 
+    const finalQuantity = Number(received.quantity || 0) + qty;
     // 3) stock ফিরিয়ে দাও
     await InventoryMaster.update(
       {
-        quantity: Number(received.quantity || 0) + qty,
-        purchase_price:
-          Number(received.purchase_price || 0) +
-          Number(ret.purchase_price || 0),
-        sale_price:
-          Number(received.sale_price || 0) + Number(ret.sale_price || 0),
+        quantity: finalQuantity,
+        purchase_price: Number(received.purchase_price * finalQuantity),
+        sale_price: Number(received.sale_price * finalQuantity),
       },
       { where: { Id: received.Id }, transaction: t },
     );
@@ -536,11 +533,18 @@ const updateOneFromDB = async (id, payload) => {
         ? "Purchase  product request approved"
         : note || "Please approved my request";
 
+    // ✅ 2) InventoryMaster subtract
+    const inv = await InventoryMaster.findOne({
+      where: { productId: receivedId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
     const data = {
-      name: productData.name,
+      name: inv.name,
       quantity,
-      purchase_price: productData.purchase_price * quantity,
-      sale_price: productData.sale_price * quantity,
+      purchase_price: inv.purchase_price * quantity,
+      sale_price: inv.sale_price * quantity,
       supplierId,
       warehouseId,
       productId: receivedId,
@@ -556,13 +560,6 @@ const updateOneFromDB = async (id, payload) => {
       receivedFinalQty = Number(quantity) - Number(qty);
     }
 
-    // ✅ 2) InventoryMaster subtract
-    const inv = await InventoryMaster.findOne({
-      where: { productId: receivedId },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
-
     if (inv) {
       let stockQuantity = 0;
       if (Number(qty) > Number(quantity)) {
@@ -576,15 +573,15 @@ const updateOneFromDB = async (id, payload) => {
         throw new ApiError(400, "Inventory cannot be negative");
       const oldQty = Number(inv.quantity);
 
-      const perUnitPurchase =
-        oldQty > 0 ? Number(inv.purchase_price || 0) / oldQty : 0;
-      const perUnitSale = oldQty > 0 ? Number(inv.sale_price || 0) / oldQty : 0;
+      // const perUnitPurchase =
+      //   oldQty > 0 ? Number(inv.purchase_price || 0) / oldQty : 0;
+      // const perUnitSale = oldQty > 0 ? Number(inv.sale_price || 0) / oldQty : 0;
 
       await inv.update(
         {
           quantity: stockQuantity,
-          purchase_price: perUnitPurchase * stockQuantity,
-          sale_price: perUnitSale * stockQuantity,
+          purchase_price: inv.purchase_price * stockQuantity,
+          sale_price: inv.sale_price * stockQuantity,
         },
         { transaction: t },
       );

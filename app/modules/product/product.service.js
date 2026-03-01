@@ -13,8 +13,6 @@ const insertIntoDB = async (data) => {
   const payload = {
     name,
     supplierId,
-    purchase_price,
-    sale_price,
     warehouseId,
   };
   console.log("data", data);

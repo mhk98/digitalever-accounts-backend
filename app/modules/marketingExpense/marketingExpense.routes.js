@@ -15,6 +15,7 @@ router.post(
   MarketingExpenseController.insertIntoDB,
 );
 router.get("/", MarketingExpenseController.getAllFromDB);
+router.get("/summary", MarketingExpenseController.getOverviewSummaryFromDB);
 router.get("/all", MarketingExpenseController.getAllFromDBWithoutQuery);
 router.get("/:id", MarketingExpenseController.getDataById);
 router.delete(

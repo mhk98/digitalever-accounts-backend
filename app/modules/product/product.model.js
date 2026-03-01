@@ -18,20 +18,7 @@ module.exports = (sequelize, DataTypes) => {
           notEmpty: true, // Ensure name is not empty
         },
       },
-      purchase_price: {
-        type: DataTypes.INTEGER(10),
-        allowNull: false,
-        validate: {
-          notEmpty: true, // Ensure name is not empty
-        },
-      },
-      sale_price: {
-        type: DataTypes.INTEGER(10),
-        allowNull: false,
-        validate: {
-          notEmpty: true, // Ensure name is not empty
-        },
-      },
+
       date: {
         type: DataTypes.DATEONLY,
         allowNull: true,

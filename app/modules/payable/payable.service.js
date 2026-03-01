@@ -4,6 +4,7 @@ const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { PayableSearchableFields } = require("./payable.constants");
 const Payable = db.payable;
+const Supplier = db.supplier;
 const Notification = db.notification;
 const User = db.user;
 
@@ -86,6 +87,13 @@ const getAllFromDB = async (filters, options) => {
     where: whereConditions,
     offset: skip,
     limit,
+    include: [
+      {
+        model: Supplier,
+        as: "supplier",
+        attributes: ["Id", "name"],
+      },
+    ],
     paranoid: true,
     order,
   });
