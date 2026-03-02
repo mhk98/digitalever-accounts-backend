@@ -351,14 +351,14 @@ const getInventoryOverviewListFromDB = async (filters) => {
     damageRepair,
     damageRepaired,
   ] = await Promise.all([
-    findRows(ReceivedProduct, where, "ReceivedProduct"),
-    findRows(PurchaseReturnProduct, where, "PurchaseReturnProduct"),
-    findRows(InTransitProduct, where, "InTransitProduct"),
-    findRows(ReturnProduct, where, "SalesReturnProduct"),
-    findRows(ConfirmOrder, where, "ConfirmOrder"),
-    findRows(DamageProduct, where, "DamageProduct"),
-    findRows(DamageRepair, where, "DamageRepair"),
-    findRows(DamageRepaired, where, "DamageRepaired"),
+    findRows(ReceivedProduct, where, "Received Product"),
+    findRows(PurchaseReturnProduct, where, "Purchase Return Product"),
+    findRows(InTransitProduct, where, "In Transit Product"),
+    findRows(ReturnProduct, where, "Sales Return Product"),
+    findRows(ConfirmOrder, where, "Confirm Order"),
+    findRows(DamageProduct, where, "Damage Product"),
+    findRows(DamageRepair, where, "Damage Repair"),
+    findRows(DamageRepaired, where, "Damage Repaired"),
   ]);
 
   const all = [
