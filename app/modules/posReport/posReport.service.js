@@ -486,14 +486,6 @@ const updateOneFromDB = async (data) => {
       throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
     }
 
-    const perUnitPurchase =
-      oldQty > 0 ? Number(received.purchase_price || 0) / oldQty : 0;
-    const perUnitSale =
-      oldQty > 0 ? Number(received.sale_price || 0) / oldQty : 0;
-
-    const deductPurchase = perUnitPurchase * returnQty;
-    const deductSale = perUnitSale * returnQty;
-
     const realProductId = Number(received.productId);
     if (!realProductId) {
       throw new ApiError(
@@ -518,14 +510,18 @@ const updateOneFromDB = async (data) => {
       { transaction: t },
     );
 
+    const finalQuantity = oldQty - returnQty;
     await InventoryMaster.update(
       {
-        quantity: oldQty - returnQty,
+        quantity: finalQuantity,
         purchase_price: Math.max(
           0,
-          Number(received.purchase_price || 0) - deductPurchase,
+          Number(received.purchase_price * finalQuantity || 0),
         ),
-        sale_price: Math.max(0, Number(received.sale_price || 0) - deductSale),
+        sale_price: Math.max(
+          0,
+          Number(received.sale_price * finalQuantity || 0),
+        ),
       },
       { where: { Id: received.Id }, transaction: t },
     );

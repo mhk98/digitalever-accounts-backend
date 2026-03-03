@@ -646,6 +646,8 @@ const updateOneFromDB = async (id, payload) => {
     userId,
     supplierId,
     warehouseId,
+    purchase_price,
+    sale_price,
     actorRole,
   } = payload;
 
@@ -700,8 +702,8 @@ const updateOneFromDB = async (id, payload) => {
     const data = {
       name: productData.name,
       quantity,
-      purchase_price: productData.purchase_price * quantity,
-      sale_price: productData.sale_price * quantity,
+      purchase_price: purchase_price * quantity,
+      sale_price: sale_price * quantity,
       supplierId,
       warehouseId,
       productId,
@@ -732,12 +734,11 @@ const updateOneFromDB = async (id, payload) => {
       await InventoryMaster.create(
         {
           name: productData.name,
-          price: productData.sale_price,
+          price: sale_price,
           productId,
           quantity: stockQuantity,
-          purchase_price:
-            Number(productData.purchase_price || 0) * stockQuantity,
-          sale_price: Number(productData.sale_price || 0) * stockQuantity,
+          purchase_price: Number(purchase_price || 0),
+          sale_price: Number(sale_price || 0),
           // যদি তোমার টেবিলে warehouseId/supplierId লাগে, চাইলে add করো:
           // warehouseId,
           // supplierId,
@@ -757,17 +758,11 @@ const updateOneFromDB = async (id, payload) => {
       if (stockQuantity < 0)
         throw new ApiError(400, "Inventory cannot be negative");
 
-      const oldQty = Number(inv.quantity);
-
-      const perUnitPurchase =
-        oldQty > 0 ? Number(inv.purchase_price || 0) / oldQty : 0;
-      const perUnitSale = oldQty > 0 ? Number(inv.sale_price || 0) / oldQty : 0;
-
       await inv.update(
         {
           quantity: stockQuantity,
-          purchase_price: perUnitPurchase * stockQuantity,
-          sale_price: perUnitSale * stockQuantity,
+          purchase_price,
+          sale_price,
         },
         { transaction: t },
       );

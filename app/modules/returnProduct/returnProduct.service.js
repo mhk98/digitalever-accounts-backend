@@ -569,17 +569,12 @@ const updateOneFromDB = async (id, payload) => {
       // চাইলে negative prevent করতে পারেন
       if (stockQuantity < 0)
         throw new ApiError(400, "Inventory cannot be negative");
-      const oldQty = Number(inv.quantity);
-
-      const perUnitPurchase =
-        oldQty > 0 ? Number(inv.purchase_price || 0) / oldQty : 0;
-      const perUnitSale = oldQty > 0 ? Number(inv.sale_price || 0) / oldQty : 0;
 
       await inv.update(
         {
           quantity: stockQuantity,
-          purchase_price: perUnitPurchase * stockQuantity,
-          sale_price: perUnitSale * stockQuantity,
+          purchase_price: inv.purchase_price * stockQuantity,
+          sale_price: inv.sale_price * stockQuantity,
         },
         { transaction: t },
       );

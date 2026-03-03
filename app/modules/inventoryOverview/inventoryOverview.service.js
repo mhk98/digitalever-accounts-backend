@@ -342,7 +342,7 @@ const getInventoryOverviewListFromDB = async (filters) => {
   };
 
   const [
-    received,
+    // received,
     purchaseReturn,
     intransit,
     salesReturn,
@@ -351,7 +351,7 @@ const getInventoryOverviewListFromDB = async (filters) => {
     damageRepair,
     damageRepaired,
   ] = await Promise.all([
-    findRows(ReceivedProduct, where, "Received Product"),
+    // findRows(ReceivedProduct, where, "Received Product"),
     findRows(PurchaseReturnProduct, where, "Purchase Return Product"),
     findRows(InTransitProduct, where, "In Transit Product"),
     findRows(ReturnProduct, where, "Sales Return Product"),
@@ -362,7 +362,7 @@ const getInventoryOverviewListFromDB = async (filters) => {
   ]);
 
   const all = [
-    ...received,
+    // ...received,
     ...purchaseReturn,
     ...intransit,
     ...salesReturn,

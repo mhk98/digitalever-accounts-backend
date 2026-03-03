@@ -6,7 +6,7 @@ class ApiError extends Error {
     this.message = message;
     this.name = this.constructor.name;
     this.isOperational = isOperational; // Flag for operational errors (handled by you)
-    
+
     // Capture stack trace for debugging
     Error.captureStackTrace(this, this.constructor);
   }
