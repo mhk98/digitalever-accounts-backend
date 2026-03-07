@@ -86,6 +86,7 @@ const insertIntoDB = async (data) => {
         supplierId,
         warehouseId,
         quantity: returnQty,
+        source: "In Transit Product",
         purchase_price: Number(inventory.purchase_price * returnQty),
         sale_price: Number(inventory.sale_price * returnQty),
         productId: realProductId, // ✅ Products.Id (FK)
@@ -101,8 +102,8 @@ const insertIntoDB = async (data) => {
     await InventoryMaster.update(
       {
         quantity: finalQuantity,
-        purchase_price: Number(inventory.purchase_price * finalQuantity),
-        sale_price: Number(inventory.sale_price * finalQuantity),
+        // purchase_price: Number(inventory.purchase_price * finalQuantity),
+        // sale_price: Number(inventory.sale_price * finalQuantity),
       },
       { where: { Id: inventory.Id }, transaction: t },
     );
@@ -257,8 +258,8 @@ const deleteIdFromDB = async (id) => {
     await InventoryMaster.update(
       {
         quantity: finalQuantity,
-        purchase_price: Number(received.purchase_price * finalQuantity),
-        sale_price: Number(received.sale_price * finalQuantity),
+        // purchase_price: Number(received.purchase_price * finalQuantity),
+        // sale_price: Number(received.sale_price * finalQuantity),
       },
       { where: { Id: received.Id }, transaction: t },
     );

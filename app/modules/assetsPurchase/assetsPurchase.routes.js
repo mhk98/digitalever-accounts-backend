@@ -24,7 +24,7 @@ router.delete(
   ),
   AssetsPurchaseController.deleteIdFromDB,
 );
-router.patch(
+router.put(
   "/:id",
   auth(
     ENUM_USER_ROLE.SUPER_ADMIN,

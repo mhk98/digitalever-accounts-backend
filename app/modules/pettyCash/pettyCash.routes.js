@@ -27,7 +27,7 @@ router.delete(
   ),
   PettyCashController.deleteIdFromDB,
 );
-router.patch(
+router.put(
   "/:id",
   uploadFile,
   auth(

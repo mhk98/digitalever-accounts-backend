@@ -7,12 +7,12 @@ const {
 } = require("./damageRepaired.constants");
 const DamageRepaired = db.damageRepaired;
 const DamageRepair = db.damageRepair;
-const DamageProduct = db.damageProduct;
 const Notification = db.notification;
 const User = db.user;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
 const InventoryMaster = db.inventoryMaster;
+const DamageStock = db.damageStock;
 
 const insertIntoDB = async (data) => {
   const {
@@ -76,8 +76,8 @@ const insertIntoDB = async (data) => {
     const deductPurchase = perUnitPurchase * returnQty;
     const deductSale = perUnitSale * returnQty;
 
-    const realDamageProductId = Number(damageRepair.productId);
-    if (!realDamageProductId) {
+    const realDamageStockId = Number(damageRepair.productId);
+    if (!realDamageStockId) {
       throw new ApiError(400, "DamageRepair productId missing (Products.Id)");
     }
 
@@ -86,11 +86,12 @@ const insertIntoDB = async (data) => {
         name: damageRepair.name,
         supplierId,
         warehouseId,
+        source: "Damage Repaired",
         remarks: damageRepair.remarks,
         quantity: returnQty,
         purchase_price: deductPurchase,
         sale_price: deductSale,
-        productId: realDamageProductId, // ✅ Products.Id (FK)
+        productId: realDamageStockId, // ✅ Products.Id (FK)
         status: finalStatus || "---",
         note: note || null,
         date: date,
@@ -98,7 +99,7 @@ const insertIntoDB = async (data) => {
       { transaction: t },
     );
 
-    await DamageRepair.update(
+    await DamageStock.update(
       {
         quantity: oldQty - returnQty,
         purchase_price: Math.max(
@@ -113,16 +114,16 @@ const insertIntoDB = async (data) => {
       { where: { Id: damageRepair.Id }, transaction: t },
     );
 
-    const damageProduct = await DamageProduct.findOne({
-      where: { productId: realDamageProductId },
+    const damageStock = await DamageStock.findOne({
+      where: { productId: realDamageStockId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (!damageProduct) throw new ApiError(404, "Damage product not found");
+    if (!damageStock) throw new ApiError(404, "Damage product not found");
 
     const inventory = await InventoryMaster.findOne({
-      where: { productId: damageProduct.productId },
+      where: { productId: damageStock.productId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });

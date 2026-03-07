@@ -7,7 +7,6 @@ const {
 } = require("./warrantyProduct.constants");
 
 const WarrantyProduct = db.warrantyProduct;
-const ReceivedProduct = db.receivedProduct;
 const Product = db.product;
 const Notification = db.notification;
 const User = db.user;

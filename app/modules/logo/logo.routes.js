@@ -18,7 +18,7 @@ router.delete(
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
   LogoController.deleteIdFromDB,
 );
-router.patch(
+router.put(
   "/:id",
   uploadFile,
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),

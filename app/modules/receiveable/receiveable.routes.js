@@ -26,7 +26,7 @@ router.delete(
   ),
   ReceiveableController.deleteIdFromDB,
 );
-router.patch(
+router.put(
   "/:id",
   uploadFile,
   auth(

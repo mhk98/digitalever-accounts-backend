@@ -27,7 +27,7 @@ router.delete(
   ),
   MarketingExpenseController.deleteIdFromDB,
 );
-router.patch(
+router.put(
   "/:id",
   uploadFile,
   auth(

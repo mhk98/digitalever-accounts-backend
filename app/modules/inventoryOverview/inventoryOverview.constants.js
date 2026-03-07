@@ -9,6 +9,7 @@ const InventoryOverviewFilterAbleFileds = [
   "from",
   "to",
   "name",
+  "source",
   "page",
   "limit",
 ];

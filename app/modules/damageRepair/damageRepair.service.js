@@ -4,11 +4,11 @@ const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { DamageRepairSearchableFields } = require("./damageRepair.constants");
 const DamageRepair = db.damageRepair;
-const DamageProduct = db.damageProduct;
 const Notification = db.notification;
 const User = db.user;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
+const DamageStock = db.damageStock;
 
 const insertIntoDB = async (data) => {
   const {
@@ -48,7 +48,7 @@ const insertIntoDB = async (data) => {
         : "Active";
 
   return await db.sequelize.transaction(async (t) => {
-    const received = await DamageProduct.findOne({
+    const received = await DamageStock.findOne({
       where: { Id: rid },
       transaction: t,
       lock: t.LOCK.UPDATE,
@@ -71,7 +71,7 @@ const insertIntoDB = async (data) => {
 
     const realProductId = Number(received.productId);
     if (!realProductId) {
-      throw new ApiError(400, "DamageProduct.productId missing (Products.Id)");
+      throw new ApiError(400, "DamageStock.productId missing (Products.Id)");
     }
 
     const result = await DamageRepair.create(
@@ -79,6 +79,7 @@ const insertIntoDB = async (data) => {
         name: received.name,
         supplierId,
         warehouseId,
+        source: "Damage Repair",
         remarks: received.remarks,
         quantity: returnQty,
         purchase_price: deductPurchase,
@@ -91,14 +92,18 @@ const insertIntoDB = async (data) => {
       { transaction: t },
     );
 
-    await DamageProduct.update(
+    const finalQuantity = oldQty - returnQty;
+    await DamageStock.update(
       {
-        quantity: oldQty - returnQty,
+        quantity: finalQuantity,
         purchase_price: Math.max(
           0,
-          Number(received.purchase_price || 0) - deductPurchase,
+          Number(received.purchase_price * finalQuantity || 0),
         ),
-        sale_price: Math.max(0, Number(received.sale_price || 0) - deductSale),
+        sale_price: Math.max(
+          0,
+          Number(received.sale_price * finalQuantity || 0),
+        ),
       },
       { where: { Id: received.Id }, transaction: t },
     );
@@ -241,7 +246,7 @@ const deleteIdFromDB = async (id) => {
     if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
 
     // 2) ReceivedProduct খুঁজে বের করো (Products.Id দিয়ে)
-    const received = await DamageProduct.findOne({
+    const received = await DamageStock.findOne({
       where: { productId: ret.productId }, // ✅ Products.Id
       transaction: t,
       lock: t.LOCK.UPDATE,
@@ -249,15 +254,13 @@ const deleteIdFromDB = async (id) => {
 
     if (!received) throw new ApiError(404, "Received product not found");
 
+    const finalQuantity = Number(received.quantity || 0) + qty;
     // 3) stock ফিরিয়ে দাও
-    await DamageProduct.update(
+    await DamageStock.update(
       {
-        quantity: Number(received.quantity || 0) + qty,
-        purchase_price:
-          Number(received.purchase_price || 0) +
-          Number(ret.purchase_price || 0),
-        sale_price:
-          Number(received.sale_price || 0) + Number(ret.sale_price || 0),
+        quantity: finalQuantity,
+        purchase_price: Number(received.purchase_price * finalQuantity || 0),
+        sale_price: Number(received.sale_price * finalQuantity || 0),
       },
       { where: { Id: received.Id }, transaction: t },
     );
@@ -336,7 +339,7 @@ const updateOneFromDB = async (id, data) => {
   }
 
   return await db.sequelize.transaction(async (t) => {
-    const received = await DamageProduct.findOne({
+    const received = await DamageStock.findOne({
       where: { Id: rid },
       transaction: t,
       lock: t.LOCK.UPDATE,
@@ -359,7 +362,7 @@ const updateOneFromDB = async (id, data) => {
 
     const realProductId = Number(received.productId);
     if (!realProductId) {
-      throw new ApiError(400, "DamageProduct.productId missing (Products.Id)");
+      throw new ApiError(400, "DamageStock.productId missing (Products.Id)");
     }
 
     const [updatedCount] = await DamageRepair.update(
@@ -369,8 +372,8 @@ const updateOneFromDB = async (id, data) => {
         warehouseId,
         remarks: received.remarks,
         quantity: returnQty,
-        purchase_price: deductPurchase,
-        sale_price: deductSale,
+        purchase_price: received.purchase_price * returnQty,
+        sale_price: received.sale_price * returnQty,
         note: newNote || null,
         status: finalStatus,
         date: inputDateStr || undefined,
@@ -383,17 +386,15 @@ const updateOneFromDB = async (id, data) => {
     );
 
     if (status === "Approved") {
-      await DamageProduct.update(
+      const finalQuantity = Number(oldQty - returnQty);
+
+      await DamageStock.update(
         {
-          quantity: oldQty - returnQty,
-          purchase_price: Math.max(
-            0,
-            Number(received.purchase_price || 0) - deductPurchase,
-          ),
-          sale_price: Math.max(
-            0,
-            Number(received.sale_price || 0) - deductSale,
-          ),
+          quantity: finalQuantity,
+          purchase_price: Number(received.purchase_price * finalQuantity || 0),
+
+          sale_price:
+            Number(received.sale_price * finalQuantity || 0) - deductSale,
         },
         { where: { Id: received.Id }, transaction: t },
       );

@@ -13,7 +13,8 @@ const User = db.user;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
 const InventoryMaster = db.inventoryMaster;
-const Payable = db.payable;
+const WarrantyProduct = db.warrantyProduct;
+const CashInOut = db.cashInOut;
 
 const insertIntoDB = async (data, file) => {
   const {
@@ -22,9 +23,11 @@ const insertIntoDB = async (data, file) => {
     date,
     status,
     note,
-    duePayment,
+    paidAmount,
     purchase_price,
     sale_price,
+    warrantyValue,
+    warrantyUnit,
     userId,
     supplierId,
     warehouseId,
@@ -50,6 +53,7 @@ const insertIntoDB = async (data, file) => {
     const payload = {
       name: productData.name,
       quantity,
+      source: "Received Product",
       purchase_price: Number(purchase_price),
       sale_price: Number(sale_price),
       supplierId,
@@ -62,14 +66,17 @@ const insertIntoDB = async (data, file) => {
 
     const result = await ReceivedProduct.create(payload, { transaction: t });
 
-    const payableData = {
-      supplierId,
-      amount: duePayment,
-      date,
-      file,
-    };
+    // const supplierData = {
+    //   supplierId,
+    //   purchase_price: Number(purchase_price || 0) * Number(quantity || 0),
+    //   amount: paidAmount,
+    //   paymentStatus: "CashOut",
+    //   date,
+    //   file,
+    // };
 
-    await Payable.create(payableData, { transaction: t });
+    // await CashInOut.create(supplierData, { transaction: t });
+
     // ✅ InventoryMaster: থাকলে update, না থাকলে insert
     if (result) {
       const inv = await InventoryMaster.findOne({
@@ -91,14 +98,26 @@ const insertIntoDB = async (data, file) => {
             productId,
             name: productData.name,
             quantity: Number(quantity || 0),
-            purchase_price,
-            sale_price,
+            purchase_price: Number(purchase_price),
+            sale_price: Number(sale_price),
           },
           { transaction: t },
         );
       }
     }
 
+    if (Number(warrantyValue) > 0 && warrantyUnit) {
+      const warrantyRows = {
+        name: productData.name,
+        price: Number(purchase_price),
+        quantity,
+        date: date,
+        warrantyValue: Number(warrantyValue) || 0,
+        warrantyUnit: warrantyUnit || null,
+      };
+
+      await WarrantyProduct.create(warrantyRows, { transaction: t });
+    }
     const users = await User.findAll({
       attributes: ["Id", "role"],
       where: {
@@ -647,8 +666,10 @@ const updateOneFromDB = async (id, payload) => {
     supplierId,
     warehouseId,
     purchase_price,
+    paidAmount,
     sale_price,
     actorRole,
+    file,
   } = payload;
 
   const productData = await Product.findOne({
@@ -670,6 +691,15 @@ const updateOneFromDB = async (id, payload) => {
     });
 
     if (!existing) return 0;
+
+    // const payableData = {
+    //   supplierId,
+    //   amount: paidAmount,
+    //   date,
+    //   file,
+    // };
+
+    // await Payable.create(payableData, { transaction: t });
 
     const qty = Number(existing.quantity || 0);
     const oldNote = String(existing.note || "").trim();
@@ -710,6 +740,7 @@ const updateOneFromDB = async (id, payload) => {
       note: newNote || null,
       status: finalStatus,
       date: inputDateStr || undefined,
+      file,
     };
 
     let receivedFinalQty = 0;

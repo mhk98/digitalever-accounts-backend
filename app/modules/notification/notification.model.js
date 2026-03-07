@@ -54,6 +54,7 @@ module.exports = (sequelize, DataTypes) => {
     {
       timestamps: true,
       paranoid: true, // Soft delete enabled
+      tableName: "Notifications",
     },
   );
 

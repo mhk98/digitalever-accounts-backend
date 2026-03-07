@@ -26,7 +26,7 @@ router.delete(
   ),
   CashInOutController.deleteIdFromDB,
 );
-router.patch(
+router.put(
   "/:id",
   uploadFile,
   auth(

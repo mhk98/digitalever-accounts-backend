@@ -52,7 +52,7 @@ const insertIntoDB = async (data) => {
 
   return await db.sequelize.transaction(async (t) => {
     const inventory = await InventoryMaster.findOne({
-      where: { Id: rid },
+      where: { productId: rid },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -63,14 +63,6 @@ const insertIntoDB = async (data) => {
     if (oldQty < returnQty) {
       throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
     }
-
-    // const perUnitPurchase =
-    //   oldQty > 0 ? Number(inventory.purchase_price || 0) / oldQty : 0;
-    // const perUnitSale =
-    //   oldQty > 0 ? Number(inventory.sale_price || 0) / oldQty : 0;
-
-    // const deductPurchase = perUnitPurchase * returnQty;
-    // const deductSale = perUnitSale * returnQty;
 
     const realProductId = Number(inventory.productId);
     if (!realProductId) {
@@ -83,6 +75,7 @@ const insertIntoDB = async (data) => {
         supplierId,
         warehouseId,
         quantity: returnQty,
+        source: "Purchase Return Product",
         purchase_price: inventory.purchase_price * returnQty,
         sale_price: inventory.purchase_price * returnQty,
         productId: realProductId, // ✅ Products.Id (FK)
@@ -98,8 +91,8 @@ const insertIntoDB = async (data) => {
     await InventoryMaster.update(
       {
         quantity: finalQuantity,
-        purchase_price: inventory.purchase_price * finalQuantity,
-        sale_price: inventory.sale_price * finalQuantity,
+        // purchase_price: inventory.purchase_price * finalQuantity,
+        // sale_price: inventory.sale_price * finalQuantity,
       },
       { where: { Id: inventory.Id }, transaction: t },
     );

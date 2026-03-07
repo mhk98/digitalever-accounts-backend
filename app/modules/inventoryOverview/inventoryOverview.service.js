@@ -329,44 +329,183 @@ const findRows = async (Model, where = {}, label) => {
   }));
 };
 
+// const getInventoryOverviewListFromDB = async (filters) => {
+//   const { from, to, name } = filters;
+
+//   const page = Math.max(1, Number(filters.page || 1));
+//   const limit = Math.max(1, Number(filters.limit || 10));
+//   const skip = (page - 1) * limit;
+
+//   const where = {
+//     ...buildDateWhere(from, to),
+//     ...buildNameWhere(name),
+//   };
+
+//   const [
+//     // received,
+//     purchaseReturn,
+//     intransit,
+//     salesReturn,
+//     confirmOrder,
+//     damageProduct,
+//     damageRepair,
+//     damageRepaired,
+//   ] = await Promise.all([
+//     // findRows(ReceivedProduct, where, "Received Product"),
+//     findRows(PurchaseReturnProduct, where, "Purchase Return Product"),
+//     findRows(InTransitProduct, where, "In Transit Product"),
+//     findRows(ReturnProduct, where, "Sales Return Product"),
+//     findRows(ConfirmOrder, where, "Confirm Order"),
+//     findRows(DamageProduct, where, "Damage Product"),
+//     findRows(DamageRepair, where, "Damage Repair"),
+//     findRows(DamageRepaired, where, "Damage Repaired"),
+//   ]);
+
+//   const all = [
+//     // ...received,
+//     ...purchaseReturn,
+//     ...intransit,
+//     ...salesReturn,
+//     ...confirmOrder,
+//     ...damageProduct,
+//     ...damageRepair,
+//     ...damageRepaired,
+//   ].sort((a, b) => {
+//     const da = a.date ? new Date(a.date).getTime() : 0;
+//     const dbb = b.date ? new Date(b.date).getTime() : 0;
+//     if (dbb !== da) return dbb - da;
+//     return (b.Id || 0) - (a.Id || 0);
+//   });
+
+//   const paged = all.slice(skip, skip + limit);
+
+//   return {
+//     meta: {
+//       from: from || null,
+//       to: to || null,
+//       name: name || null,
+//       page,
+//       limit,
+//       count: all.length,
+//       totalPages: Math.max(1, Math.ceil(all.length / limit)),
+//     },
+//     data: paged,
+//   };
+// };
+
+// const getInventoryOverviewListFromDB = async (filters) => {
+//   const { from, to, name, source } = filters;
+
+//   const page = Math.max(1, Number(filters.page || 1));
+//   const limit = Math.max(1, Number(filters.limit || 10));
+//   const skip = (page - 1) * limit;
+
+//   // Build the 'where' object based on filters
+//   const where = {
+//     ...buildDateWhere(from, to),
+//     ...buildNameWhere(name),
+//   };
+
+//   // Add 'source' filter to 'where' if it's provided
+//   if (source) {
+//     where.source = source; // Assuming source is a column in your tables
+//   }
+
+//   const [
+//     received,
+//     purchaseReturn,
+//     intransit,
+//     salesReturn,
+//     confirmOrder,
+//     damageProduct,
+//     damageRepair,
+//     damageRepaired,
+//   ] = await Promise.all([
+//     findRows(ReceivedProduct, where, "Received Product"),
+//     findRows(PurchaseReturnProduct, where, "Purchase Return Product"),
+//     findRows(InTransitProduct, where, "In Transit Product"),
+//     findRows(ReturnProduct, where, "Sales Return Product"),
+//     findRows(ConfirmOrder, where, "Confirm Order"),
+//     findRows(DamageProduct, where, "Damage Product"),
+//     findRows(DamageRepair, where, "Damage Repair"),
+//     findRows(DamageRepaired, where, "Damage Repaired"),
+//   ]);
+
+//   const all = [
+//     ...received,
+//     ...purchaseReturn,
+//     ...intransit,
+//     ...salesReturn,
+//     ...confirmOrder,
+//     ...damageProduct,
+//     ...damageRepair,
+//     ...damageRepaired,
+//   ].sort((a, b) => {
+//     const da = a.date ? new Date(a.date).getTime() : 0;
+//     const dbb = b.date ? new Date(b.date).getTime() : 0;
+//     if (dbb !== da) return dbb - da;
+//     return (b.Id || 0) - (a.Id || 0);
+//   });
+
+//   // Pagination: Slice the data to fit the requested page and limit
+//   const paged = all.slice(skip, skip + limit);
+
+//   return {
+//     meta: {
+//       from: from || null,
+//       to: to || null,
+//       name: name || null,
+//       source: source || null, // Return source in the meta
+//       page,
+//       limit,
+//       count: all.length,
+//       totalPages: Math.max(1, Math.ceil(all.length / limit)),
+//     },
+//     data: paged,
+//   };
+// };
+
 const getInventoryOverviewListFromDB = async (filters) => {
-  const { from, to, name } = filters;
+  const { from, to, name, source } = filters; // category here
 
   const page = Math.max(1, Number(filters.page || 1));
   const limit = Math.max(1, Number(filters.limit || 10));
   const skip = (page - 1) * limit;
 
+  // Build the 'where' object based on filters
   const where = {
     ...buildDateWhere(from, to),
     ...buildNameWhere(name),
   };
 
+  // Add 'category' (source) filter to 'where' if it's provided
+  if (source) {
+    where.source = source; // Assuming 'source' is the category you are filtering
+  }
+
   const [
-    // received,
+    received,
     purchaseReturn,
     intransit,
     salesReturn,
-    confirmOrder,
     damageProduct,
     damageRepair,
     damageRepaired,
   ] = await Promise.all([
-    // findRows(ReceivedProduct, where, "Received Product"),
+    findRows(ReceivedProduct, where, "Received Product"),
     findRows(PurchaseReturnProduct, where, "Purchase Return Product"),
     findRows(InTransitProduct, where, "In Transit Product"),
     findRows(ReturnProduct, where, "Sales Return Product"),
-    findRows(ConfirmOrder, where, "Confirm Order"),
     findRows(DamageProduct, where, "Damage Product"),
     findRows(DamageRepair, where, "Damage Repair"),
     findRows(DamageRepaired, where, "Damage Repaired"),
   ]);
 
   const all = [
-    // ...received,
+    received,
     ...purchaseReturn,
     ...intransit,
     ...salesReturn,
-    ...confirmOrder,
     ...damageProduct,
     ...damageRepair,
     ...damageRepaired,
@@ -384,6 +523,7 @@ const getInventoryOverviewListFromDB = async (filters) => {
       from: from || null,
       to: to || null,
       name: name || null,
+      source: source || null, // Return category in the meta
       page,
       limit,
       count: all.length,
@@ -392,7 +532,6 @@ const getInventoryOverviewListFromDB = async (filters) => {
     data: paged,
   };
 };
-
 // summary (আগেরটা রাখতে চাইলে)
 const sumField = async (Model, field, where = {}) => {
   const total = await Model.sum(field, { where });

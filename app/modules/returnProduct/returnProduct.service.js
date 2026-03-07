@@ -58,9 +58,9 @@ const insertIntoDB = async (data) => {
     if (!inventory) throw new ApiError(404, "inventory product not found");
 
     const oldQty = Number(inventory.quantity || 0);
-    if (oldQty < returnQty) {
-      throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
-    }
+    // if (oldQty < returnQty) {
+    //   throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
+    // }
 
     // const perUnitPurchase =
     //   oldQty > 0 ? Number(inventory.purchase_price || 0) / oldQty : 0;
@@ -84,6 +84,7 @@ const insertIntoDB = async (data) => {
         supplierId,
         warehouseId,
         quantity: returnQty,
+        source: "Sales Return Product",
         purchase_price: inventory.purchase_price * returnQty,
         sale_price: inventory.sale_price * returnQty,
         productId: realProductId, // ✅ Products.Id (FK)
@@ -98,8 +99,8 @@ const insertIntoDB = async (data) => {
     await InventoryMaster.update(
       {
         quantity: finalQuantity,
-        purchase_price: Number(inventory.purchase_price * finalQuantity),
-        sale_price: Number(inventory.sale_price * finalQuantity),
+        // purchase_price: Number(inventory.purchase_price * finalQuantity),
+        // sale_price: Number(inventory.sale_price * finalQuantity),
       },
       { where: { Id: inventory.Id }, transaction: t },
     );
@@ -252,11 +253,11 @@ const deleteIdFromDB = async (id) => {
     await InventoryMaster.update(
       {
         quantity: Number(received.quantity || 0) - qty,
-        purchase_price:
-          Number(received.purchase_price || 0) +
-          Number(ret.purchase_price || 0),
-        sale_price:
-          Number(received.sale_price || 0) + Number(ret.sale_price || 0),
+        // purchase_price:
+        //   Number(received.purchase_price || 0) +
+        //   Number(ret.purchase_price || 0),
+        // sale_price:
+        //   Number(received.sale_price || 0) + Number(ret.sale_price || 0),
       },
       { where: { Id: received.Id }, transaction: t },
     );

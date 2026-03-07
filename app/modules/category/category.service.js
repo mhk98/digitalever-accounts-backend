@@ -60,6 +60,7 @@ const getAllFromDB = async (filters, options) => {
     where: whereConditions,
     offset: skip,
     limit,
+    paranoid: true,
     order:
       options.sortBy && options.sortOrder
         ? [[options.sortBy, options.sortOrder.toUpperCase()]]

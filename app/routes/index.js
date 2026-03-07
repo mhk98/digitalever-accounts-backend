@@ -36,6 +36,7 @@ const MarketingBookRoutes = require("../modules/marketingBook/marketingBook.rout
 const MarketingExpenseRoutes = require("../modules/marketingExpense/marketingExpense.routes");
 const InventoryMasterRoutes = require("../modules/inventoryMaster/inventoryMaster.routes");
 const InventoryOverviewRoutes = require("../modules/inventoryOverview/inventoryOverview.routes");
+const DamageStockRoutes = require("../modules/damageStock/damageStock.routes");
 
 const router = express.Router();
 
@@ -68,6 +69,10 @@ const moduleRoutes = [
   {
     path: "/damage-product",
     route: DamageProductRoutes,
+  },
+  {
+    path: "/damage-stock",
+    route: DamageStockRoutes,
   },
   {
     path: "/damage-repair",

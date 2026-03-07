@@ -45,7 +45,14 @@ const getDataById = catchAsync(async (req, res) => {
 
 const updateOneFromDB = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const result = await ReceivedProductService.updateOneFromDB(id, req.body);
+
+  const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
+
+  const data = {
+    ...req.body,
+    file,
+  };
+  const result = await ReceivedProductService.updateOneFromDB(id, data);
   sendResponse(res, {
     statusCode: 200,
     success: true,

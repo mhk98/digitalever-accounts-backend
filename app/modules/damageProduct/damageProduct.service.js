@@ -10,6 +10,7 @@ const Supplier = db.supplier;
 const Warehouse = db.warehouse;
 const InventoryMaster = db.inventoryMaster;
 const Product = db.product;
+const DamageStock = db.damageStock;
 
 // const insertIntoDB = async (data) => {
 //   const { quantity, productId } = data;
@@ -157,6 +158,7 @@ const insertIntoDB = async (data) => {
         supplierId,
         warehouseId,
         quantity: returnQty,
+        source: "Damage Product",
         purchase_price: inventory.purchase_price * returnQty,
         sale_price: inventory.sale_price * returnQty,
         productId: realProductId, // ✅ Products.Id (FK)
@@ -167,12 +169,37 @@ const insertIntoDB = async (data) => {
       { transaction: t },
     );
 
+    if (result) {
+      const dStock = await DamageStock.findOne({
+        where: { productId: receivedId },
+        transaction: t,
+        lock: t.LOCK.UPDATE, // optional but helpful
+      });
+
+      if (dStock) {
+        await dStock.update(
+          {
+            quantity: Number(dStock.quantity || 0) + Number(quantity || 0),
+          },
+          { transaction: t },
+        );
+      } else {
+        await DamageStock.create(
+          {
+            productId: receivedId,
+            name: inventory.name,
+            quantity: Number(quantity || 0),
+          },
+          { transaction: t },
+        );
+      }
+    }
     const finalQuantity = oldQty - returnQty;
     await InventoryMaster.update(
       {
         quantity: finalQuantity,
-        purchase_price: Number(inventory.purchase_price * finalQuantity),
-        sale_price: Number(inventory.sale_price * finalQuantity),
+        purchase_price: Number(inventory.purchase_price),
+        sale_price: Number(inventory.sale_price),
       },
       { where: { Id: inventory.Id }, transaction: t },
     );
@@ -328,8 +355,8 @@ const deleteIdFromDB = async (id) => {
     await InventoryMaster.update(
       {
         quantity: finalQuantity,
-        purchase_price: Number(received.purchase_price * finalQuantity),
-        sale_price: Number(received.sale_price * finalQuantity),
+        // purchase_price: Number(received.purchase_price * finalQuantity),
+        // sale_price: Number(received.sale_price * finalQuantity),
       },
       { where: { Id: received.Id }, transaction: t },
     );
