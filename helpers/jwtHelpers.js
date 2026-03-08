@@ -13,9 +13,8 @@ exports.generateToken = (userInfo) => {
 
     // Token generation with 24 hours expiration
     const token = jwt.sign(payload, process.env.TOKEN_SECRET, {
-      expiresIn: '40d',  // 1 month + 10 days
+      expiresIn: "1d", // 1 month + 10 days
     });
-    
 
     return token;
   } catch (error) {

@@ -37,6 +37,7 @@ const MarketingExpenseRoutes = require("../modules/marketingExpense/marketingExp
 const InventoryMasterRoutes = require("../modules/inventoryMaster/inventoryMaster.routes");
 const InventoryOverviewRoutes = require("../modules/inventoryOverview/inventoryOverview.routes");
 const DamageStockRoutes = require("../modules/damageStock/damageStock.routes");
+const SupplierHistoryRoutes = require("../modules/supplierHistory/supplierHistory.routes");
 
 const router = express.Router();
 
@@ -145,6 +146,10 @@ const moduleRoutes = [
   {
     path: "/supplier",
     route: SupplierRoutes,
+  },
+  {
+    path: "/supplier-history",
+    route: SupplierHistoryRoutes,
   },
   {
     path: "/warehouse",

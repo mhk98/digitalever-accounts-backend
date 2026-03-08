@@ -128,6 +128,12 @@ db.supplier = require("../app/modules/supplier/supplier.model")(
   DataTypes,
 );
 
+db.supplierHistory =
+  require("../app/modules/supplierHistory/supplierHistory.model")(
+    db.sequelize,
+    DataTypes,
+  );
+
 db.warehouse = require("../app/modules/warehouse/warehouse.model")(
   db.sequelize,
   DataTypes,
@@ -191,6 +197,13 @@ db.posReport = require("../app/modules/posReport/posReport.model")(
 // =====================
 
 // ---- base product relations
+
+db.supplier.hasMany(db.supplierHistory, { foreignKey: "supplierId" });
+db.supplierHistory.belongsTo(db.supplier, { foreignKey: "supplierId" });
+
+db.book.hasMany(db.supplierHistory, { foreignKey: "bookId" });
+db.supplierHistory.belongsTo(db.book, { foreignKey: "bookId" });
+
 db.product.hasMany(db.receivedProduct, { foreignKey: "productId" });
 db.receivedProduct.belongsTo(db.product, { foreignKey: "productId" });
 
@@ -244,22 +257,15 @@ db.product.hasMany(db.confirmOrder, {
 db.book.hasMany(db.cashInOut, { foreignKey: "bookId" });
 db.cashInOut.belongsTo(db.book, { foreignKey: "bookId" });
 
+db.supplier.hasMany(db.cashInOut, { foreignKey: "supplierId" });
+db.cashInOut.belongsTo(db.supplier, { foreignKey: "supplierId" });
+
 db.marketingBook.hasMany(db.marketingExpense, { foreignKey: "bookId" });
 db.marketingExpense.belongsTo(db.marketingBook, { foreignKey: "bookId" });
 
 // =====================
 // Standard Supplier + Warehouse relations
 // =====================
-
-// ---- Product
-db.warehouse.hasMany(db.product, { foreignKey: "warehouseId" });
-db.product.belongsTo(db.warehouse, {
-  foreignKey: "warehouseId",
-  as: "warehouse",
-});
-
-db.supplier.hasMany(db.product, { foreignKey: "supplierId" });
-db.product.belongsTo(db.supplier, { foreignKey: "supplierId", as: "supplier" });
 
 // ---- PurchaseRequisition
 db.warehouse.hasMany(db.purchaseRequisition, { foreignKey: "warehouseId" });

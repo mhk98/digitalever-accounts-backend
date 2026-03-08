@@ -282,11 +282,6 @@ const deleteIdFromDB = async (id) => {
     await InventoryMaster.update(
       {
         quantity: Number(received.quantity || 0) + qty,
-        purchase_price:
-          Number(received.purchase_price || 0) +
-          Number(ret.purchase_price || 0),
-        sale_price:
-          Number(received.sale_price || 0) + Number(ret.sale_price || 0),
       },
       { where: { Id: received.Id }, transaction: t },
     );
@@ -437,7 +432,7 @@ const updateOneFromDB = async (data) => {
 
   // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
   const existing = await PosReport.findOne({
-    where: { Id: id },
+    where: { Id: data.id || productId },
     attributes: ["Id", "note", "status"],
   });
 
@@ -514,14 +509,6 @@ const updateOneFromDB = async (data) => {
     await InventoryMaster.update(
       {
         quantity: finalQuantity,
-        purchase_price: Math.max(
-          0,
-          Number(received.purchase_price * finalQuantity || 0),
-        ),
-        sale_price: Math.max(
-          0,
-          Number(received.sale_price * finalQuantity || 0),
-        ),
       },
       { where: { Id: received.Id }, transaction: t },
     );

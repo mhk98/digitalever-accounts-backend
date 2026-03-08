@@ -1,22 +1,18 @@
-const { Op, where } = require("sequelize"); // Ensure Op is imported
+const { Op } = require("sequelize"); // Ensure Op is imported
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
-const { ProductSearchableFields } = require("./product.constants");
-const Product = db.product;
+const {
+  SupplierHistorySearchableFields,
+} = require("./supplierHistory.constants");
+
+const SupplierHistory = db.supplierHistory;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
 
 const insertIntoDB = async (data) => {
-  const { name, purchase_price, sale_price } = data;
+  const result = await SupplierHistory.create(data);
 
-  const payload = {
-    name,
-    purchase_price,
-    sale_price,
-  };
-  console.log("data", data);
-  const result = await Product.create(payload);
   return result;
 };
 
@@ -27,16 +23,16 @@ const getAllFromDB = async (filters, options) => {
 
   const andConditions = [];
 
-  // ✅ Search (ILIKE on searchable fields)
+  // ✅ Search (ILIKE)
   if (searchTerm && searchTerm.trim()) {
     andConditions.push({
-      [Op.or]: ProductSearchableFields.map((field) => ({
+      [Op.or]: SupplierHistorySearchableFields.map((field) => ({
         [field]: { [Op.iLike]: `%${searchTerm.trim()}%` },
       })),
     });
   }
 
-  // ✅ Exact filters (e.g. name)
+  // ✅ Exact filters
   if (Object.keys(otherFilters).length) {
     andConditions.push(
       ...Object.entries(otherFilters).map(([key, value]) => ({
@@ -45,7 +41,7 @@ const getAllFromDB = async (filters, options) => {
     );
   }
 
-  // ✅ Date range filter (createdAt)
+  // ✅ Date range
   if (startDate && endDate) {
     const start = new Date(startDate);
     start.setHours(0, 0, 0, 0);
@@ -54,7 +50,7 @@ const getAllFromDB = async (filters, options) => {
     end.setHours(23, 59, 59, 999);
 
     andConditions.push({
-      date: { [Op.between]: [start, end] },
+      createdAt: { [Op.between]: [start, end] },
     });
   }
 
@@ -67,7 +63,8 @@ const getAllFromDB = async (filters, options) => {
     ? { [Op.and]: andConditions }
     : {};
 
-  const result = await Product.findAll({
+  // ✅ paginated data
+  const data = await SupplierHistory.findAll({
     where: whereConditions,
     offset: skip,
     limit,
@@ -78,16 +75,25 @@ const getAllFromDB = async (filters, options) => {
         : [["createdAt", "DESC"]],
   });
 
-  const count = await Product.count({ where: whereConditions });
+  // ✅ total count + total quantity (same filters)
+  const [count, totalQuantity] = await Promise.all([
+    SupplierHistory.count({ where: whereConditions }),
+    SupplierHistory.sum("quantity", { where: whereConditions }),
+  ]);
 
   return {
-    meta: { count, page, limit },
-    data: result,
+    meta: {
+      count, // total filtered records
+      totalQuantity: totalQuantity || 0, // total filtered quantity
+      page,
+      limit,
+    },
+    data,
   };
 };
 
 const getDataById = async (id) => {
-  const result = await Product.findOne({
+  const result = await SupplierHistory.findOne({
     where: {
       Id: id,
     },
@@ -97,7 +103,7 @@ const getDataById = async (id) => {
 };
 
 const deleteIdFromDB = async (id) => {
-  const result = await Product.destroy({
+  const result = await SupplierHistory.destroy({
     where: {
       Id: id,
     },
@@ -107,16 +113,7 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { name, supplierId, purchase_price, sale_price, warehouseId } = payload;
-
-  const data = {
-    name,
-    supplierId,
-    purchase_price,
-    sale_price,
-    warehouseId,
-  };
-  const result = await Product.update(data, {
+  const result = await SupplierHistory.update(payload, {
     where: {
       Id: id,
     },
@@ -126,12 +123,12 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await Product.findAll();
+  const result = await SupplierHistory.findAll();
 
   return result;
 };
 
-const ProductService = {
+const SupplierHistoryService = {
   getAllFromDB,
   insertIntoDB,
   deleteIdFromDB,
@@ -140,4 +137,4 @@ const ProductService = {
   getAllFromDBWithoutQuery,
 };
 
-module.exports = ProductService;
+module.exports = SupplierHistoryService;

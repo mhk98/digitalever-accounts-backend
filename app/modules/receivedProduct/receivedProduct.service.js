@@ -15,6 +15,7 @@ const Warehouse = db.warehouse;
 const InventoryMaster = db.inventoryMaster;
 const WarrantyProduct = db.warrantyProduct;
 const CashInOut = db.cashInOut;
+const SupplierHistory = db.supplierHistory;
 
 const insertIntoDB = async (data, file) => {
   const {
@@ -23,12 +24,12 @@ const insertIntoDB = async (data, file) => {
     date,
     status,
     note,
-    paidAmount,
     purchase_price,
     sale_price,
     warrantyValue,
     warrantyUnit,
     userId,
+    bookId,
     supplierId,
     warehouseId,
   } = data;
@@ -66,16 +67,16 @@ const insertIntoDB = async (data, file) => {
 
     const result = await ReceivedProduct.create(payload, { transaction: t });
 
-    // const supplierData = {
-    //   supplierId,
-    //   purchase_price: Number(purchase_price || 0) * Number(quantity || 0),
-    //   amount: paidAmount,
-    //   paymentStatus: "CashOut",
-    //   date,
-    //   file,
-    // };
+    const supplierData = {
+      supplierId,
+      bookId,
+      amount: Number(purchase_price || 0) * Number(quantity || 0),
+      paymentStatus,
+      date,
+      file,
+    };
 
-    // await CashInOut.create(supplierData, { transaction: t });
+    await SupplierHistory.create(supplierData, { transaction: t });
 
     // ✅ InventoryMaster: থাকলে update, না থাকলে insert
     if (result) {
@@ -294,8 +295,6 @@ const deleteIdFromDB = async (id) => {
       await inv.update(
         {
           quantity: nextQty,
-          purchase_price: Number(inv.purchase_price || 0) - purchaseTotal,
-          sale_price: Number(inv.sale_price || 0) - saleTotal,
         },
         { transaction: t },
       );

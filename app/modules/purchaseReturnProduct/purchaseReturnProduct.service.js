@@ -249,10 +249,8 @@ const deleteIdFromDB = async (id) => {
     await InventoryMaster.update(
       {
         quantity: finalQuantity,
-        purchase_price: Number(inventory.purchase_price * finalQuantity || 0),
-        sale_price: Number(inventory.sale_price * finalQuantity || 0),
       },
-      { where: { Id: received.Id }, transaction: t },
+      { where: { Id: inventory.Id }, transaction: t },
     );
 
     // 4) Return row delete
@@ -572,8 +570,6 @@ const updateOneFromDB = async (id, payload) => {
       await inv.update(
         {
           quantity: stockQuantity,
-          purchase_price: inv.purchase_price * stockQuantity,
-          sale_price: inv.sale_price * stockQuantity,
         },
         { transaction: t },
       );

@@ -574,8 +574,6 @@ const updateOneFromDB = async (id, payload) => {
       await inv.update(
         {
           quantity: stockQuantity,
-          purchase_price: inv.purchase_price * stockQuantity,
-          sale_price: inv.sale_price * stockQuantity,
         },
         { transaction: t },
       );
