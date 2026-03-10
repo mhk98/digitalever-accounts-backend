@@ -38,6 +38,8 @@ const InventoryMasterRoutes = require("../modules/inventoryMaster/inventoryMaste
 const InventoryOverviewRoutes = require("../modules/inventoryOverview/inventoryOverview.routes");
 const DamageStockRoutes = require("../modules/damageStock/damageStock.routes");
 const SupplierHistoryRoutes = require("../modules/supplierHistory/supplierHistory.routes");
+const ManufactureRoutes = require("../modules/manufacture/manufacture.routes");
+const ItemRoutes = require("../modules/item/item.routes");
 
 const router = express.Router();
 
@@ -52,6 +54,14 @@ const moduleRoutes = [
     route: ProductRoutes,
   },
   {
+    path: "/product",
+    route: ProductRoutes,
+  },
+  {
+    path: "/item",
+    route: ItemRoutes,
+  },
+  {
     path: "/purchase-requisition",
     route: PurchaseRequisitionRoutes,
   },
@@ -60,8 +70,8 @@ const moduleRoutes = [
     route: ReceivedProductRoutes,
   },
   {
-    path: "/inventory-master",
-    route: InventoryMasterRoutes,
+    path: "/manufacture",
+    route: ManufactureRoutes,
   },
   {
     path: "/intransit-product",

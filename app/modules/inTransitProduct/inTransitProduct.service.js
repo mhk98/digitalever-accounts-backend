@@ -1,4 +1,4 @@
-const { Op } = require("sequelize"); // Ensure Op is imported
+const { Op, where } = require("sequelize"); // Ensure Op is imported
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
@@ -578,11 +578,11 @@ const updateOneFromDB = async (id, payload) => {
       //   oldQty > 0 ? Number(inv.purchase_price || 0) / oldQty : 0;
       // const perUnitSale = oldQty > 0 ? Number(inv.sale_price || 0) / oldQty : 0;
 
-      await inv.update(
+      await InventoryMaster.update(
         {
           quantity: stockQuantity,
         },
-        { transaction: t },
+        { where: { Id: inv.Id }, transaction: t },
       );
     }
 

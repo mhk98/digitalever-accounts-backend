@@ -75,7 +75,7 @@ const getAllFromDB = async (filters, options) => {
     order:
       options.sortBy && options.sortOrder
         ? [[options.sortBy, options.sortOrder.toUpperCase()]]
-        : [["createdAt", "DESC"]],
+        : [["date", "DESC"]],
   });
 
   // const total = await PettyCash.count({ where: whereConditions });

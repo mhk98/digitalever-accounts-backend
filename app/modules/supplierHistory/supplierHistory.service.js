@@ -9,12 +9,110 @@ const {
 const SupplierHistory = db.supplierHistory;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
+const Book = db.book;
 
 const insertIntoDB = async (data) => {
   const result = await SupplierHistory.create(data);
 
   return result;
 };
+
+// const getAllFromDB = async (filters, options) => {
+//   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
+
+//   const { searchTerm, startDate, endDate, ...otherFilters } = filters;
+
+//   const andConditions = [];
+
+//   // ✅ Search (ILIKE)
+//   if (searchTerm && searchTerm.trim()) {
+//     andConditions.push({
+//       [Op.or]: SupplierHistorySearchableFields.map((field) => ({
+//         [field]: { [Op.iLike]: `%${searchTerm.trim()}%` },
+//       })),
+//     });
+//   }
+
+//   // ✅ Exact filters
+//   if (Object.keys(otherFilters).length) {
+//     andConditions.push(
+//       ...Object.entries(otherFilters).map(([key, value]) => ({
+//         [key]: { [Op.eq]: value },
+//       })),
+//     );
+//   }
+
+//   // ✅ Date range
+//   if (startDate && endDate) {
+//     const start = new Date(startDate);
+//     start.setHours(0, 0, 0, 0);
+
+//     const end = new Date(endDate);
+//     end.setHours(23, 59, 59, 999);
+
+//     andConditions.push({
+//       createdAt: { [Op.between]: [start, end] },
+//     });
+//   }
+
+//   // ✅ Exclude soft deleted records
+//   andConditions.push({
+//     deletedAt: { [Op.is]: null }, // Only include records with deletedAt as null (not deleted)
+//   });
+
+//   const whereConditions = andConditions.length
+//     ? { [Op.and]: andConditions }
+//     : {};
+
+//   // ✅ paginated data
+//   const data = await SupplierHistory.findAll({
+//     where: whereConditions,
+//     offset: skip,
+//     limit,
+//     include: [
+//       {
+//         model: Supplier,
+//         as: "supplier",
+//         attributes: ["Id", "name"],
+//       },
+//       {
+//         model: Book,
+//         as: "book",
+//         attributes: ["Id", "name"],
+//       },
+//     ],
+//     paranoid: true,
+//     order:
+//       options.sortBy && options.sortOrder
+//         ? [[options.sortBy, options.sortOrder.toUpperCase()]]
+//         : [["createdAt", "DESC"]],
+//   });
+
+//   const [totalPaid, totalUnpaid] = await Promise.all([
+//     SupplierHistory.count({ where: whereConditions }),
+//     SupplierHistory.sum("amount", {
+//       where: { ...whereConditions, status: "paid" },
+//     }),
+//     SupplierHistory.sum("amount", {
+//       where: { ...whereConditions, status: "unpaid" },
+//     }),
+//   ]);
+
+//   const paid = Number(totalPaid || 0);
+//   const unpaid = Number(totalUnpaid || 0);
+//   const netBalance = paid - unpaid;
+
+//   return {
+//     meta: {
+//       totalPaid: paid,
+//       totalUnpaid: unpaid,
+//       netBalance,
+//       page,
+//       limit,
+//     },
+//     data,
+//   };
+// };
 
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
@@ -23,11 +121,14 @@ const getAllFromDB = async (filters, options) => {
 
   const andConditions = [];
 
-  // ✅ Search (ILIKE)
+  // ✅ Search
   if (searchTerm && searchTerm.trim()) {
     andConditions.push({
       [Op.or]: SupplierHistorySearchableFields.map((field) => ({
-        [field]: { [Op.iLike]: `%${searchTerm.trim()}%` },
+        [field]: {
+          [Op.like]: `%${searchTerm.trim()}%`, // MySQL হলে like
+          // Postgres হলে Op.iLike ব্যবহার করতে পারো
+        },
       })),
     });
   }
@@ -50,24 +151,40 @@ const getAllFromDB = async (filters, options) => {
     end.setHours(23, 59, 59, 999);
 
     andConditions.push({
-      createdAt: { [Op.between]: [start, end] },
+      createdAt: {
+        [Op.between]: [start, end],
+      },
     });
   }
-
-  // ✅ Exclude soft deleted records
-  andConditions.push({
-    deletedAt: { [Op.is]: null }, // Only include records with deletedAt as null (not deleted)
-  });
 
   const whereConditions = andConditions.length
     ? { [Op.and]: andConditions }
     : {};
+
+  // helper for adding status condition safely
+  const makeStatusWhere = (status) => ({
+    ...(andConditions.length
+      ? { [Op.and]: [...andConditions, { status }] }
+      : { status }),
+  });
 
   // ✅ paginated data
   const data = await SupplierHistory.findAll({
     where: whereConditions,
     offset: skip,
     limit,
+    include: [
+      {
+        model: Supplier,
+        as: "supplier",
+        attributes: ["Id", "name"],
+      },
+      {
+        model: Book,
+        as: "book",
+        attributes: ["Id", "name"],
+      },
+    ],
     paranoid: true,
     order:
       options.sortBy && options.sortOrder
@@ -75,27 +192,36 @@ const getAllFromDB = async (filters, options) => {
         : [["createdAt", "DESC"]],
   });
 
-  // ✅ total count + total quantity (same filters)
-  const [count, totalQuantity] = await Promise.all([
+  const [totalCount, totalPaid, totalUnpaid] = await Promise.all([
     SupplierHistory.count({ where: whereConditions }),
-    SupplierHistory.sum("quantity", { where: whereConditions }),
+    SupplierHistory.sum("amount", {
+      where: makeStatusWhere("Paid"),
+    }),
+    SupplierHistory.sum("amount", {
+      where: makeStatusWhere("Unpaid"),
+    }),
   ]);
+
+  const paid = Number(totalPaid || 0);
+  const unpaid = Number(totalUnpaid || 0);
+  const netBalance = paid - unpaid;
 
   return {
     meta: {
-      count, // total filtered records
-      totalQuantity: totalQuantity || 0, // total filtered quantity
+      total: totalCount,
+      totalPaid: paid,
+      totalUnpaid: unpaid,
+      netBalance,
       page,
       limit,
     },
     data,
   };
 };
-
 const getDataById = async (id) => {
-  const result = await SupplierHistory.findOne({
+  const result = await SupplierHistory.findAll({
     where: {
-      Id: id,
+      supplierId: id,
     },
   });
 

@@ -14,6 +14,11 @@ db.product = require("../app/modules/product/product.model")(
   db.sequelize,
   DataTypes,
 );
+db.item = require("../app/modules/item/item.model")(db.sequelize, DataTypes);
+db.manufacture = require("../app/modules/manufacture/manufacture.model")(
+  db.sequelize,
+  DataTypes,
+);
 
 db.receivedProduct =
   require("../app/modules/receivedProduct/receivedProduct.model")(
@@ -199,10 +204,13 @@ db.posReport = require("../app/modules/posReport/posReport.model")(
 // ---- base product relations
 
 db.supplier.hasMany(db.supplierHistory, { foreignKey: "supplierId" });
-db.supplierHistory.belongsTo(db.supplier, { foreignKey: "supplierId" });
+db.supplierHistory.belongsTo(db.supplier, {
+  foreignKey: "supplierId",
+  as: "supplier",
+});
 
 db.book.hasMany(db.supplierHistory, { foreignKey: "bookId" });
-db.supplierHistory.belongsTo(db.book, { foreignKey: "bookId" });
+db.supplierHistory.belongsTo(db.book, { foreignKey: "bookId", as: "book" });
 
 db.product.hasMany(db.receivedProduct, { foreignKey: "productId" });
 db.receivedProduct.belongsTo(db.product, { foreignKey: "productId" });

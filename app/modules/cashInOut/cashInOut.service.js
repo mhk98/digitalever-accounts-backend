@@ -6,10 +6,29 @@ const { Op } = require("sequelize");
 const CashInOut = db.cashInOut;
 const Notification = db.notification;
 const User = db.user;
+const SupplierHistory = db.supplierHistory;
 
 const insertIntoDB = async (data) => {
-  const result = await CashInOut.create(data);
-  return result;
+  const { amount, date, bookId, supplierId, file } = data;
+
+  return db.sequelize.transaction(async (t) => {
+    const result = await CashInOut.create(data, { transaction: t });
+
+    const supplierData = {
+      supplierId,
+      bookId,
+      amount,
+      status: "Paid",
+      date,
+      file,
+    };
+
+    console.log("supplierData", supplierData);
+
+    await SupplierHistory.create(supplierData, { transaction: t });
+
+    return result;
+  });
 };
 
 // const getAllFromDB = async (filters, options) => {
@@ -95,6 +114,32 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
+  // ✅ Date range filter (createdAt)
+  if (startDate && endDate) {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    andConditions.push({
+      date: { [Op.between]: [start, end] },
+    });
+  } else if (startDate) {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+
+    andConditions.push({
+      date: { [Op.gte]: start },
+    });
+  } else if (endDate) {
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    andConditions.push({
+      date: { [Op.lte]: end },
+    });
+  }
   // ✅ exact filters
   if (paymentMode) {
     andConditions.push({ paymentMode: { [Op.eq]: paymentMode } });
@@ -107,35 +152,42 @@ const getAllFromDB = async (filters, options) => {
   }
 
   // ✅ date range
-  if (startDate && endDate) {
-    andConditions.push({
-      createdAt: {
-        [Op.between]: [new Date(startDate), new Date(endDate)],
-      },
-    });
-  } else if (startDate) {
-    andConditions.push({
-      createdAt: {
-        [Op.gte]: new Date(startDate),
-      },
-    });
-  } else if (endDate) {
-    andConditions.push({
-      createdAt: {
-        [Op.lte]: new Date(endDate),
-      },
-    });
-  }
+  // if (startDate && endDate) {
+  //   andConditions.push({
+  //     date: {
+  //       [Op.between]: [new Date(startDate), new Date(endDate)],
+  //     },
+  //   });
+  // } else if (startDate) {
+  //   andConditions.push({
+  //     date: {
+  //       [Op.gte]: new Date(startDate),
+  //     },
+  //   });
+  // } else if (endDate) {
+  //   andConditions.push({
+  //     date: {
+  //       [Op.lte]: new Date(endDate),
+  //     },
+  //   });
+  // }
 
   // ✅ any other exact filters
-  if (Object.keys(otherFilters).length) {
-    Object.entries(otherFilters).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") {
-        andConditions.push({ [key]: { [Op.eq]: value } });
-      }
-    });
-  }
+  // if (Object.keys(otherFilters).length) {
+  //   Object.entries(otherFilters).forEach(([key, value]) => {
+  //     if (value !== undefined && value !== null && value !== "") {
+  //       andConditions.push({ [key]: { [Op.eq]: value } });
+  //     }
+  //   });
+  // }
 
+  if (Object.keys(otherFilters).length) {
+    andConditions.push(
+      ...Object.entries(otherFilters).map(([key, value]) => ({
+        [key]: { [Op.eq]: value },
+      })),
+    );
+  }
   // ✅ Exclude soft deleted records
   andConditions.push({
     deletedAt: { [Op.is]: null }, // Only include records with deletedAt as null (not deleted)
@@ -153,7 +205,7 @@ const getAllFromDB = async (filters, options) => {
     order:
       options.sortBy && options.sortOrder
         ? [[options.sortBy, options.sortOrder.toUpperCase()]]
-        : [["createdAt", "DESC"]],
+        : [["date", "DESC"]],
   });
 
   // const total = await CashInOut.count({ where: whereConditions });
@@ -205,41 +257,60 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { note, status, userId, bookId } = payload;
+  const { note, status, amount, userId, bookId, supplierId, date, file } =
+    payload;
 
-  const [updatedCount] = await CashInOut.update(payload, {
-    where: {
-      Id: id,
-    },
+  console.log("supplierDetails", payload);
+  return db.sequelize.transaction(async (t) => {
+    const [updatedCount] = await CashInOut.update(payload, {
+      where: {
+        Id: id,
+      },
+      transaction: t,
+    });
+
+    const supplierData = {
+      supplierId,
+      bookId,
+      amount,
+      status: "Paid",
+      date,
+      file,
+    };
+
+    await SupplierHistory.update(supplierData, {
+      where: { supplierId },
+      transaction: t,
+    });
+
+    const users = await User.findAll({
+      attributes: ["Id", "role"],
+      where: {
+        Id: { [Op.ne]: userId }, // sender বাদ
+        role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
+      },
+    });
+
+    console.log("users", users.length);
+    if (!users.length) return updatedCount;
+
+    const message =
+      status === "Approved"
+        ? "Cash In Out request approved"
+        : note || "Cash In Out updated";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: `/kafelamart.digitalever.com.bd/book/${bookId}`,
+        }),
+      ),
+    );
+
+    return updatedCount;
   });
-
-  const users = await User.findAll({
-    attributes: ["Id", "role"],
-    where: {
-      Id: { [Op.ne]: userId }, // sender বাদ
-      role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
-    },
-  });
-
-  console.log("users", users.length);
-  if (!users.length) return updatedCount;
-
-  const message =
-    status === "Approved"
-      ? "Cash In Out request approved"
-      : note || "Cash In Out updated";
-
-  await Promise.all(
-    users.map((u) =>
-      Notification.create({
-        userId: u.Id,
-        message,
-        url: `/kafelamart.digitalever.com.bd/book/${bookId}`,
-      }),
-    ),
-  );
-
-  return updatedCount;
 };
 
 const getAllFromDBWithoutQuery = async () => {

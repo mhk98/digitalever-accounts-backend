@@ -20,9 +20,9 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
       },
       status: {
-        type: DataTypes.ENUM("paid", "unpaid"),
+        type: DataTypes.ENUM("Paid", "Unpaid"),
         allowNull: true,
-        defaultValue: "unpaid",
+        defaultValue: "Unpaid",
       },
       file: {
         type: DataTypes.STRING,

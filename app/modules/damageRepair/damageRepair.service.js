@@ -1,4 +1,4 @@
-const { Op } = require("sequelize"); // Ensure Op is imported
+const { Op, where } = require("sequelize"); // Ensure Op is imported
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
@@ -252,7 +252,7 @@ const deleteIdFromDB = async (id) => {
       lock: t.LOCK.UPDATE,
     });
 
-    if (!received) throw new ApiError(404, "Received product not found");
+    // if (!received) throw new ApiError(404, "Received product not found");
 
     const finalQuantity = Number(received.quantity || 0) + qty;
     // 3) stock ফিরিয়ে দাও
@@ -348,9 +348,10 @@ const updateOneFromDB = async (id, data) => {
     if (!received) throw new ApiError(404, "Received product not found");
 
     const oldQty = Number(received.quantity || 0);
-    if (oldQty < returnQty) {
-      throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
-    }
+
+    // if (oldQty < returnQty) {
+    //   throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
+    // }
 
     const perUnitPurchase =
       oldQty > 0 ? Number(received.purchase_price || 0) / oldQty : 0;
@@ -365,40 +366,76 @@ const updateOneFromDB = async (id, data) => {
       throw new ApiError(400, "DamageStock.productId missing (Products.Id)");
     }
 
-    const [updatedCount] = await DamageRepair.update(
-      {
-        name: received.name,
-        supplierId,
-        warehouseId,
-        remarks: received.remarks,
-        quantity: returnQty,
-        purchase_price: received.purchase_price * returnQty,
-        sale_price: received.sale_price * returnQty,
-        note: newNote || null,
-        status: finalStatus,
-        date: inputDateStr || undefined,
-        productId: realProductId, // ✅ Products.Id (FK)
-      },
-      {
-        where: { Id: id },
-        transaction: t,
-      },
-    );
+    const existing = await DamageRepair.findOne({
+      where: { Id: id },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
 
-    if (status === "Approved") {
-      const finalQuantity = Number(oldQty - returnQty);
+    const data = {
+      name: received.name,
+      supplierId,
+      warehouseId,
+      remarks: received.remarks,
+      quantity: returnQty,
+      purchase_price: received.purchase_price * returnQty,
+      sale_price: received.sale_price * returnQty,
+      note: newNote || null,
+      status: finalStatus,
+      date: inputDateStr || undefined,
+      productId: realProductId, // ✅ Products.Id (FK)
+    };
+
+    const [updatedCount] = await DamageRepair.update(data, {
+      where: { Id: id },
+      transaction: t,
+    });
+
+    let receivedFinalQty = 0;
+    if (Number(existing.quantity) > Number(quantity)) {
+      receivedFinalQty = Number(existing.quantity) - Number(quantity);
+    } else {
+      receivedFinalQty = Number(quantity) - Number(existing.quantity);
+    }
+
+    if (existing) {
+      let stockQuantity = 0;
+      if (Number(existing.quantity) > Number(quantity)) {
+        stockQuantity = Number(existing.quantity) + Number(receivedFinalQty);
+      } else {
+        stockQuantity = Number(existing.quantity) - Number(receivedFinalQty);
+      }
+
+      // চাইলে negative prevent করতে পারেন
+      if (stockQuantity < 0)
+        throw new ApiError(
+          400,
+          "Damage stock not enough product for this update",
+        );
+
+      // const oldQty = Number(inv.quantity);
+      // const perUnitPurchase =
+      //   oldQty > 0 ? Number(inv.purchase_price || 0) / oldQty : 0;
+      // const perUnitSale = oldQty > 0 ? Number(inv.sale_price || 0) / oldQty : 0;
 
       await DamageStock.update(
         {
-          quantity: finalQuantity,
-          purchase_price: Number(received.purchase_price * finalQuantity || 0),
-
-          sale_price:
-            Number(received.sale_price * finalQuantity || 0) - deductSale,
+          quantity: stockQuantity,
         },
         { where: { Id: received.Id }, transaction: t },
       );
     }
+
+    // await DamageStock.update(
+    //   {
+    //     quantity: finalQuantity,
+    //     purchase_price: Number(received.purchase_price * finalQuantity || 0),
+
+    //     sale_price:
+    //       Number(received.sale_price * finalQuantity || 0) - deductSale,
+    //   },
+    //   { where: { Id: received.Id }, transaction: t },
+    // );
 
     const users = await User.findAll({
       attributes: ["Id", "role"],

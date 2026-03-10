@@ -23,6 +23,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
     note,
     status,
     bookId,
+    supplierId,
     userId,
   } = req.body;
 
@@ -83,6 +84,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
     file, // null allowed
     category,
     bookId,
+    supplierId,
   };
 
   const users = await User.findAll({
@@ -195,6 +197,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     category,
     status,
     bookId,
+    supplierId,
     userId,
     actorRole,
   } = req.body;
@@ -282,6 +285,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     date: inputDateStr || undefined,
     category,
     bookId: bookId,
+    supplierId: supplierId,
     ...(amountNumber !== undefined ? { amount: amountNumber } : {}),
 
     // ✅ file only include if uploaded

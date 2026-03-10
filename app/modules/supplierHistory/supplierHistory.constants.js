@@ -2,7 +2,8 @@ const SupplierHistoryFilterAbleFileds = [
   "searchTerm",
   "startDate",
   "endDate",
-  "name",
+  "bookId",
+  "supplierId",
 ];
 
 const SupplierHistorySearchableFields = [""];

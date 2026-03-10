@@ -14,7 +14,7 @@ router.post(
 );
 router.get("/", SupplierHistoryController.getAllFromDB);
 router.get("/all", SupplierHistoryController.getAllFromDBWithoutQuery);
-router.get("/", SupplierHistoryController.getDataById);
+router.get("/:id", SupplierHistoryController.getDataById);
 router.delete(
   "/:id",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),

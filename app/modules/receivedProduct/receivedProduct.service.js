@@ -71,7 +71,6 @@ const insertIntoDB = async (data, file) => {
       supplierId,
       bookId,
       amount: Number(purchase_price || 0) * Number(quantity || 0),
-      paymentStatus,
       date,
       file,
     };
@@ -663,9 +662,9 @@ const updateOneFromDB = async (id, payload) => {
     date,
     userId,
     supplierId,
+    bookId,
     warehouseId,
     purchase_price,
-    paidAmount,
     sale_price,
     actorRole,
     file,
@@ -802,6 +801,20 @@ const updateOneFromDB = async (id, payload) => {
       where: { Id: id },
       transaction: t,
     });
+
+    const supplierData = {
+      supplierId,
+      bookId,
+      amount: Number(purchase_price || 0) * Number(quantity || 0),
+      date,
+      file,
+    };
+
+    await SupplierHistory.update(
+      supplierData,
+      { where: { supplierId } },
+      { transaction: t },
+    );
 
     const users = await User.findAll({
       attributes: ["Id", "role"],
