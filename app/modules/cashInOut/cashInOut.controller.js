@@ -9,6 +9,119 @@ const User = db.user;
 const CashInOut = db.cashInOut;
 const Notification = db.notification;
 
+// const insertIntoDB = catchAsync(async (req, res) => {
+//   const {
+//     name,
+//     paymentMode,
+//     paymentStatus,
+//     bankName,
+//     bankAccount,
+//     amount,
+//     remarks,
+//     category,
+//     date,
+//     note,
+//     status,
+//     bookId,
+//     supplierId,
+//     userId,
+//   } = req.body;
+
+//   // ✅ file optional safe
+//   const file = req.file?.path ? req.file.path.replace(/\\/g, "/") : null;
+
+//   const isBank = paymentMode === "Bank";
+
+//   // ✅ bankAccount sanitize
+//   const bankAccountNumber =
+//     isBank &&
+//     bankAccount !== undefined &&
+//     bankAccount !== null &&
+//     String(bankAccount).trim() !== ""
+//       ? Number(bankAccount)
+//       : null;
+
+//   if (isBank && bankAccountNumber !== null && Number.isNaN(bankAccountNumber)) {
+//     throw new ApiError(400, "Bank Account must be a valid number");
+//   }
+
+//   // ✅ amount sanitize
+//   const amountNumber =
+//     amount !== undefined && amount !== null && String(amount).trim() !== ""
+//       ? Number(amount)
+//       : 0;
+
+//   if (!amountNumber || Number.isNaN(amountNumber) || amountNumber <= 0) {
+//     throw new ApiError(400, "Amount must be greater than 0");
+//   }
+
+//   const todayStr = new Date().toISOString().slice(0, 10);
+//   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+//   // ✅ Approved হলে পুরোনো date-ও allow + save
+//   const isApproved = String(status || "").trim() === "Approved";
+
+//   // ✅ current date না হলে auto Pending
+//   const finalStatus = isApproved
+//     ? "Approved"
+//     : inputDateStr !== todayStr
+//       ? "Pending"
+//       : note
+//         ? "Pending"
+//         : "Active";
+
+//   const data = {
+//     name: name || null,
+//     paymentMode,
+//     paymentStatus,
+//     bankName: isBank ? bankName || "" : "", // ✅ Bank না হলে empty
+//     bankAccount: isBank ? bankAccountNumber : null, // ✅ Bank না হলে NULL (not "")
+//     amount: amountNumber,
+//     remarks: remarks || "",
+//     status: finalStatus || "---",
+//     note: note || null,
+//     date: date,
+//     file, // null allowed
+//     category,
+//     bookId,
+//     supplierId,
+//   };
+
+//   const users = await User.findAll({
+//     attributes: ["Id", "role"],
+//     where: {
+//       Id: { [Op.ne]: userId },
+//       role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+//     },
+//   });
+
+//   if (users.length) {
+//     const message =
+//       status === "Approved"
+//         ? "Cash in/out request approved"
+//         : note || "Please approved my request";
+
+//     await Promise.all(
+//       users.map((u) =>
+//         Notification.create({
+//           userId: u.Id,
+//           message,
+//           url: "/apikafela.digitalever.com.bd/purchase-requisition",
+//         }),
+//       ),
+//     );
+//   }
+
+//   const result = await CashInOutService.insertIntoDB(data);
+
+//   sendResponse(res, {
+//     statusCode: 200,
+//     success: true,
+//     message: "CashInOut data created!!",
+//     data: result,
+//   });
+// });
+
 const insertIntoDB = catchAsync(async (req, res) => {
   const {
     name,
@@ -27,10 +140,10 @@ const insertIntoDB = catchAsync(async (req, res) => {
     userId,
   } = req.body;
 
-  // ✅ file optional safe
   const file = req.file?.path ? req.file.path.replace(/\\/g, "/") : null;
 
   const isBank = paymentMode === "Bank";
+  const isCashOut = paymentStatus === "CashOut";
 
   // ✅ bankAccount sanitize
   const bankAccountNumber =
@@ -55,13 +168,24 @@ const insertIntoDB = catchAsync(async (req, res) => {
     throw new ApiError(400, "Amount must be greater than 0");
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+  // ✅ supplierId sanitize only for CashOut
+  const finalSupplierId =
+    isCashOut &&
+    supplierId !== undefined &&
+    supplierId !== null &&
+    String(supplierId).trim() !== ""
+      ? Number(supplierId)
+      : null;
 
-  // ✅ Approved হলে পুরোনো date-ও allow + save
+  if (isCashOut && finalSupplierId !== null && Number.isNaN(finalSupplierId)) {
+    throw new ApiError(400, "SupplierId must be a valid number");
+  }
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10);
+
   const isApproved = String(status || "").trim() === "Approved";
 
-  // ✅ current date না হলে auto Pending
   const finalStatus = isApproved
     ? "Approved"
     : inputDateStr !== todayStr
@@ -74,17 +198,17 @@ const insertIntoDB = catchAsync(async (req, res) => {
     name: name || null,
     paymentMode,
     paymentStatus,
-    bankName: isBank ? bankName || "" : "", // ✅ Bank না হলে empty
-    bankAccount: isBank ? bankAccountNumber : null, // ✅ Bank না হলে NULL (not "")
+    bankName: isBank ? bankName || "" : "",
+    bankAccount: isBank ? bankAccountNumber : null,
     amount: amountNumber,
     remarks: remarks || "",
     status: finalStatus || "---",
     note: note || null,
-    date: date,
-    file, // null allowed
+    date,
+    file,
     category,
     bookId,
-    supplierId,
+    supplierId: finalSupplierId, // ✅ only CashOut হলে value যাবে, নাহলে null
   };
 
   const users = await User.findAll({
@@ -121,7 +245,6 @@ const insertIntoDB = catchAsync(async (req, res) => {
     data: result,
   });
 });
-
 const getAllFromDB = catchAsync(async (req, res) => {
   const filters = pick(req.query, CashInOutFilterAbleFields);
   const options = pick(req.query, ["limit", "page", "sortBy", "sortOrder"]);
@@ -284,8 +407,8 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     status: finalStatus,
     date: inputDateStr || undefined,
     category,
-    bookId: bookId,
-    supplierId: supplierId,
+    bookId: bookId || undefined,
+    supplierId: supplierId || undefined,
     ...(amountNumber !== undefined ? { amount: amountNumber } : {}),
 
     // ✅ file only include if uploaded

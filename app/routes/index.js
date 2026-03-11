@@ -40,6 +40,7 @@ const DamageStockRoutes = require("../modules/damageStock/damageStock.routes");
 const SupplierHistoryRoutes = require("../modules/supplierHistory/supplierHistory.routes");
 const ManufactureRoutes = require("../modules/manufacture/manufacture.routes");
 const ItemRoutes = require("../modules/item/item.routes");
+const ItemMasterRoutes = require("../modules/itemMaster/itemMaster.routes");
 
 const router = express.Router();
 
@@ -60,6 +61,10 @@ const moduleRoutes = [
   {
     path: "/item",
     route: ItemRoutes,
+  },
+  {
+    path: "/item-master",
+    route: ItemMasterRoutes,
   },
   {
     path: "/purchase-requisition",

@@ -16,13 +16,13 @@ module.exports = (sequelize, DataTypes) => {
         },
       },
       unit: {
-        type: DataTypes.INTEGER(10),
+        type: DataTypes.STRING,
         defaultValue: 0,
         allowNull: true,
       },
 
       unitValue: {
-        type: DataTypes.STRING,
+        type: DataTypes.INTEGER(10),
         allowNull: true,
       },
 

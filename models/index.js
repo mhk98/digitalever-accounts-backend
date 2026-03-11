@@ -15,6 +15,10 @@ db.product = require("../app/modules/product/product.model")(
   DataTypes,
 );
 db.item = require("../app/modules/item/item.model")(db.sequelize, DataTypes);
+db.itemMaster = require("../app/modules/itemMaster/itemMaster.model")(
+  db.sequelize,
+  DataTypes,
+);
 db.manufacture = require("../app/modules/manufacture/manufacture.model")(
   db.sequelize,
   DataTypes,
@@ -211,6 +215,12 @@ db.supplierHistory.belongsTo(db.supplier, {
 
 db.book.hasMany(db.supplierHistory, { foreignKey: "bookId" });
 db.supplierHistory.belongsTo(db.book, { foreignKey: "bookId", as: "book" });
+
+db.item.hasMany(db.manufacture, { foreignKey: "itemId" });
+db.manufacture.belongsTo(db.item, { foreignKey: "itemId" });
+
+db.item.hasMany(db.itemMaster, { foreignKey: "itemId" });
+db.itemMaster.belongsTo(db.item, { foreignKey: "itemId" });
 
 db.product.hasMany(db.receivedProduct, { foreignKey: "productId" });
 db.receivedProduct.belongsTo(db.product, { foreignKey: "productId" });

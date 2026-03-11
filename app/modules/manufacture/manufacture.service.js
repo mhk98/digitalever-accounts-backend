@@ -3,19 +3,90 @@ const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { ManufactureSearchableFields } = require("./manufacture.constants");
-const Manufacture = db.Manufacture;
+const Manufacture = db.manufacture;
 const Notification = db.notification;
 const User = db.user;
+const Item = db.item;
+const ItemMaster = db.itemMaster;
+
+// const insertIntoDB = async (payload) => {
+//   const { itemId, unit, unitValue, cost, date, note, status } = payload;
+
+//   console.log("manufacture", payload);
+
+//   const itemData = await Item.findOne({ where: { Id: itemId } });
+//   if (!itemData) throw new ApiError(404, "Item not found");
+
+//   const todayStr = new Date().toISOString().slice(0, 10);
+//   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+
+//   // ✅ Approved হলে পুরোনো date-ও allow + save
+//   const isApproved = String(status || "").trim() === "Approved";
+
+//   // ✅ current date না হলে auto Pending
+//   const finalStatus = isApproved
+//     ? "Approved"
+//     : inputDateStr !== todayStr
+//       ? "Pending"
+//       : note
+//         ? "Pending"
+//         : "Active";
+
+//   return db.sequelize.transaction(async (t) => {
+//     const data = {
+//       name: itemData.name,
+//       unit,
+//       unitValue,
+//       unitCost: Number(cost) / Number(unit), // Calculate unit cost
+//       date,
+//       note: note || null,
+//       status: finalStatus,
+//     };
+
+//     const item = await ItemMaster.findOne({
+//       where: { itemId },
+//       transaction: t,
+//       lock: t.LOCK.UPDATE, // optional but helpful
+//     });
+
+//     if (item) {
+//       await item.update(
+//         {
+//           unitValue: Number(item.unitValue || 0) + Number(unitValue || 0),
+//         },
+//         { transaction: t },
+//       );
+//     } else {
+//       await ItemMaster.create(
+//         {
+//           itemId,
+//           name: itemData.name,
+//           unit,
+//           unitValue: Number(unitValue || 0),
+//           unitCost: Number(cost) / Number(unit), // Calculate unit cost
+//         },
+//         { transaction: t },
+//       );
+//     }
+
+//     const result = await Manufacture.create(data, { transaction: t });
+//     return result;
+//   });
+// };
 
 const insertIntoDB = async (payload) => {
-  const { name, unit, unitValue, cost, date, note, status } = payload;
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+  const { itemId, unit, unitValue, cost, date, note, status } = payload;
 
-  // ✅ Approved হলে পুরোনো date-ও allow + save
+  console.log("manufacture", payload);
+
+  const itemData = await Item.findOne({ where: { Id: itemId } });
+  if (!itemData) throw new ApiError(404, "Item not found");
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10);
+
   const isApproved = String(status || "").trim() === "Approved";
 
-  // ✅ current date না হলে auto Pending
   const finalStatus = isApproved
     ? "Approved"
     : inputDateStr !== todayStr
@@ -24,19 +95,61 @@ const insertIntoDB = async (payload) => {
         ? "Pending"
         : "Active";
 
-  const data = {
-    name,
-    unit,
-    unitValue,
-    unitCost: Number(cost) / Number(unit), // Calculate unit cost
-    date,
-    note: note || null,
-    status: finalStatus,
-  };
-  const result = await Manufacture.create(data);
-  return result;
-};
+  const totalUnitValue = Number(unitValue || 0);
+  const totalCost = Number(cost || 0);
 
+  if (!totalUnitValue || totalUnitValue <= 0) {
+    throw new ApiError(400, "unitValue must be greater than 0");
+  }
+
+  const calculatedUnitCost = totalCost / totalUnitValue;
+
+  return db.sequelize.transaction(async (t) => {
+    const data = {
+      itemId, // ✅ add this
+      name: itemData.name,
+      unit,
+      unitValue: totalUnitValue,
+      unitCost: calculatedUnitCost, // ✅ correct formula
+      date,
+      note: note || null,
+      status: finalStatus,
+    };
+
+    const item = await ItemMaster.findOne({
+      where: { itemId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (item) {
+      const newUnitValue = Number(item.unitValue || 0) + totalUnitValue;
+
+      await item.update(
+        {
+          unit, // ✅ update unit too
+          unitValue: newUnitValue,
+          unitCost: calculatedUnitCost, // ✅ update unitCost
+        },
+        { transaction: t },
+      );
+    } else {
+      await ItemMaster.create(
+        {
+          itemId,
+          name: itemData.name,
+          unit, // ✅ insert unit
+          unitValue: totalUnitValue,
+          unitCost: calculatedUnitCost, // ✅ insert unitCost
+        },
+        { transaction: t },
+      );
+    }
+
+    const result = await Manufacture.create(data, { transaction: t });
+    return result;
+  });
+};
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
 
