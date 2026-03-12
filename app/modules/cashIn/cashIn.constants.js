@@ -1,11 +1,8 @@
- const CashInFilterAbleFileds = ['searchTerm', 'startDate', 'endDate'];
+const CashInFilterAbleFileds = ["searchTerm", "startDate", "endDate"];
 
- const CashInSearchableFields = ['searchTerm',];
-
+const CashInSearchableFields = ["searchTerm"];
 
 module.exports = {
-
-    CashInFilterAbleFileds,
-    CashInSearchableFields
-
-}
+  CashInFilterAbleFileds,
+  CashInSearchableFields,
+};

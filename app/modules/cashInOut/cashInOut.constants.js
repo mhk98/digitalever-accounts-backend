@@ -11,6 +11,7 @@ const CashInOutFilterAbleFields = [
 const CashInOutSearchableFields = [
   "status",
   "remarks",
+  "amount",
   "paymentMode",
   "paymentStatus",
   "category",

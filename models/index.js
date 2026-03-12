@@ -23,6 +23,7 @@ db.manufacture = require("../app/modules/manufacture/manufacture.model")(
   db.sequelize,
   DataTypes,
 );
+db.mixer = require("../app/modules/mixer/mixer.model")(db.sequelize, DataTypes);
 
 db.receivedProduct =
   require("../app/modules/receivedProduct/receivedProduct.model")(
@@ -219,8 +220,14 @@ db.supplierHistory.belongsTo(db.book, { foreignKey: "bookId", as: "book" });
 db.item.hasMany(db.manufacture, { foreignKey: "itemId" });
 db.manufacture.belongsTo(db.item, { foreignKey: "itemId" });
 
+db.item.hasMany(db.mixer, { foreignKey: "itemId" });
+db.mixer.belongsTo(db.item, { foreignKey: "itemId" });
+
 db.item.hasMany(db.itemMaster, { foreignKey: "itemId" });
 db.itemMaster.belongsTo(db.item, { foreignKey: "itemId" });
+
+db.product.hasMany(db.itemMaster, { foreignKey: "productId" });
+db.itemMaster.belongsTo(db.product, { foreignKey: "productId" });
 
 db.product.hasMany(db.receivedProduct, { foreignKey: "productId" });
 db.receivedProduct.belongsTo(db.product, { foreignKey: "productId" });

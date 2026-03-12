@@ -39,6 +39,7 @@ const InventoryOverviewRoutes = require("../modules/inventoryOverview/inventoryO
 const DamageStockRoutes = require("../modules/damageStock/damageStock.routes");
 const SupplierHistoryRoutes = require("../modules/supplierHistory/supplierHistory.routes");
 const ManufactureRoutes = require("../modules/manufacture/manufacture.routes");
+const MixerRoutes = require("../modules/mixer/mixer.routes");
 const ItemRoutes = require("../modules/item/item.routes");
 const ItemMasterRoutes = require("../modules/itemMaster/itemMaster.routes");
 
@@ -77,6 +78,10 @@ const moduleRoutes = [
   {
     path: "/manufacture",
     route: ManufactureRoutes,
+  },
+  {
+    path: "/mixer",
+    route: MixerRoutes,
   },
   {
     path: "/intransit-product",

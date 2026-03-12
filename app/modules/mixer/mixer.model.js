@@ -8,25 +8,38 @@ module.exports = (sequelize, DataTypes) => {
         autoIncrement: true,
         allowNull: false,
       },
+      itemId: {
+        type: DataTypes.INTEGER(10),
+        allowNull: true,
+      },
       name: {
         type: DataTypes.STRING,
         allowNull: false,
         validate: {
-          notEmpty: true, // Ensure name is not empty
+          notEmpty: true,
         },
       },
       unit: {
-        type: DataTypes.INTEGER(10),
-        defaultValue: 0,
+        type: DataTypes.STRING,
+        defaultValue: "Pcs",
         allowNull: true,
       },
-
+      unitValue: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: true,
+        defaultValue: 0,
+      },
+      cost: {
+        type: DataTypes.DECIMAL(10, 2),
+        defaultValue: 0,
+        allowNull: false,
+      },
       date: {
         type: DataTypes.DATEONLY,
         allowNull: true,
       },
       note: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         allowNull: true,
       },
       status: {
@@ -38,15 +51,14 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 0,
         allowNull: false,
       },
-
       deletedAt: {
         type: DataTypes.DATE,
-        allowNull: true, // This will be used for soft delete
+        allowNull: true,
       },
     },
     {
       timestamps: true,
-      paranoid: true, // Soft delete enabled
+      paranoid: true,
     },
   );
 

@@ -1,4 +1,4 @@
-const { Op, where } = require("sequelize"); // Ensure Op is imported
+const { Op } = require("sequelize");
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
@@ -9,127 +9,69 @@ const User = db.user;
 const Item = db.item;
 const ItemMaster = db.itemMaster;
 
-// const insertIntoDB = async (payload) => {
-//   const { itemId, unit, unitValue, cost, date, note, status } = payload;
+const toNumber = (value) => {
+  const num = Number(value || 0);
+  return Number.isFinite(num) ? num : 0;
+};
 
-//   console.log("manufacture", payload);
+const resolveStatus = ({ status, date, note }) => {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10);
+  const isApproved = String(status || "").trim() === "Approved";
 
-//   const itemData = await Item.findOne({ where: { Id: itemId } });
-//   if (!itemData) throw new ApiError(404, "Item not found");
-
-//   const todayStr = new Date().toISOString().slice(0, 10);
-//   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
-
-//   // ✅ Approved হলে পুরোনো date-ও allow + save
-//   const isApproved = String(status || "").trim() === "Approved";
-
-//   // ✅ current date না হলে auto Pending
-//   const finalStatus = isApproved
-//     ? "Approved"
-//     : inputDateStr !== todayStr
-//       ? "Pending"
-//       : note
-//         ? "Pending"
-//         : "Active";
-
-//   return db.sequelize.transaction(async (t) => {
-//     const data = {
-//       name: itemData.name,
-//       unit,
-//       unitValue,
-//       unitCost: Number(cost) / Number(unit), // Calculate unit cost
-//       date,
-//       note: note || null,
-//       status: finalStatus,
-//     };
-
-//     const item = await ItemMaster.findOne({
-//       where: { itemId },
-//       transaction: t,
-//       lock: t.LOCK.UPDATE, // optional but helpful
-//     });
-
-//     if (item) {
-//       await item.update(
-//         {
-//           unitValue: Number(item.unitValue || 0) + Number(unitValue || 0),
-//         },
-//         { transaction: t },
-//       );
-//     } else {
-//       await ItemMaster.create(
-//         {
-//           itemId,
-//           name: itemData.name,
-//           unit,
-//           unitValue: Number(unitValue || 0),
-//           unitCost: Number(cost) / Number(unit), // Calculate unit cost
-//         },
-//         { transaction: t },
-//       );
-//     }
-
-//     const result = await Manufacture.create(data, { transaction: t });
-//     return result;
-//   });
-// };
+  if (isApproved) return "Approved";
+  if (inputDateStr && inputDateStr !== todayStr) return "Pending";
+  if (String(note || "").trim()) return "Pending";
+  return "Active";
+};
 
 const insertIntoDB = async (payload) => {
-  const { itemId, unit, unitValue, cost, date, note, status } = payload;
-
-  console.log("manufacture", payload);
+  const { itemId, productId, unit, unitValue, cost, date, note, status } = payload;
 
   const itemData = await Item.findOne({ where: { Id: itemId } });
   if (!itemData) throw new ApiError(404, "Item not found");
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10);
+  const totalUnitValue = toNumber(unitValue);
+  const totalCost = toNumber(cost);
 
-  const isApproved = String(status || "").trim() === "Approved";
-
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
-      ? "Pending"
-      : note
-        ? "Pending"
-        : "Active";
-
-  const totalUnitValue = Number(unitValue || 0);
-  const totalCost = Number(cost || 0);
-
-  if (!totalUnitValue || totalUnitValue <= 0) {
+  if (totalUnitValue <= 0) {
     throw new ApiError(400, "unitValue must be greater than 0");
   }
 
-  const calculatedUnitCost = totalCost / totalUnitValue;
+  const calculatedUnitCost = totalUnitValue > 0 ? totalCost / totalUnitValue : 0;
+  const finalStatus = resolveStatus({ status, date, note });
 
   return db.sequelize.transaction(async (t) => {
-    const data = {
-      itemId, // ✅ add this
+    const manufactureData = {
+      itemId,
+      productId: productId || null,
       name: itemData.name,
-      unit,
+      unit: unit || "Pcs",
       unitValue: totalUnitValue,
-      unitCost: calculatedUnitCost, // ✅ correct formula
+      cost: totalCost,
+      unitCost: calculatedUnitCost,
       date,
       note: note || null,
       status: finalStatus,
     };
 
-    const item = await ItemMaster.findOne({
+    const stockRow = await ItemMaster.findOne({
       where: { itemId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (item) {
-      const newUnitValue = Number(item.unitValue || 0) + totalUnitValue;
-
-      await item.update(
+    if (stockRow) {
+      const nextQuantity = toNumber(stockRow.quantity || stockRow.unitValue) + totalUnitValue;
+      await stockRow.update(
         {
-          unit, // ✅ update unit too
-          unitValue: newUnitValue,
-          unitCost: calculatedUnitCost, // ✅ update unitCost
+          itemId,
+          productId: productId || stockRow.productId || null,
+          name: itemData.name,
+          unit: unit || stockRow.unit || "Pcs",
+          quantity: nextQuantity,
+          unitValue: nextQuantity,
+          unitCost: calculatedUnitCost,
         },
         { transaction: t },
       );
@@ -137,27 +79,27 @@ const insertIntoDB = async (payload) => {
       await ItemMaster.create(
         {
           itemId,
+          productId: productId || null,
           name: itemData.name,
-          unit, // ✅ insert unit
+          unit: unit || "Pcs",
+          quantity: totalUnitValue,
           unitValue: totalUnitValue,
-          unitCost: calculatedUnitCost, // ✅ insert unitCost
+          unitCost: calculatedUnitCost,
         },
         { transaction: t },
       );
     }
 
-    const result = await Manufacture.create(data, { transaction: t });
-    return result;
+    return Manufacture.create(manufactureData, { transaction: t });
   });
 };
+
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
-
   const { searchTerm, startDate, endDate, ...otherFilters } = filters;
 
   const andConditions = [];
 
-  // ✅ Search (ILIKE on searchable fields)
   if (searchTerm && searchTerm.trim()) {
     andConditions.push({
       [Op.or]: ManufactureSearchableFields.map((field) => ({
@@ -166,7 +108,6 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
-  // ✅ Exact filters (e.g. name)
   if (Object.keys(otherFilters).length) {
     andConditions.push(
       ...Object.entries(otherFilters).map(([key, value]) => ({
@@ -175,7 +116,6 @@ const getAllFromDB = async (filters, options) => {
     );
   }
 
-  // ✅ Date range filter (createdAt)
   if (startDate && endDate) {
     const start = new Date(startDate);
     start.setHours(0, 0, 0, 0);
@@ -188,148 +128,53 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
-  // ✅ Exclude soft deleted records
-  andConditions.push({
-    deletedAt: { [Op.is]: null }, // Only include records with deletedAt as null (not deleted)
-  });
+  andConditions.push({ deletedAt: { [Op.is]: null } });
 
-  const whereConditions = andConditions.length
-    ? { [Op.and]: andConditions }
-    : {};
+  const whereConditions = andConditions.length ? { [Op.and]: andConditions } : {};
 
-  const result = await Manufacture.findAll({
-    where: whereConditions,
-    offset: skip,
-    limit,
-    paranoid: true, // Ensure this is added to include soft deleted records
-    order:
-      options.sortBy && options.sortOrder
-        ? [[options.sortBy, options.sortOrder.toUpperCase()]]
-        : [["createdAt", "DESC"]],
-  });
-
-  // const total = await Manufacture.count({ where: whereConditions });
-
-  // const [count, totalQuantity] = await Promise.all([
-  //   Manufacture.count({ where: whereConditions }),
-  //   Manufacture.sum("quantity", { where: whereConditions }),
-  // ]);
+  const [data, count] = await Promise.all([
+    Manufacture.findAll({
+      where: whereConditions,
+      offset: skip,
+      limit,
+      paranoid: true,
+      order:
+        options.sortBy && options.sortOrder
+          ? [[options.sortBy, options.sortOrder.toUpperCase()]]
+          : [["createdAt", "DESC"]],
+    }),
+    Manufacture.count({ where: whereConditions }),
+  ]);
 
   return {
-    meta: { page, limit },
-    data: result,
+    meta: { page, limit, count },
+    data,
   };
 };
 
 const getDataById = async (id) => {
-  const result = await Manufacture.findOne({
-    where: {
-      Id: id,
-    },
-  });
-
-  return result;
+  return Manufacture.findOne({ where: { Id: id } });
 };
-
-// const removeIdFromDB = async (id) => {
-//   const result = await Manufacture.findOne({
-//     where: {
-//       Id: id,
-//     },
-//   });
-
-//   if (!result) {
-//     throw new ApiError(404, "Asset purchase data not found");
-//   }
-
-//   // Soft delete by updating `deletedAt`
-//   result.deletedAt = new Date(); // Set current timestamp
-//   await result.save(); // Save the updated product with the deleted timestamp
-
-//   return result;
-// };
 
 const deleteIdFromDB = async (id) => {
-  const result = await Manufacture.destroy({
-    where: {
-      Id: id,
-    },
-  });
-
-  return result;
+  return Manufacture.destroy({ where: { Id: id } });
 };
 
-// const updateOneFromDB = async (id, payload) => {
-//   const { name, quantity, price, note, status, userId } = payload;
-
-//   console.log("data", payload);
-
-//   const q = quantity === "" || quantity == null ? undefined : Number(quantity);
-//   const p = price === "" || price == null ? undefined : Number(price);
-
-//   const finalStatus = status || "Pending";
-//   const finalNote = finalStatus === "Approved" ? "---" : note;
-
-//   const data = {
-//     name: name === "" ? undefined : name,
-//     quantity: q,
-//     price: p,
-//     note: finalNote,
-//     status: finalStatus,
-//     total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
-//   };
-
-//   const [updatedCount] = await Manufacture.update(data, {
-//     where: { Id: id },
-//   });
-
-//   // ✅ update না হলে এখানেই থামো
-//   if (updatedCount <= 0) return updatedCount;
-
-//   // ✅ শুধু admin/superAdmin/inventory রোলের ইউজার
-//   const users = await User.findAll({
-//     attributes: ["Id", "role"],
-//     where: {
-//       Id: { [Op.ne]: userId }, // sender বাদ
-//       role: { [Op.in]: ["superAdmin", "admin", "inventor"] }, // তোমার DB অনুযায়ী ঠিক করো
-//     },
-//     transaction: t,
-//   });
-
-//   console.log("users", users.length);
-//   if (!users.length) return updatedCount;
-
-//   const message =
-//     finalStatus === "Approved"
-//       ? "Assets purchase request approved"
-//       : finalNote || "Assets purchase updated";
-
-//   await Promise.all(
-//     users.map((u) =>
-//       Notification.create(
-//         {
-//           userId: u.Id,
-//           message,
-//           url: `/kafelamart.digitalever.com.bd/assets-purchase`,
-//         },
-//         {
-//           transaction: t,
-//         },
-//       ),
-//     ),
-//   );
-
-//   return updatedCount;
-// };
-
 const updateOneFromDB = async (id, payload) => {
-  const { name, unit, unitValue, cost, note, date, status, userId, actorRole } =
-    payload;
+  const {
+    itemId,
+    productId,
+    name,
+    unit,
+    unitValue,
+    cost,
+    note,
+    date,
+    status,
+    userId,
+    actorRole,
+  } = payload;
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10);
-
-  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
   const existing = await Manufacture.findOne({
     where: { Id: id },
     attributes: ["Id", "note", "status"],
@@ -339,50 +184,43 @@ const updateOneFromDB = async (id, payload) => {
 
   const oldNote = String(existing.note || "").trim();
   const newNote = String(note || "").trim();
-
-  // ✅ newNote খালি না হলে + oldNote থেকে আলাদা হলে => pending trigger
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10);
   const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
-
-  // ✅ today না হলে pending trigger (date না পাঠালে trigger হবে না)
-  const dateTriggersPending =
-    Boolean(inputDateStr) && inputDateStr !== todayStr;
-
+  const dateTriggersPending = Boolean(inputDateStr) && inputDateStr !== todayStr;
   const inputStatus = String(status || "").trim();
-
-  let finalStatus = existing.status || "Pending";
-
   const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
 
+  let finalStatus = existing.status || "Pending";
   if (isPrivileged) {
-    // ✅ superAdmin/admin: যা পাঠাবে সেটাই
     finalStatus = inputStatus || finalStatus;
+  } else if (dateTriggersPending || noteTriggersPending) {
+    finalStatus = "Pending";
   } else {
-    // ✅ others: today date না হলে বা new note হলে Pending override
-    if (dateTriggersPending || noteTriggersPending) {
-      finalStatus = "Pending";
-    } else {
-      // ✅ otherwise: status পাঠালে সেটাই, না পাঠালে আগেরটা
-      finalStatus = inputStatus || finalStatus;
-    }
+    finalStatus = inputStatus || finalStatus;
   }
 
-  // ---------- update payload ----------
+  const totalUnitValue =
+    unitValue === "" || unitValue == null ? undefined : toNumber(unitValue);
+  const totalCost = cost === "" || cost == null ? undefined : toNumber(cost);
+
   const data = {
+    itemId: itemId || undefined,
+    productId: productId || undefined,
     name: name === "" || name == null ? undefined : name,
-    unit: unit === "" || unit == null ? undefined : Number(unit),
-    unitValue:
-      unitValue === "" || unitValue == null ? undefined : String(unitValue), // Store as string
+    unit: unit === "" || unit == null ? undefined : unit,
+    unitValue: totalUnitValue,
+    cost: totalCost,
     unitCost:
-      cost === "" || cost == null ? undefined : Number(cost) / Number(unit),
+      totalUnitValue && totalUnitValue > 0 && totalCost != null
+        ? totalCost / totalUnitValue
+        : undefined,
     note: newNote || null,
     status: finalStatus,
     date: inputDateStr || undefined,
   };
 
-  const [updatedCount] = await Manufacture.update(data, {
-    where: { Id: id },
-  });
-
+  const [updatedCount] = await Manufacture.update(data, { where: { Id: id } });
   if (updatedCount <= 0) return updatedCount;
 
   const users = await User.findAll({
@@ -397,15 +235,15 @@ const updateOneFromDB = async (id, payload) => {
 
   const message =
     finalStatus === "Approved"
-      ? "Assets purchase request approved"
-      : newNote || "Assets purchase updated";
+      ? "Manufacture request approved"
+      : newNote || "Manufacture updated";
 
   await Promise.all(
     users.map((u) =>
       Notification.create({
         userId: u.Id,
         message,
-        url: `/kafelamart.digitalever.com.bd/assets-purchase`,
+        url: "/kafelamart.digitalever.com.bd/manufacture",
       }),
     ),
   );
@@ -414,9 +252,7 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await Manufacture.findAll();
-
-  return result;
+  return Manufacture.findAll();
 };
 
 const ManufactureService = {
