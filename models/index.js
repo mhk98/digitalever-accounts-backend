@@ -220,8 +220,14 @@ db.supplierHistory.belongsTo(db.book, { foreignKey: "bookId", as: "book" });
 db.item.hasMany(db.manufacture, { foreignKey: "itemId" });
 db.manufacture.belongsTo(db.item, { foreignKey: "itemId" });
 
+db.product.hasMany(db.manufacture, { foreignKey: "productId" });
+db.manufacture.belongsTo(db.product, { foreignKey: "productId" });
+
 db.item.hasMany(db.mixer, { foreignKey: "itemId" });
 db.mixer.belongsTo(db.item, { foreignKey: "itemId" });
+
+db.product.hasMany(db.mixer, { foreignKey: "productId" });
+db.mixer.belongsTo(db.product, { foreignKey: "productId" });
 
 db.item.hasMany(db.itemMaster, { foreignKey: "itemId" });
 db.itemMaster.belongsTo(db.item, { foreignKey: "itemId" });

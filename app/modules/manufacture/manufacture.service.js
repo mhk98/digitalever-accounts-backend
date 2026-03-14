@@ -26,7 +26,8 @@ const resolveStatus = ({ status, date, note }) => {
 };
 
 const insertIntoDB = async (payload) => {
-  const { itemId, productId, unit, unitValue, cost, date, note, status } = payload;
+  const { itemId, productId, unit, unitValue, cost, date, note, status } =
+    payload;
 
   const itemData = await Item.findOne({ where: { Id: itemId } });
   if (!itemData) throw new ApiError(404, "Item not found");
@@ -38,7 +39,8 @@ const insertIntoDB = async (payload) => {
     throw new ApiError(400, "unitValue must be greater than 0");
   }
 
-  const calculatedUnitCost = totalUnitValue > 0 ? totalCost / totalUnitValue : 0;
+  const calculatedUnitCost =
+    totalUnitValue > 0 ? totalCost / totalUnitValue : 0;
   const finalStatus = resolveStatus({ status, date, note });
 
   return db.sequelize.transaction(async (t) => {
@@ -62,7 +64,8 @@ const insertIntoDB = async (payload) => {
     });
 
     if (stockRow) {
-      const nextQuantity = toNumber(stockRow.quantity || stockRow.unitValue) + totalUnitValue;
+      const nextQuantity =
+        toNumber(stockRow.quantity || stockRow.unitValue) + totalUnitValue;
       await stockRow.update(
         {
           itemId,
@@ -130,7 +133,9 @@ const getAllFromDB = async (filters, options) => {
 
   andConditions.push({ deletedAt: { [Op.is]: null } });
 
-  const whereConditions = andConditions.length ? { [Op.and]: andConditions } : {};
+  const whereConditions = andConditions.length
+    ? { [Op.and]: andConditions }
+    : {};
 
   const [data, count] = await Promise.all([
     Manufacture.findAll({
@@ -153,7 +158,7 @@ const getAllFromDB = async (filters, options) => {
 };
 
 const getDataById = async (id) => {
-  return Manufacture.findOne({ where: { Id: id } });
+  return Manufacture.findAll({ where: { productId: id } });
 };
 
 const deleteIdFromDB = async (id) => {
@@ -187,7 +192,8 @@ const updateOneFromDB = async (id, payload) => {
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10);
   const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
-  const dateTriggersPending = Boolean(inputDateStr) && inputDateStr !== todayStr;
+  const dateTriggersPending =
+    Boolean(inputDateStr) && inputDateStr !== todayStr;
   const inputStatus = String(status || "").trim();
   const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
 

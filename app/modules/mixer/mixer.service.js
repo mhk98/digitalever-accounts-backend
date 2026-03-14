@@ -84,7 +84,8 @@ const decrementItemMasterStock = async (materials, transaction) => {
 };
 
 const insertIntoDB = async (payload) => {
-  const { itemId, unit, unitValue, cost, date, note, status } = payload;
+  const { itemId, unit, unitValue, cost, date, note, status, productId } =
+    payload;
 
   const itemData = await Item.findOne({ where: { Id: itemId } });
   if (!itemData) throw new ApiError(404, "Item not found");
@@ -104,6 +105,7 @@ const insertIntoDB = async (payload) => {
     return Mixer.create(
       {
         itemId,
+        productId,
         name: itemData.name,
         unit: unit || "Pcs",
         unitValue: totalUnitValue,
