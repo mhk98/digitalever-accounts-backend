@@ -64,8 +64,7 @@ const insertIntoDB = async (payload) => {
     });
 
     if (stockRow) {
-      const nextQuantity =
-        toNumber(stockRow.quantity || stockRow.unitValue) + totalUnitValue;
+      const nextQuantity = toNumber(stockRow.unitValue) + totalUnitValue;
       await stockRow.update(
         {
           itemId,
@@ -85,7 +84,6 @@ const insertIntoDB = async (payload) => {
           productId: productId || null,
           name: itemData.name,
           unit: unit || "Pcs",
-          quantity: totalUnitValue,
           unitValue: totalUnitValue,
           unitCost: calculatedUnitCost,
         },

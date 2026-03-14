@@ -8,25 +8,13 @@ module.exports = (sequelize, DataTypes) => {
         autoIncrement: true,
         allowNull: false,
       },
-      itemId: {
-        type: DataTypes.INTEGER(10),
-        allowNull: true,
-      },
-      productId: {
-        type: DataTypes.INTEGER(10),
-        allowNull: true,
-      },
+
       name: {
         type: DataTypes.STRING,
         allowNull: false,
         validate: {
           notEmpty: true,
         },
-      },
-      quantity: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: true,
-        defaultValue: 0,
       },
       unitValue: {
         type: DataTypes.DECIMAL(10, 2),
@@ -37,6 +25,11 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         defaultValue: "Pcs",
         allowNull: true,
+      },
+      cost: {
+        type: DataTypes.DECIMAL(10, 2),
+        defaultValue: 0,
+        allowNull: false,
       },
       unitCost: {
         type: DataTypes.DECIMAL(10, 2),

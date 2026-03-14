@@ -48,72 +48,130 @@ const extractMixerMaterials = (note = "") => {
     .filter(Boolean);
 };
 
-const decrementItemMasterStock = async (materials, transaction) => {
-  for (const material of materials) {
+// const decrementItemMasterStock = async (materials, transaction) => {
+//   for (const material of materials) {
+//     const stockRow = await ItemMaster.findOne({
+//       where: db.Sequelize.where(
+//         db.Sequelize.fn("LOWER", db.Sequelize.col("name")),
+//         material.name.toLowerCase(),
+//       ),
+//       transaction,
+//       lock: transaction.LOCK.UPDATE,
+//     });
+
+//     if (!stockRow) {
+//       throw new ApiError(404, `${material.name} stock not found in ItemMaster`);
+//     }
+
+//     const availableQuantity = toNumber(stockRow.quantity || stockRow.unitValue);
+//     if (availableQuantity < material.quantity) {
+//       throw new ApiError(
+//         400,
+//         `${material.name} stock not enough. Available: ${availableQuantity}`,
+//       );
+//     }
+
+//     const nextQuantity = availableQuantity - material.unitValue;
+
+//     await stockRow.update(
+//       {
+//         unitValue: nextQuantity,
+//       },
+//       { transaction },
+//     );
+//   }
+// };
+
+const decrementItemMasterStock = async (mixItems, transaction) => {
+  for (const item of mixItems) {
+    const { manufactureId, unitValue } = item;
+
     const stockRow = await ItemMaster.findOne({
-      where: db.Sequelize.where(
-        db.Sequelize.fn("LOWER", db.Sequelize.col("name")),
-        material.name.toLowerCase(),
-      ),
+      where: { Id: manufactureId },
       transaction,
       lock: transaction.LOCK.UPDATE,
     });
 
     if (!stockRow) {
-      throw new ApiError(404, `${material.name} stock not found in ItemMaster`);
-    }
-
-    const availableQuantity = toNumber(stockRow.quantity || stockRow.unitValue);
-    if (availableQuantity < material.quantity) {
       throw new ApiError(
-        400,
-        `${material.name} stock not enough. Available: ${availableQuantity}`,
+        404,
+        `ItemMaster not found for manufactureId ${manufactureId}`,
       );
     }
 
-    const nextQuantity = availableQuantity - material.quantity;
+    const availableStock = toNumber(stockRow.unitValue);
 
-    await stockRow.update(
-      {
-        quantity: nextQuantity,
-        unitValue: nextQuantity,
-      },
-      { transaction },
-    );
+    if (availableStock < unitValue) {
+      throw new ApiError(
+        400,
+        `${stockRow.name} stock not enough. Available: ${availableStock}`,
+      );
+    }
+
+    const newStock = availableStock - toNumber(unitValue);
+
+    await stockRow.update({ unitValue: newStock }, { transaction });
   }
 };
 
+// const insertIntoDB = async (payload) => {
+//   console.log("mixer", payload);
+//   const { itemId, date, note, status, productId } = payload;
+
+//   const itemData = await Item.findOne({ where: { Id: itemId } });
+//   if (!itemData) throw new ApiError(404, "Item not found");
+
+//   const totalUnitValue = toNumber(unitValue);
+//   const totalCost = toNumber(cost);
+//   const finalStatus = resolveStatus({ status, date, note });
+//   const materials = extractMixerMaterials(note);
+//   const calculatedUnitCost =
+//     totalUnitValue > 0 ? totalCost / totalUnitValue : 0;
+
+//   return db.sequelize.transaction(async (t) => {
+//     if (materials.length) {
+//       await decrementItemMasterStock(materials, t);
+//     }
+
+//     return Mixer.create(
+//       {
+//         itemId,
+//         productId,
+//         name: itemData.name,
+//         unit: unit || "Pcs",
+//         unitValue: totalUnitValue,
+//         cost: totalCost,
+//         unitCost: calculatedUnitCost,
+//         date,
+//         note: note || null,
+//         status: finalStatus,
+//       },
+//       { transaction: t },
+//     );
+//   });
+// };
+
 const insertIntoDB = async (payload) => {
-  const { itemId, unit, unitValue, cost, date, note, status, productId } =
-    payload;
+  console.log("mixer", payload);
 
-  const itemData = await Item.findOne({ where: { Id: itemId } });
-  if (!itemData) throw new ApiError(404, "Item not found");
+  const { productId, mixItems, date, note } = payload;
 
-  const totalUnitValue = toNumber(unitValue);
-  const totalCost = toNumber(cost);
-  const finalStatus = resolveStatus({ status, date, note });
-  const materials = extractMixerMaterials(note);
-  const calculatedUnitCost =
-    totalUnitValue > 0 ? totalCost / totalUnitValue : 0;
+  const itemData = await Item.findOne({ where: { Id: productId } });
+  if (!itemData) throw new ApiError(404, "Product not found");
 
   return db.sequelize.transaction(async (t) => {
-    if (materials.length) {
-      await decrementItemMasterStock(materials, t);
+    // 🔹 Update ItemMaster stock
+    if (mixItems?.length) {
+      await decrementItemMasterStock(mixItems, t);
     }
 
+    // 🔹 Create mixer record
     return Mixer.create(
       {
-        itemId,
         productId,
         name: itemData.name,
-        unit: unit || "Pcs",
-        unitValue: totalUnitValue,
-        cost: totalCost,
-        unitCost: calculatedUnitCost,
         date,
         note: note || null,
-        status: finalStatus,
       },
       { transaction: t },
     );
