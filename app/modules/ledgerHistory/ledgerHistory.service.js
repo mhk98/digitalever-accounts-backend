@@ -1,26 +1,15 @@
 const { Op } = require("sequelize");
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
-const { LedgerSearchableFields } = require("./ledger.constants");
-const Ledger = db.ledger;
-const LedgerHistory = db.ledgerHistory;
+const {
+  LedgerHistorySearchableFields,
+} = require("./ledgerHistoryHistory.constants");
+
+const LedgerHistory = db.LedgerHistory;
 
 const insertIntoDB = async (data) => {
-  const { cashType, amount } = data;
-  return db.sequelize.transaction(async (t) => {
-    const result = await Ledger.create(data, { transaction: t });
-
-    await LedgerHistory.create(
-      {
-        ledgerId: result.Id,
-        status: cashType,
-        amount: amount,
-      },
-      { transaction: t },
-    );
-
-    return result;
-  });
+  const result = await LedgerHistory.create(data);
+  return result;
 };
 
 const getAllFromDB = async (filters, options) => {
@@ -32,7 +21,7 @@ const getAllFromDB = async (filters, options) => {
   if (searchTerm && searchTerm.trim()) {
     const term = searchTerm.trim();
     andConditions.push({
-      [Op.or]: LedgerSearchableFields.map((field) => ({
+      [Op.or]: LedgerHistorySearchableFields.map((field) => ({
         [field]: { [Op.like]: `%${term}%` },
       })),
     });
@@ -74,14 +63,14 @@ const getAllFromDB = async (filters, options) => {
       : [["createdAt", "DESC"]];
 
   const [data, count, totalAmount] = await Promise.all([
-    Ledger.findAll({
+    LedgerHistory.findAll({
       where: whereConditions,
       offset: skip,
       limit,
       order,
     }),
-    Ledger.count({ where: whereConditions }),
-    Ledger.sum("amount", { where: whereConditions }),
+    LedgerHistory.count({ where: whereConditions }),
+    LedgerHistory.sum("amount", { where: whereConditions }),
   ]);
 
   return {
@@ -91,7 +80,7 @@ const getAllFromDB = async (filters, options) => {
 };
 
 const getDataById = async (id) => {
-  const result = await Ledger.findOne({
+  const result = await LedgerHistory.findOne({
     where: {
       Id: id,
     },
@@ -101,7 +90,7 @@ const getDataById = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const result = await Ledger.update(payload, {
+  const result = await LedgerHistory.update(payload, {
     where: {
       Id: id,
     },
@@ -111,7 +100,7 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const deleteIdFromDB = async (id) => {
-  const result = await Ledger.destroy({
+  const result = await LedgerHistory.destroy({
     where: {
       Id: id,
     },
@@ -121,14 +110,14 @@ const deleteIdFromDB = async (id) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await Ledger.findAll({
+  const result = await LedgerHistory.findAll({
     order: [["createdAt", "DESC"]],
   });
 
   return result;
 };
 
-const LedgerService = {
+const LedgerHistoryService = {
   insertIntoDB,
   getAllFromDB,
   getDataById,
@@ -137,4 +126,4 @@ const LedgerService = {
   getAllFromDBWithoutQuery,
 };
 
-module.exports = LedgerService;
+module.exports = LedgerHistoryService;

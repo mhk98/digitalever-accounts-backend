@@ -71,9 +71,9 @@ const insertIntoDB = async (payload) => {
           productId: productId || stockRow.productId || null,
           name: itemData.name,
           unit: unit || stockRow.unit || "Pcs",
-          quantity: nextQuantity,
           unitValue: nextQuantity,
           unitCost: calculatedUnitCost,
+          cost: nextQuantity * calculatedUnitCost,
         },
         { transaction: t },
       );
@@ -86,6 +86,7 @@ const insertIntoDB = async (payload) => {
           unit: unit || "Pcs",
           unitValue: totalUnitValue,
           unitCost: calculatedUnitCost,
+          cost: totalCost,
         },
         { transaction: t },
       );

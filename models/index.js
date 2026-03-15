@@ -111,6 +111,14 @@ db.pettyCash = require("../app/modules/pettyCash/pettyCash.model")(
   db.sequelize,
   DataTypes,
 );
+db.ledger = require("../app/modules/ledger/ledger.model")(
+  db.sequelize,
+  DataTypes,
+);
+db.ledgerHistory = require("../app/modules/ledgerHistory/ledgerHistory.model")(
+  db.sequelize,
+  DataTypes,
+);
 
 db.expense = require("../app/modules/expense/expense.model")(
   db.sequelize,
@@ -223,11 +231,11 @@ db.manufacture.belongsTo(db.item, { foreignKey: "itemId" });
 db.product.hasMany(db.manufacture, { foreignKey: "productId" });
 db.manufacture.belongsTo(db.product, { foreignKey: "productId" });
 
-db.item.hasMany(db.mixer, { foreignKey: "itemId" });
-db.mixer.belongsTo(db.item, { foreignKey: "itemId", as: "item" });
+// db.item.hasMany(db.mixer, { foreignKey: "itemId" });
+// db.mixer.belongsTo(db.item, { foreignKey: "itemId", as: "item" });
 
 db.product.hasMany(db.mixer, { foreignKey: "productId" });
-db.mixer.belongsTo(db.product, { foreignKey: "productId" });
+db.mixer.belongsTo(db.product, { foreignKey: "productId", as: "product" });
 
 db.item.hasMany(db.itemMaster, { foreignKey: "itemId" });
 db.itemMaster.belongsTo(db.item, { foreignKey: "itemId" });
@@ -287,6 +295,9 @@ db.product.hasMany(db.confirmOrder, {
 
 db.book.hasMany(db.cashInOut, { foreignKey: "bookId" });
 db.cashInOut.belongsTo(db.book, { foreignKey: "bookId" });
+
+db.ledger.hasMany(db.ledgerHistory, { foreignKey: "ledgerId" });
+db.ledgerHistory.belongsTo(db.ledger, { foreignKey: "ledgerId", as: "ledger" });
 
 db.supplier.hasMany(db.cashInOut, { foreignKey: "supplierId" });
 db.cashInOut.belongsTo(db.supplier, { foreignKey: "supplierId" });

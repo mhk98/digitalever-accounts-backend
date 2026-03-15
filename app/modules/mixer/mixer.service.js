@@ -8,6 +8,7 @@ const Notification = db.notification;
 const User = db.user;
 const Item = db.item;
 const ItemMaster = db.itemMaster;
+const Product = db.product;
 
 const toNumber = (value) => {
   const num = Number(value || 0);
@@ -48,40 +49,6 @@ const extractMixerMaterials = (note = "") => {
     .filter(Boolean);
 };
 
-// const decrementItemMasterStock = async (materials, transaction) => {
-//   for (const material of materials) {
-//     const stockRow = await ItemMaster.findOne({
-//       where: db.Sequelize.where(
-//         db.Sequelize.fn("LOWER", db.Sequelize.col("name")),
-//         material.name.toLowerCase(),
-//       ),
-//       transaction,
-//       lock: transaction.LOCK.UPDATE,
-//     });
-
-//     if (!stockRow) {
-//       throw new ApiError(404, `${material.name} stock not found in ItemMaster`);
-//     }
-
-//     const availableQuantity = toNumber(stockRow.quantity || stockRow.unitValue);
-//     if (availableQuantity < material.quantity) {
-//       throw new ApiError(
-//         400,
-//         `${material.name} stock not enough. Available: ${availableQuantity}`,
-//       );
-//     }
-
-//     const nextQuantity = availableQuantity - material.unitValue;
-
-//     await stockRow.update(
-//       {
-//         unitValue: nextQuantity,
-//       },
-//       { transaction },
-//     );
-//   }
-// };
-
 const decrementItemMasterStock = async (mixItems, transaction) => {
   for (const item of mixItems) {
     const { manufactureId, unitValue } = item;
@@ -116,35 +83,26 @@ const decrementItemMasterStock = async (mixItems, transaction) => {
 
 // const insertIntoDB = async (payload) => {
 //   console.log("mixer", payload);
-//   const { itemId, date, note, status, productId } = payload;
 
-//   const itemData = await Item.findOne({ where: { Id: itemId } });
-//   if (!itemData) throw new ApiError(404, "Item not found");
+//   const { productId, mixItems, date, note } = payload;
 
-//   const totalUnitValue = toNumber(unitValue);
-//   const totalCost = toNumber(cost);
-//   const finalStatus = resolveStatus({ status, date, note });
-//   const materials = extractMixerMaterials(note);
-//   const calculatedUnitCost =
-//     totalUnitValue > 0 ? totalCost / totalUnitValue : 0;
+//   const productData = await Product.findOne({ where: { Id: productId } });
+//   if (!productData) throw new ApiError(404, "Product not found");
 
 //   return db.sequelize.transaction(async (t) => {
-//     if (materials.length) {
-//       await decrementItemMasterStock(materials, t);
+//     // 🔹 Update ItemMaster stock
+//     if (mixItems?.length) {
+//       await decrementItemMasterStock(mixItems, t);
 //     }
 
+//     // 🔹 Create mixer record
 //     return Mixer.create(
 //       {
-//         itemId,
 //         productId,
-//         name: itemData.name,
-//         unit: unit || "Pcs",
-//         unitValue: totalUnitValue,
-//         cost: totalCost,
-//         unitCost: calculatedUnitCost,
+//         name: productData.name,
 //         date,
+//         combo,
 //         note: note || null,
-//         status: finalStatus,
 //       },
 //       { transaction: t },
 //     );
@@ -156,8 +114,26 @@ const insertIntoDB = async (payload) => {
 
   const { productId, mixItems, date, note } = payload;
 
-  const itemData = await Item.findOne({ where: { Id: productId } });
-  if (!itemData) throw new ApiError(404, "Product not found");
+  const productData = await Product.findOne({ where: { Id: productId } });
+  if (!productData) throw new ApiError(404, "Product not found");
+
+  // ✅ note থেকে Packet line খুঁজে combo বের করা
+  let combo = 0;
+
+  if (note) {
+    const lines = String(note).split("\n");
+
+    const packetLine = lines.find((line) =>
+      line.toLowerCase().includes("packet"),
+    );
+
+    if (packetLine) {
+      const match = packetLine.match(/:\s*(\d+(\.\d+)?)/);
+      if (match) {
+        combo = Number(match[1]) || 0;
+      }
+    }
+  }
 
   return db.sequelize.transaction(async (t) => {
     // 🔹 Update ItemMaster stock
@@ -169,15 +145,15 @@ const insertIntoDB = async (payload) => {
     return Mixer.create(
       {
         productId,
-        name: itemData.name,
+        name: productData.name,
         date,
+        combo,
         note: note || null,
       },
       { transaction: t },
     );
   });
 };
-
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
   const { searchTerm, startDate, endDate, ...otherFilters } = filters;

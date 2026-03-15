@@ -42,6 +42,7 @@ const ManufactureRoutes = require("../modules/manufacture/manufacture.routes");
 const MixerRoutes = require("../modules/mixer/mixer.routes");
 const ItemRoutes = require("../modules/item/item.routes");
 const ItemMasterRoutes = require("../modules/itemMaster/itemMaster.routes");
+const LedgerRoutes = require("../modules/ledger/ledger.routes");
 
 const router = express.Router();
 
@@ -142,6 +143,10 @@ const moduleRoutes = [
   {
     path: "/petty-cash",
     route: PettyCashRoutes,
+  },
+  {
+    path: "/ledger",
+    route: LedgerRoutes,
   },
   {
     path: "/expense",

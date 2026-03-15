@@ -77,6 +77,17 @@ const insertIntoDB = async (data, file) => {
 
     await SupplierHistory.create(supplierData, { transaction: t });
 
+    await CashInOut.create(
+      {
+        supplierId,
+        bookId,
+        amount: Number(purchase_price || 0) * Number(quantity || 0),
+        date,
+        file,
+      },
+      { transaction: t },
+    );
+
     // ✅ InventoryMaster: থাকলে update, না থাকলে insert
     if (result) {
       const inv = await InventoryMaster.findOne({

@@ -14,7 +14,7 @@ router.post(
 );
 router.get("/", ItemMasterController.getAllFromDB);
 router.get("/all", ItemMasterController.getAllFromDBWithoutQuery);
-router.get("/", ItemMasterController.getDataById);
+router.get("/:id", ItemMasterController.getDataById);
 router.delete(
   "/:id",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),

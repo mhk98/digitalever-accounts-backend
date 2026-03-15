@@ -71,15 +71,15 @@ const getAllFromDB = async (filters, options) => {
   });
 
   // ✅ total count + total quantity (same filters)
-  const [count, totalQuantity] = await Promise.all([
-    ItemMaster.count({ where: whereConditions }),
-    ItemMaster.sum("quantity", { where: whereConditions }),
-  ]);
+  // const [count, totalQuantity] = await Promise.all([
+  //   ItemMaster.count({ where: whereConditions }),
+  //   ItemMaster.sum("quantity", { where: whereConditions }),
+  // ]);
 
   return {
     meta: {
-      count, // total filtered records
-      totalQuantity: totalQuantity || 0, // total filtered quantity
+      // count, // total filtered records
+      // totalQuantity: totalQuantity || 0, // total filtered quantity
       page,
       limit,
     },
@@ -88,9 +88,9 @@ const getAllFromDB = async (filters, options) => {
 };
 
 const getDataById = async (id) => {
-  const result = await ItemMaster.findOne({
+  const result = await ItemMaster.findAll({
     where: {
-      Id: id,
+      productId: id,
     },
   });
 

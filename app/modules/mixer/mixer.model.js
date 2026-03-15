@@ -29,13 +29,12 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         defaultValue: 0,
       },
-      cost: {
-        type: DataTypes.DECIMAL(10, 2),
-        defaultValue: 0,
-        allowNull: false,
-      },
       date: {
         type: DataTypes.DATEONLY,
+        allowNull: true,
+      },
+      combo: {
+        type: DataTypes.STRING,
         allowNull: true,
       },
       note: {
@@ -45,11 +44,6 @@ module.exports = (sequelize, DataTypes) => {
       status: {
         type: DataTypes.STRING,
         allowNull: true,
-      },
-      unitCost: {
-        type: DataTypes.DECIMAL(10, 2),
-        defaultValue: 0,
-        allowNull: false,
       },
       deletedAt: {
         type: DataTypes.DATE,
