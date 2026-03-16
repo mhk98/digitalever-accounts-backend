@@ -1,6 +1,6 @@
 module.exports = (sequelize, DataTypes) => {
-  const LedgerHistory = sequelize.define(
-    "LedgerHistory",
+  const StockAdjustment = sequelize.define(
+    "StockAdjustment",
     {
       Id: {
         type: DataTypes.INTEGER(10),
@@ -9,20 +9,24 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
 
-      paidAmount: {
-        type: DataTypes.FLOAT,
-        allowNull: true,
-      },
-
-      unpaidAmount: {
-        type: DataTypes.FLOAT,
-        allowNull: true,
-      },
-
-      status: {
+      name: {
         type: DataTypes.STRING,
+        allowNull: false,
+        validate: {
+          notEmpty: true,
+        },
+      },
+      unit: {
+        type: DataTypes.STRING,
+        defaultValue: "Pcs",
         allowNull: true,
       },
+      unitValue: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: true,
+        defaultValue: 0,
+      },
+
       date: {
         type: DataTypes.DATEONLY,
         allowNull: true,
@@ -31,6 +35,15 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.TEXT,
         allowNull: true,
       },
+      stock: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      status: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+
       deletedAt: {
         type: DataTypes.DATE,
         allowNull: true,
@@ -42,5 +55,5 @@ module.exports = (sequelize, DataTypes) => {
     },
   );
 
-  return LedgerHistory;
+  return StockAdjustment;
 };

@@ -43,6 +43,8 @@ const MixerRoutes = require("../modules/mixer/mixer.routes");
 const ItemRoutes = require("../modules/item/item.routes");
 const ItemMasterRoutes = require("../modules/itemMaster/itemMaster.routes");
 const LedgerRoutes = require("../modules/ledger/ledger.routes");
+const LedgerHistoryRoutes = require("../modules/ledgerHistory/ledgerHistory.routes");
+const StockAdjustmentRoutes = require("../modules/stockAdjustment/stockAdjustment.routes");
 
 const router = express.Router();
 
@@ -79,6 +81,10 @@ const moduleRoutes = [
   {
     path: "/manufacture",
     route: ManufactureRoutes,
+  },
+  {
+    path: "/stock-adjustment",
+    route: StockAdjustmentRoutes,
   },
   {
     path: "/mixer",
@@ -147,6 +153,10 @@ const moduleRoutes = [
   {
     path: "/ledger",
     route: LedgerRoutes,
+  },
+  {
+    path: "/ledger-history",
+    route: LedgerHistoryRoutes,
   },
   {
     path: "/expense",

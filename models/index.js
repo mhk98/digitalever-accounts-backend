@@ -23,6 +23,11 @@ db.manufacture = require("../app/modules/manufacture/manufacture.model")(
   db.sequelize,
   DataTypes,
 );
+db.stockAdjustment =
+  require("../app/modules/stockAdjustment/stockAdjustment.model")(
+    db.sequelize,
+    DataTypes,
+  );
 db.mixer = require("../app/modules/mixer/mixer.model")(db.sequelize, DataTypes);
 
 db.receivedProduct =

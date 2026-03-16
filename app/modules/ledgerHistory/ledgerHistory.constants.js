@@ -1,4 +1,9 @@
-const LedgerHistoryFilterAbleFields = ["searchTerm", "startDate", "endDate"];
+const LedgerHistoryFilterAbleFields = [
+  "searchTerm",
+  "startDate",
+  "endDate",
+  "ledgerId",
+];
 
 const LedgerHistorySearchableFields = ["name", "phone"];
 

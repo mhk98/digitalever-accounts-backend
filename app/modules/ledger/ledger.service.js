@@ -6,7 +6,7 @@ const Ledger = db.ledger;
 const LedgerHistory = db.ledgerHistory;
 
 const insertIntoDB = async (data) => {
-  const { cashType, amount } = data;
+  const { cashType, amount, note, date } = data;
   return db.sequelize.transaction(async (t) => {
     const result = await Ledger.create(data, { transaction: t });
 
@@ -14,7 +14,10 @@ const insertIntoDB = async (data) => {
       {
         ledgerId: result.Id,
         status: cashType,
-        amount: amount,
+        paidAmount: cashType === "Paid" ? amount : 0,
+        unpaidAmount: cashType === "Unpaid" ? amount : 0,
+        date: date || new Date(),
+        note: note || "",
       },
       { transaction: t },
     );

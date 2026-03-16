@@ -1,10 +1,8 @@
 const catchAsync = require("../../../shared/catchAsync");
 const sendResponse = require("../../../shared/sendResponse");
 const pick = require("../../../shared/pick");
-const LedgerHistoryService = require("./ledgerHistoryHistory.service");
-const {
-  LedgerHistoryFilterAbleFields,
-} = require("./ledgerHistoryHistory.constants");
+const LedgerHistoryService = require("./ledgerHistory.service");
+const { LedgerHistoryFilterAbleFields } = require("./ledgerHistory.constants");
 
 const insertIntoDB = catchAsync(async (req, res) => {
   const result = await LedgerHistoryService.insertIntoDB(req.body);
