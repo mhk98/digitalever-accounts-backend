@@ -24,7 +24,11 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 0,
         allowNull: true,
       },
-
+      variants: {
+        type: DataTypes.JSON,
+        defaultValue: [],
+        allowNull: true,
+      },
       purchase_price: {
         type: DataTypes.INTEGER(10),
         allowNull: false,

@@ -28,11 +28,33 @@ const getAllFromDB = async (filters, options) => {
   //   });
   // }
 
-  if (searchTerm) {
+  // if (searchTerm) {
+  //   andConditions.push({
+  //     [Op.or]: pettyCashSearchableFields.map((field) => ({
+  //       [field]: { [Op.like]: `%${searchTerm}%` }, // Postgres হলে Op.iLike
+  //     })),
+  //   });
+  // }
+
+  if (searchTerm && String(searchTerm).trim()) {
+    const term = String(searchTerm).trim();
+
     andConditions.push({
-      [Op.or]: pettyCashSearchableFields.map((field) => ({
-        [field]: { [Op.like]: `%${searchTerm}%` }, // Postgres হলে Op.iLike
-      })),
+      [Op.or]: [
+        { status: { [Op.like]: `%${term}%` } },
+        { remarks: { [Op.like]: `%${term}%` } },
+        { paymentMode: { [Op.like]: `%${term}%` } },
+        { paymentStatus: { [Op.like]: `%${term}%` } },
+        { category: { [Op.like]: `%${term}%` } },
+
+        // ✅ numeric field search
+        db.Sequelize.where(
+          db.Sequelize.cast(db.Sequelize.col("amount"), "CHAR"),
+          {
+            [Op.like]: `%${term}%`,
+          },
+        ),
+      ],
     });
   }
 

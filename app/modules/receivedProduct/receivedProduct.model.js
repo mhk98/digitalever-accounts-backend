@@ -34,6 +34,11 @@ module.exports = (sequelize, DataTypes) => {
         },
       },
 
+      variants: {
+        type: DataTypes.JSON,
+        defaultValue: [],
+        allowNull: true,
+      },
       quantity: {
         type: DataTypes.INTEGER(10),
         defaultValue: 0,

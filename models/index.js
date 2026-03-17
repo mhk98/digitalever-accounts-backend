@@ -14,6 +14,10 @@ db.product = require("../app/modules/product/product.model")(
   db.sequelize,
   DataTypes,
 );
+db.variation = require("../app/modules/variation/variation.model")(
+  db.sequelize,
+  DataTypes,
+);
 db.item = require("../app/modules/item/item.model")(db.sequelize, DataTypes);
 db.itemMaster = require("../app/modules/itemMaster/itemMaster.model")(
   db.sequelize,
@@ -219,6 +223,22 @@ db.posReport = require("../app/modules/posReport/posReport.model")(
 // 2) Parent side (Supplier/Warehouse hasMany) এ as দিবেন না (alias duplicate error হয়)
 // =====================
 
+//Variation relation with product
+// db.product.hasMany(db.variation, { foreignKey: "productId" });
+// db.variation.belongsTo(db.product, {
+//   foreignKey: "productId",
+//   as: "product",
+// });
+
+db.product.hasMany(db.variation, {
+  foreignKey: "productId",
+  as: "variations",
+});
+
+db.variation.belongsTo(db.product, {
+  foreignKey: "productId",
+  as: "product",
+});
 // ---- base product relations
 
 db.supplier.hasMany(db.supplierHistory, { foreignKey: "supplierId" });

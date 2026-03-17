@@ -10,7 +10,7 @@ router.post(
 );
 router.get("/", ProductController.getAllFromDB);
 router.get("/all", ProductController.getAllFromDBWithoutQuery);
-router.get("/", ProductController.getDataById);
+router.get("/:id", ProductController.getDataById);
 router.delete(
   "/:id",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),

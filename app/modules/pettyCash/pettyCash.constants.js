@@ -13,6 +13,7 @@ const pettyCashSearchableFields = [
   "paymentMode",
   "paymentStatus",
   "category",
+  "amount",
 ]; // ✅ এখানে searchTerm দিবে না
 
 module.exports = {

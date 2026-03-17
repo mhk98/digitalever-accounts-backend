@@ -4,19 +4,27 @@ const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { ProductSearchableFields } = require("./product.constants");
 const Product = db.product;
-const Supplier = db.supplier;
-const Warehouse = db.warehouse;
+const Variation = db.variation;
 
 const insertIntoDB = async (data) => {
-  const { name, purchase_price, sale_price } = data;
+  const { name, size, color, sku } = data;
 
   const payload = {
     name,
-    purchase_price,
-    sale_price,
+    sku,
   };
-  console.log("data", data);
+
   const result = await Product.create(payload);
+
+  if (size || color) {
+    const variationData = {
+      size: size || null,
+      color: color || null,
+      productId: result.Id, // Associate with the created product
+    };
+    await Variation.create(variationData);
+  }
+
   return result;
 };
 
@@ -71,6 +79,12 @@ const getAllFromDB = async (filters, options) => {
     where: whereConditions,
     offset: skip,
     limit,
+    include: [
+      {
+        model: Variation,
+        as: "variations",
+      },
+    ],
     paranoid: true,
     order:
       options.sortBy && options.sortOrder
@@ -91,6 +105,12 @@ const getDataById = async (id) => {
     where: {
       Id: id,
     },
+    include: [
+      {
+        model: db.variation,
+        as: "variations",
+      },
+    ],
   });
 
   return result;
@@ -107,20 +127,40 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { name, supplierId, purchase_price, sale_price, warehouseId } = payload;
+  const { name, size, color, sku } = payload;
 
   const data = {
     name,
-    supplierId,
-    purchase_price,
-    sale_price,
-    warehouseId,
+    sku,
   };
   const result = await Product.update(data, {
     where: {
       Id: id,
     },
   });
+
+  const existingVariation = await Variation.findOne({
+    where: { productId: id },
+  });
+
+  if (existingVariation) {
+    await Variation.update(
+      {
+        size: size || existingVariation.size,
+        color: color || existingVariation.color,
+      },
+      {
+        where: { productId: id },
+      },
+    );
+  } else if (size || color) {
+    const variationData = {
+      size: size || null,
+      color: color || null,
+      productId: id,
+    };
+    await Variation.create(variationData);
+  }
 
   return result;
 };

@@ -45,6 +45,7 @@ const ItemMasterRoutes = require("../modules/itemMaster/itemMaster.routes");
 const LedgerRoutes = require("../modules/ledger/ledger.routes");
 const LedgerHistoryRoutes = require("../modules/ledgerHistory/ledgerHistory.routes");
 const StockAdjustmentRoutes = require("../modules/stockAdjustment/stockAdjustment.routes");
+const VariationRoutes = require("../modules/variation/variation.routes");
 
 const router = express.Router();
 
@@ -59,6 +60,10 @@ const moduleRoutes = [
     route: ProductRoutes,
   },
   {
+    path: "/variation",
+    route: VariationRoutes,
+  },
+  {
     path: "/product",
     route: ProductRoutes,
   },
@@ -69,6 +74,10 @@ const moduleRoutes = [
   {
     path: "/item-master",
     route: ItemMasterRoutes,
+  },
+  {
+    path: "/inventory-master",
+    route: InventoryMasterRoutes,
   },
   {
     path: "/purchase-requisition",
