@@ -3,18 +3,37 @@ const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { ReturnProductSearchableFields } = require("./returnProduct.constants");
+const mergeVariants = require("../../../shared/mergeVariants");
+const parseVariants = require("../../../shared/parseVariants");
+const subtractVariants = require("../../../shared/subtractVariants");
 const ReturnProduct = db.returnProduct;
 const Notification = db.notification;
 const User = db.user;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
 const InventoryMaster = db.inventoryMaster;
-const Product = db.product;
+
+const findInventoryByReceivedId = async (receivedId, transaction) => {
+  const inventoryByInventoryId = await InventoryMaster.findOne({
+    where: { Id: receivedId },
+    transaction,
+    lock: transaction?.LOCK?.UPDATE,
+  });
+
+  if (inventoryByInventoryId) return inventoryByInventoryId;
+
+  return InventoryMaster.findOne({
+    where: { productId: receivedId },
+    transaction,
+    lock: transaction?.LOCK?.UPDATE,
+  });
+};
 
 const insertIntoDB = async (data) => {
   const {
     quantity,
     receivedId,
+    variants,
     date,
     note,
     status,
@@ -27,6 +46,7 @@ const insertIntoDB = async (data) => {
 
   const returnQty = Number(quantity);
   const rid = Number(receivedId);
+  const incomingVariants = parseVariants(variants);
 
   if (!rid) throw new ApiError(400, "receivedId is required");
   if (!returnQty || returnQty <= 0) {
@@ -49,11 +69,7 @@ const insertIntoDB = async (data) => {
         : "Active";
 
   return await db.sequelize.transaction(async (t) => {
-    const inventory = await InventoryMaster.findOne({
-      where: { productId: rid },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
+    const inventory = await findInventoryByReceivedId(rid, t);
 
     if (!inventory) throw new ApiError(404, "inventory product not found");
 
@@ -84,6 +100,7 @@ const insertIntoDB = async (data) => {
         supplierId,
         warehouseId,
         quantity: returnQty,
+        variants: incomingVariants,
         source: "Sales Return Product",
         purchase_price: inventory.purchase_price * returnQty,
         sale_price: inventory.sale_price * returnQty,
@@ -96,9 +113,11 @@ const insertIntoDB = async (data) => {
     );
 
     const finalQuantity = oldQty + returnQty;
+    const finalVariants = mergeVariants(inventory.variants, incomingVariants);
     await InventoryMaster.update(
       {
         quantity: finalQuantity,
+        variants: finalVariants,
         // purchase_price: Number(inventory.purchase_price * finalQuantity),
         // sale_price: Number(inventory.sale_price * finalQuantity),
       },
@@ -231,6 +250,7 @@ const deleteIdFromDB = async (id) => {
     // 1) Return row খুঁজে বের করো
     const ret = await ReturnProduct.findOne({
       where: { Id: id },
+      attributes: ["Id", "productId", "quantity", "variants"],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -249,10 +269,18 @@ const deleteIdFromDB = async (id) => {
 
     if (!received) throw new ApiError(404, "Received product not found");
 
+    const nextQuantity = Number(received.quantity || 0) - qty;
+    if (nextQuantity < 0) {
+      throw new ApiError(400, "Inventory cannot be negative");
+    }
+
+    const nextVariants = subtractVariants(received.variants, ret.variants);
+
     // 3) stock ফিরিয়ে দাও
     await InventoryMaster.update(
       {
-        quantity: Number(received.quantity || 0) - qty,
+        quantity: nextQuantity,
+        variants: nextVariants,
         // purchase_price:
         //   Number(received.purchase_price || 0) +
         //   Number(ret.purchase_price || 0),
@@ -464,6 +492,7 @@ const updateOneFromDB = async (id, payload) => {
   const {
     quantity,
     receivedId,
+    variants,
     note,
     status,
     date,
@@ -473,24 +502,16 @@ const updateOneFromDB = async (id, payload) => {
     actorRole,
   } = payload;
 
-  const productData = await Product.findOne({
-    where: {
-      Id: receivedId,
-    },
-  });
-
-  if (!productData) {
-    throw new ApiError(404, "Product not found");
-  }
-
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10);
+  const incomingVariants = parseVariants(variants);
+  const nextQty = Number(quantity || 0);
 
   return db.sequelize.transaction(async (t) => {
     // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
     const existing = await ReturnProduct.findOne({
       where: { Id: id },
-      attributes: ["Id", "note", "status", "quantity"],
+      attributes: ["Id", "note", "status", "quantity", "variants", "productId"],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -498,6 +519,8 @@ const updateOneFromDB = async (id, payload) => {
     if (!existing) return 0;
 
     const qty = Number(existing.quantity || 0);
+    const oldProductId = Number(existing.productId);
+    const existingVariants = parseVariants(existing.variants);
     const oldNote = String(existing.note || "").trim();
     const newNote = String(note || "").trim();
 
@@ -532,52 +555,58 @@ const updateOneFromDB = async (id, payload) => {
         ? "Purchase  product request approved"
         : note || "Please approved my request";
 
+    const oldInv = await InventoryMaster.findOne({
+      where: { productId: oldProductId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!oldInv) throw new ApiError(404, "Old inventory product not found");
+
+    const rolledBackQty = Number(oldInv.quantity || 0) - qty;
+    if (rolledBackQty < 0) {
+      throw new ApiError(400, "Inventory cannot be negative");
+    }
+
+    await oldInv.update(
+      {
+        quantity: rolledBackQty,
+        variants: subtractVariants(oldInv.variants, existingVariants),
+      },
+      { transaction: t },
+    );
+
+    let targetInv = oldInv;
+    if (Number(receivedId) !== oldProductId) {
+      targetInv = await findInventoryByReceivedId(Number(receivedId), t);
+    }
+
+    if (!targetInv) throw new ApiError(404, "Product not found in inventory");
+
+    const finalQuantity = Number(targetInv.quantity || 0) + nextQty;
+    const updatedVariants = mergeVariants(targetInv.variants, incomingVariants);
+
     const data = {
-      name: productData.name,
-      quantity,
-      purchase_price: productData.purchase_price * quantity,
-      sale_price: productData.sale_price * quantity,
+      name: targetInv.name,
+      quantity: nextQty,
+      variants: incomingVariants,
+      purchase_price: Number(targetInv.purchase_price || 0) * nextQty,
+      sale_price: Number(targetInv.sale_price || 0) * nextQty,
       supplierId,
       warehouseId,
-      productId: receivedId,
+      productId: targetInv.productId,
       note: newNote || null,
       status: finalStatus,
       date: inputDateStr || undefined,
     };
 
-    let receivedFinalQty = 0;
-    if (Number(qty) > Number(quantity)) {
-      receivedFinalQty = Number(qty) - Number(quantity);
-    } else {
-      receivedFinalQty = Number(quantity) - Number(qty);
-    }
-
-    // ✅ 2) InventoryMaster subtract
-    const inv = await InventoryMaster.findOne({
-      where: { productId: receivedId },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
-
-    if (inv) {
-      let stockQuantity = 0;
-      if (Number(qty) > Number(quantity)) {
-        stockQuantity = Number(inv.quantity) - Number(receivedFinalQty);
-      } else {
-        stockQuantity = Number(inv.quantity) + Number(receivedFinalQty);
-      }
-
-      // চাইলে negative prevent করতে পারেন
-      if (stockQuantity < 0)
-        throw new ApiError(400, "Inventory cannot be negative");
-
-      await inv.update(
-        {
-          quantity: stockQuantity,
-        },
-        { transaction: t },
-      );
-    }
+    await targetInv.update(
+      {
+        quantity: finalQuantity,
+        variants: updatedVariants,
+      },
+      { transaction: t },
+    );
 
     const [updatedCount] = await ReturnProduct.update(data, {
       where: {

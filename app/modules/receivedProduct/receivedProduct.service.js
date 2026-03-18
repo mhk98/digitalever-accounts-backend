@@ -20,6 +20,13 @@ const WarrantyProduct = db.warrantyProduct;
 const CashInOut = db.cashInOut;
 const SupplierHistory = db.supplierHistory;
 
+const normalizeNullableId = (value) => {
+  if (value === undefined || value === null) return null;
+
+  const trimmedValue = String(value).trim();
+  return trimmedValue === "" ? null : trimmedValue;
+};
+
 const insertIntoDB = async (data, file) => {
   const {
     quantity,
@@ -83,10 +90,12 @@ const insertIntoDB = async (data, file) => {
     // =========================
     // SupplierHistory
     // =========================
+    const normalizedBookId = normalizeNullableId(bookId);
+
     await SupplierHistory.create(
       {
         supplierId,
-        bookId,
+        bookId: normalizedBookId,
         amount: Number(purchase_price || 0) * Number(quantity || 0),
         date,
         file,
@@ -100,7 +109,7 @@ const insertIntoDB = async (data, file) => {
     await CashInOut.create(
       {
         supplierId,
-        bookId,
+        bookId: normalizedBookId,
         amount: Number(purchase_price || 0) * Number(quantity || 0),
         date,
         file,
@@ -387,6 +396,7 @@ const updateOneFromDB = async (id, payload) => {
   const incomingVariants = parseVariants(variants);
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10);
+  const normalizedBookId = normalizeNullableId(bookId);
 
   return db.sequelize.transaction(async (t) => {
     // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
@@ -499,7 +509,10 @@ const updateOneFromDB = async (id, payload) => {
         { transaction: t },
       );
     } else {
-      const updatedVariants = mergeVariants(targetInv.variants, incomingVariants);
+      const updatedVariants = mergeVariants(
+        targetInv.variants,
+        incomingVariants,
+      );
 
       await targetInv.update(
         {
@@ -519,17 +532,16 @@ const updateOneFromDB = async (id, payload) => {
 
     const supplierData = {
       supplierId,
-      bookId,
+      bookId: normalizedBookId,
       amount: Number(purchase_price || 0) * Number(quantity || 0),
       date,
       file,
     };
 
-    await SupplierHistory.update(
-      supplierData,
-      { where: { supplierId } },
-      { transaction: t },
-    );
+    await SupplierHistory.update(supplierData, {
+      where: { supplierId },
+      transaction: t,
+    });
 
     const users = await User.findAll({
       attributes: ["Id", "role"],

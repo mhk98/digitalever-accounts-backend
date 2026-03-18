@@ -5,6 +5,9 @@ const ApiError = require("../../../error/ApiError");
 const {
   DamageRepairedSearchableFields,
 } = require("./damageRepaired.constants");
+const mergeVariants = require("../../../shared/mergeVariants");
+const parseVariants = require("../../../shared/parseVariants");
+const subtractVariants = require("../../../shared/subtractVariants");
 const DamageRepaired = db.damageRepaired;
 const DamageRepair = db.damageRepair;
 const Notification = db.notification;
@@ -14,10 +17,27 @@ const Warehouse = db.warehouse;
 const InventoryMaster = db.inventoryMaster;
 const DamageStock = db.damageStock;
 
+const findDamageStockByReference = async (receivedId, transaction) => {
+  const byId = await DamageStock.findOne({
+    where: { Id: receivedId },
+    transaction,
+    lock: transaction?.LOCK?.UPDATE,
+  });
+
+  if (byId) return byId;
+
+  return DamageStock.findOne({
+    where: { productId: receivedId },
+    transaction,
+    lock: transaction?.LOCK?.UPDATE,
+  });
+};
+
 const insertIntoDB = async (data) => {
   const {
     quantity,
     receivedId,
+    variants,
     date,
     note,
     status,
@@ -30,6 +50,7 @@ const insertIntoDB = async (data) => {
 
   const returnQty = Number(quantity);
   const rid = Number(receivedId);
+  const incomingVariants = parseVariants(variants);
 
   if (!rid) throw new ApiError(400, "receivedId is required");
   if (!returnQty || returnQty <= 0) {
@@ -89,6 +110,7 @@ const insertIntoDB = async (data) => {
         source: "Damage Repaired",
         remarks: damageRepair.remarks,
         quantity: returnQty,
+        variants: incomingVariants,
         purchase_price: deductPurchase,
         sale_price: deductSale,
         productId: realDamageStockId, // ✅ Products.Id (FK)
@@ -117,6 +139,7 @@ const insertIntoDB = async (data) => {
       await DamageStock.update(
         {
           quantity: dStockQty - returnQty,
+          variants: subtractVariants(damageStock.variants, incomingVariants),
           purchase_price: Math.max(
             0,
             Number(damageStock.purchase_price || 0) - perUnitP * returnQty,
@@ -144,6 +167,7 @@ const insertIntoDB = async (data) => {
     await InventoryMaster.update(
       {
         quantity: receivedOldQty + returnQty,
+        variants: mergeVariants(inventory.variants, incomingVariants),
       },
       { where: { Id: inventory.Id }, transaction: t },
     );
@@ -275,6 +299,14 @@ const deleteIdFromDB = async (id) => {
     // 1) Return row খুঁজে বের করো
     const ret = await DamageRepaired.findOne({
       where: { Id: id },
+      attributes: [
+        "Id",
+        "productId",
+        "quantity",
+        "purchase_price",
+        "sale_price",
+        "variants",
+      ],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -297,6 +329,7 @@ const deleteIdFromDB = async (id) => {
     await DamageStock.update(
       {
         quantity: Number(received.quantity || 0) + qty,
+        variants: mergeVariants(received.variants, ret.variants),
         purchase_price:
           Number(received.purchase_price || 0) +
           Number(ret.purchase_price || 0),
@@ -312,13 +345,14 @@ const deleteIdFromDB = async (id) => {
       lock: t.LOCK.UPDATE,
     });
 
-    const finalQuantity = Number(inventory.quantity || 0) + qty;
+    const finalQuantity = Number(inventory.quantity || 0) - qty;
+    if (finalQuantity < 0) {
+      throw new ApiError(400, "Inventory cannot be negative");
+    }
     await InventoryMaster.update(
       {
         quantity: finalQuantity,
-        purchase_price: Number(inventory.purchase_price * finalQuantity || 0),
-
-        sale_price: Number(inventory.sale_price * finalQuantity || 0),
+        variants: subtractVariants(inventory.variants, ret.variants),
       },
       { where: { productId: inventory.productId }, transaction: t },
     );
@@ -337,6 +371,7 @@ const updateOneFromDB = async (id, data) => {
   const {
     quantity,
     receivedId, // এটা DamageRepair.Id (source)
+    variants,
     note,
     date,
     status,
@@ -348,6 +383,7 @@ const updateOneFromDB = async (id, data) => {
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10);
+  const incomingVariants = parseVariants(variants);
 
   const inputStatus = String(status || "").trim();
   const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
@@ -364,6 +400,7 @@ const updateOneFromDB = async (id, data) => {
     // ✅ 0) যে রেকর্ডটা update হবে (DamageRepaired) সেটাই আগে lock করে আনো
     const existingRepaired = await DamageRepaired.findOne({
       where: { Id: id },
+      attributes: ["Id", "quantity", "status", "note", "productId", "variants"],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -372,6 +409,8 @@ const updateOneFromDB = async (id, data) => {
 
     const oldRepairedQty = Number(existingRepaired.quantity || 0);
     const oldRepairedStatus = String(existingRepaired.status || "").trim();
+    const oldProductId = Number(existingRepaired.productId);
+    const existingVariants = parseVariants(existingRepaired.variants);
 
     const oldNote = String(existingRepaired.note || "").trim();
     const newNote = String(note || "").trim();
@@ -394,7 +433,6 @@ const updateOneFromDB = async (id, data) => {
 
     const newStatus = String(finalStatus || "").trim();
 
-    // ✅ 1) source DamageRepair (lock)
     const received = await DamageRepair.findOne({
       where: { Id: rid },
       transaction: t,
@@ -403,25 +441,84 @@ const updateOneFromDB = async (id, data) => {
 
     if (!received) throw new ApiError(404, "DamageRepair product not found");
 
-    const sourceQtyNow = Number(received.quantity || 0);
-
-    // ✅ per-unit হিসাব (source values থেকে)
-    const perUnitPurchase =
-      sourceQtyNow > 0
-        ? Number(received.purchase_price || 0) / sourceQtyNow
-        : 0;
-    const perUnitSale =
-      sourceQtyNow > 0 ? Number(received.sale_price || 0) / sourceQtyNow : 0;
-
-    const deductPurchaseNew = perUnitPurchase * returnQty;
-    const deductSaleNew = perUnitSale * returnQty;
-
     const realProductId = Number(received.productId);
     if (!realProductId) {
       throw new ApiError(400, "DamageRepair.productId missing (Products.Id)");
     }
 
-    // ✅ 2) DamageRepaired row update (main update)
+    const oldDamageStock = await DamageStock.findOne({
+      where: { productId: oldProductId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!oldDamageStock) throw new ApiError(404, "DamageStock not found");
+
+    await oldDamageStock.update(
+      {
+        quantity: Number(oldDamageStock.quantity || 0) + oldRepairedQty,
+        variants: mergeVariants(oldDamageStock.variants, existingVariants),
+      },
+      { transaction: t },
+    );
+
+    const oldInventory = await InventoryMaster.findOne({
+      where: { productId: oldProductId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!oldInventory) throw new ApiError(404, "Inventory not found");
+
+    const rolledBackInventoryQty =
+      Number(oldInventory.quantity || 0) - oldRepairedQty;
+    if (rolledBackInventoryQty < 0) {
+      throw new ApiError(400, "Inventory cannot be negative");
+    }
+
+    await oldInventory.update(
+      {
+        quantity: rolledBackInventoryQty,
+        variants: subtractVariants(oldInventory.variants, existingVariants),
+      },
+      { transaction: t },
+    );
+
+    let targetDamageStock = oldDamageStock;
+    let targetInventory = oldInventory;
+    if (realProductId !== oldProductId) {
+      targetDamageStock = await findDamageStockByReference(realProductId, t);
+      targetInventory = await InventoryMaster.findOne({
+        where: { productId: realProductId },
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+    }
+
+    if (!targetDamageStock)
+      throw new ApiError(404, "DamageStock product not found");
+    if (!targetInventory) throw new ApiError(404, "Inventory not found");
+
+    const availableDamageQty = Number(targetDamageStock.quantity || 0);
+    if (availableDamageQty < returnQty) {
+      throw new ApiError(
+        400,
+        `Not enough stock. Available: ${availableDamageQty}`,
+      );
+    }
+
+    const perUnitPurchase =
+      availableDamageQty > 0
+        ? Number(targetDamageStock.purchase_price || 0) / availableDamageQty
+        : 0;
+    const perUnitSale =
+      availableDamageQty > 0
+        ? Number(targetDamageStock.sale_price || 0) / availableDamageQty
+        : 0;
+
+    const deductPurchaseNew = perUnitPurchase * returnQty;
+    const deductSaleNew = perUnitSale * returnQty;
+
     const [updatedCount] = await DamageRepaired.update(
       {
         name: received.name,
@@ -429,6 +526,7 @@ const updateOneFromDB = async (id, data) => {
         warehouseId,
         remarks: received.remarks,
         quantity: returnQty,
+        variants: incomingVariants,
         purchase_price: deductPurchaseNew,
         sale_price: deductSaleNew,
         note: newNote || null,
@@ -439,100 +537,29 @@ const updateOneFromDB = async (id, data) => {
       { where: { Id: id }, transaction: t },
     );
 
-    // ✅ 3) Side effects ONLY when admin/superAdmin AND newStatus Approved
-    // (তুমি চাইলে Active-ও add করতে পারো)
-    // যেহেতু insert-এর সময় সব স্ট্যাটাসেই (Pending, Active, Approved) ইনভেন্টরি আপডেট হচ্ছে,
-    // তাই এখানেও সব বৈধ স্ট্যাটাসকে স্টক মুভমেন্ট হিসেবে গণ্য করা হলো।
-    const isStockStatus = (s) => {
-      const statusStr = String(s || "").trim();
-      return statusStr !== "" && statusStr !== "---";
-    };
-
-    const oldWasStock = isStockStatus(oldRepairedStatus);
-    const newIsStock = isStockStatus(newStatus);
-
-    // 👉 কত qty ইনভেন্টরিতে add/remove হবে (ডিফারেন্স অনুযায়ী)
-    let inventoryDelta = 0;
-    let sourceDelta = 0;
-
-    if (oldWasStock && newIsStock) {
-      // আগে স্টক ছিল, এখনো আছে -> শুধু পার্থক্যটা অ্যাডজাস্ট হবে
-      inventoryDelta = returnQty - oldRepairedQty;
-      sourceDelta = -(returnQty - oldRepairedQty);
-    } else if (!oldWasStock && newIsStock) {
-      // আগে স্টক ছিল না (যেমন '---' স্ট্যাটাস ছিল), এখন হয়েছে -> পুরোটা যোগ হবে
-      inventoryDelta = returnQty;
-      sourceDelta = -returnQty;
-    } else if (oldWasStock && !newIsStock) {
-      // আগে স্টক ছিল, এখন নেই -> স্টক রিভার্স হবে
-      inventoryDelta = -oldRepairedQty;
-      sourceDelta = oldRepairedQty;
+    const newDamageQty = availableDamageQty - returnQty;
+    if (newDamageQty < 0) {
+      throw new ApiError(400, "DamageStock cannot be negative");
     }
 
-    // ✅ 4) Apply inventory + master stock changes
-    if (inventoryDelta !== 0 || sourceDelta !== 0) {
-      // 4.1) master DamageStock update (Note: DamageRepair table should not change)
-      if (sourceDelta !== 0) {
-        const dStock = await DamageStock.findOne({
-          where: { productId: realProductId },
-          transaction: t,
-          lock: t.LOCK.UPDATE,
-        });
+    await targetDamageStock.update(
+      {
+        quantity: newDamageQty,
+        variants: subtractVariants(
+          targetDamageStock.variants,
+          incomingVariants,
+        ),
+      },
+      { transaction: t },
+    );
 
-        if (dStock) {
-          const currentDStockQty = Number(dStock.quantity || 0);
-          const newDStockQty = currentDStockQty + sourceDelta;
-          if (newDStockQty < 0) {
-            throw new ApiError(400, "DamageStock cannot be negative");
-          }
-
-          // Price adjustment for DamageStock
-          const perUnitP =
-            currentDStockQty > 0
-              ? Number(dStock.purchase_price || 0) / currentDStockQty
-              : 0;
-          const perUnitS =
-            currentDStockQty > 0
-              ? Number(dStock.sale_price || 0) / currentDStockQty
-              : 0;
-
-          await DamageStock.update(
-            {
-              quantity: newDStockQty,
-              purchase_price: Math.max(
-                0,
-                Number(dStock.purchase_price || 0) + perUnitP * sourceDelta,
-              ),
-              sale_price: Math.max(
-                0,
-                Number(dStock.sale_price || 0) + perUnitS * sourceDelta,
-              ),
-            },
-            { where: { Id: dStock.Id }, transaction: t },
-          );
-        }
-      }
-
-      // 4.2) inventory update (InventoryMaster)
-      if (inventoryDelta !== 0) {
-        const inventory = await InventoryMaster.findOne({
-          where: { productId: realProductId },
-          transaction: t,
-          lock: t.LOCK.UPDATE,
-        });
-
-        if (!inventory) throw new ApiError(404, "Inventory not found");
-
-        const newInvQty = Number(inventory.quantity || 0) + inventoryDelta;
-        if (newInvQty < 0)
-          throw new ApiError(400, "Inventory cannot be negative");
-
-        await InventoryMaster.update(
-          { quantity: newInvQty },
-          { where: { Id: inventory.Id }, transaction: t },
-        );
-      }
-    }
+    await targetInventory.update(
+      {
+        quantity: Number(targetInventory.quantity || 0) + returnQty,
+        variants: mergeVariants(targetInventory.variants, incomingVariants),
+      },
+      { transaction: t },
+    );
 
     // ✅ 5) Notification
     const users = await User.findAll({

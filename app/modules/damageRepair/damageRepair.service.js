@@ -3,6 +3,9 @@ const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { DamageRepairSearchableFields } = require("./damageRepair.constants");
+const mergeVariants = require("../../../shared/mergeVariants");
+const parseVariants = require("../../../shared/parseVariants");
+const subtractVariants = require("../../../shared/subtractVariants");
 const DamageRepair = db.damageRepair;
 const Notification = db.notification;
 const User = db.user;
@@ -10,10 +13,27 @@ const Supplier = db.supplier;
 const Warehouse = db.warehouse;
 const DamageStock = db.damageStock;
 
+const findDamageStockByReference = async (receivedId, transaction) => {
+  const byId = await DamageStock.findOne({
+    where: { Id: receivedId },
+    transaction,
+    lock: transaction?.LOCK?.UPDATE,
+  });
+
+  if (byId) return byId;
+
+  return DamageStock.findOne({
+    where: { productId: receivedId },
+    transaction,
+    lock: transaction?.LOCK?.UPDATE,
+  });
+};
+
 const insertIntoDB = async (data) => {
   const {
     quantity,
     receivedId,
+    variants,
     date,
     note,
     status,
@@ -26,6 +46,7 @@ const insertIntoDB = async (data) => {
 
   const returnQty = Number(quantity);
   const rid = Number(receivedId);
+  const incomingVariants = parseVariants(variants);
 
   if (!rid) throw new ApiError(400, "receivedId is required");
   if (!returnQty || returnQty <= 0) {
@@ -48,11 +69,7 @@ const insertIntoDB = async (data) => {
         : "Active";
 
   return await db.sequelize.transaction(async (t) => {
-    const received = await DamageStock.findOne({
-      where: { Id: rid },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
+    const received = await findDamageStockByReference(rid, t);
 
     if (!received) throw new ApiError(404, "Received product not found");
 
@@ -82,6 +99,7 @@ const insertIntoDB = async (data) => {
         source: "Damage Repair",
         remarks: received.remarks,
         quantity: returnQty,
+        variants: incomingVariants,
         purchase_price: deductPurchase,
         sale_price: deductSale,
         productId: realProductId, // ✅ Products.Id (FK)
@@ -93,9 +111,13 @@ const insertIntoDB = async (data) => {
     );
 
     const finalQuantity = oldQty - returnQty;
+    const finalVariants = incomingVariants.length
+      ? subtractVariants(received.variants, incomingVariants)
+      : received.variants;
     await DamageStock.update(
       {
         quantity: finalQuantity,
+        variants: finalVariants,
         purchase_price: Math.max(
           0,
           Number(received.purchase_price * finalQuantity || 0),
@@ -236,6 +258,7 @@ const deleteIdFromDB = async (id) => {
     // 1) Return row খুঁজে বের করো
     const ret = await DamageRepair.findOne({
       where: { Id: id },
+      attributes: ["Id", "productId", "quantity", "variants"],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -255,10 +278,12 @@ const deleteIdFromDB = async (id) => {
     // if (!received) throw new ApiError(404, "Received product not found");
 
     const finalQuantity = Number(received.quantity || 0) + qty;
+    const finalVariants = mergeVariants(received.variants, ret.variants);
     // 3) stock ফিরিয়ে দাও
     await DamageStock.update(
       {
         quantity: finalQuantity,
+        variants: finalVariants,
         purchase_price: Number(received.purchase_price * finalQuantity || 0),
         sale_price: Number(received.sale_price * finalQuantity || 0),
       },
@@ -279,6 +304,7 @@ const updateOneFromDB = async (id, data) => {
   const {
     quantity,
     receivedId,
+    variants,
     note,
     status,
     date,
@@ -292,6 +318,8 @@ const updateOneFromDB = async (id, data) => {
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10);
+  const incomingVariants = parseVariants(variants);
+  const nextQty = Number(quantity || 0);
 
   // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
   const existing = await DamageRepair.findOne({
@@ -339,47 +367,69 @@ const updateOneFromDB = async (id, data) => {
   }
 
   return await db.sequelize.transaction(async (t) => {
-    const received = await DamageStock.findOne({
-      where: { Id: rid },
+    const existing = await DamageRepair.findOne({
+      where: { Id: id },
+      attributes: ["Id", "quantity", "variants", "productId"],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
+    if (!existing) return 0;
+
+    const qty = Number(existing.quantity || 0);
+    const oldProductId = Number(existing.productId);
+    const existingVariants = parseVariants(existing.variants);
+
+    const oldStock = await DamageStock.findOne({
+      where: { productId: oldProductId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!oldStock) throw new ApiError(404, "DamageStock product not found");
+
+    await oldStock.update(
+      {
+        quantity: Number(oldStock.quantity || 0) + qty,
+        variants: mergeVariants(oldStock.variants, existingVariants),
+      },
+      { transaction: t },
+    );
+
+    let received = oldStock;
+    if (Number(receivedId) !== oldProductId) {
+      received = await findDamageStockByReference(rid, t);
+    }
+
     if (!received) throw new ApiError(404, "Received product not found");
 
-    const oldQty = Number(received.quantity || 0);
-
-    // if (oldQty < returnQty) {
-    //   throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
-    // }
+    const availableQty = Number(received.quantity || 0);
+    if (availableQty < nextQty) {
+      throw new ApiError(400, `Not enough stock. Available: ${availableQty}`);
+    }
 
     const perUnitPurchase =
-      oldQty > 0 ? Number(received.purchase_price || 0) / oldQty : 0;
+      availableQty > 0 ? Number(received.purchase_price || 0) / availableQty : 0;
     const perUnitSale =
-      oldQty > 0 ? Number(received.sale_price || 0) / oldQty : 0;
+      availableQty > 0 ? Number(received.sale_price || 0) / availableQty : 0;
 
-    const deductPurchase = perUnitPurchase * returnQty;
-    const deductSale = perUnitSale * returnQty;
+    const deductPurchase = perUnitPurchase * nextQty;
+    const deductSale = perUnitSale * nextQty;
 
     const realProductId = Number(received.productId);
     if (!realProductId) {
       throw new ApiError(400, "DamageStock.productId missing (Products.Id)");
     }
 
-    const existing = await DamageRepair.findOne({
-      where: { Id: id },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
-
     const data = {
       name: received.name,
       supplierId,
       warehouseId,
       remarks: received.remarks,
-      quantity: returnQty,
-      purchase_price: received.purchase_price * returnQty,
-      sale_price: received.sale_price * returnQty,
+      quantity: nextQty,
+      variants: incomingVariants,
+      purchase_price: deductPurchase,
+      sale_price: deductSale,
       note: newNote || null,
       status: finalStatus,
       date: inputDateStr || undefined,
@@ -391,40 +441,18 @@ const updateOneFromDB = async (id, data) => {
       transaction: t,
     });
 
-    let receivedFinalQty = 0;
-    if (Number(existing.quantity) > Number(quantity)) {
-      receivedFinalQty = Number(existing.quantity) - Number(quantity);
-    } else {
-      receivedFinalQty = Number(quantity) - Number(existing.quantity);
-    }
+    const stockQuantity = Number(received.quantity || 0) - nextQty;
+    const updatedVariants = incomingVariants.length
+      ? subtractVariants(received.variants, incomingVariants)
+      : received.variants;
 
-    if (existing) {
-      let stockQuantity = 0;
-      if (Number(existing.quantity) > Number(quantity)) {
-        stockQuantity = Number(existing.quantity) + Number(receivedFinalQty);
-      } else {
-        stockQuantity = Number(existing.quantity) - Number(receivedFinalQty);
-      }
-
-      // চাইলে negative prevent করতে পারেন
-      if (stockQuantity < 0)
-        throw new ApiError(
-          400,
-          "Damage stock not enough product for this update",
-        );
-
-      // const oldQty = Number(inv.quantity);
-      // const perUnitPurchase =
-      //   oldQty > 0 ? Number(inv.purchase_price || 0) / oldQty : 0;
-      // const perUnitSale = oldQty > 0 ? Number(inv.sale_price || 0) / oldQty : 0;
-
-      await DamageStock.update(
-        {
-          quantity: stockQuantity,
-        },
-        { where: { Id: received.Id }, transaction: t },
-      );
-    }
+    await DamageStock.update(
+      {
+        quantity: stockQuantity,
+        variants: updatedVariants,
+      },
+      { where: { Id: received.Id }, transaction: t },
+    );
 
     // await DamageStock.update(
     //   {
