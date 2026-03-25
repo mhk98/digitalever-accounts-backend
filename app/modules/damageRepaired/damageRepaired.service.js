@@ -15,10 +15,10 @@ const User = db.user;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
 const InventoryMaster = db.inventoryMaster;
-const DamageStock = db.damageStock;
+const DamageReparingStock = db.damageReparingStock;
 
-const findDamageStockByReference = async (receivedId, transaction) => {
-  const byId = await DamageStock.findOne({
+const findDamageReparingStockByReference = async (receivedId, transaction) => {
+  const byId = await DamageReparingStock.findOne({
     where: { Id: receivedId },
     transaction,
     lock: transaction?.LOCK?.UPDATE,
@@ -26,7 +26,7 @@ const findDamageStockByReference = async (receivedId, transaction) => {
 
   if (byId) return byId;
 
-  return DamageStock.findOne({
+  return DamageReparingStock.findOne({
     where: { productId: receivedId },
     transaction,
     lock: transaction?.LOCK?.UPDATE,
@@ -121,37 +121,34 @@ const insertIntoDB = async (data) => {
       { transaction: t },
     );
 
-    // 1) Update DamageStock (Master record for damaged products) - Master stock decreases when repaired
-    const damageStock = await DamageStock.findOne({
+    const damageReparingStock = await DamageReparingStock.findOne({
       where: { productId: realDamageStockId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (damageStock) {
-      const dStockQty = Number(damageStock.quantity || 0);
-      // Adjust prices proportionally
-      const perUnitP =
-        dStockQty > 0 ? Number(damageStock.purchase_price || 0) / dStockQty : 0;
-      const perUnitS =
-        dStockQty > 0 ? Number(damageStock.sale_price || 0) / dStockQty : 0;
+    if (!damageReparingStock) {
+      throw new ApiError(404, "DamageReparingStock not found");
+    }
 
-      await DamageStock.update(
-        {
-          quantity: dStockQty - returnQty,
-          variants: subtractVariants(damageStock.variants, incomingVariants),
-          purchase_price: Math.max(
-            0,
-            Number(damageStock.purchase_price || 0) - perUnitP * returnQty,
-          ),
-          sale_price: Math.max(
-            0,
-            Number(damageStock.sale_price || 0) - perUnitS * returnQty,
-          ),
-        },
-        { where: { Id: damageStock.Id }, transaction: t },
+    const repairingQty = Number(damageReparingStock.quantity || 0);
+    if (repairingQty < returnQty) {
+      throw new ApiError(
+        400,
+        `Not enough repairing stock. Available: ${repairingQty}`,
       );
     }
+
+    await DamageReparingStock.update(
+      {
+        quantity: repairingQty - returnQty,
+        variants: subtractVariants(
+          damageReparingStock.variants,
+          incomingVariants,
+        ),
+      },
+      { where: { Id: damageReparingStock.Id }, transaction: t },
+    );
 
     const inventory = await InventoryMaster.findOne({
       where: { productId: realDamageStockId },
@@ -316,25 +313,19 @@ const deleteIdFromDB = async (id) => {
     const qty = Number(ret.quantity || 0);
     if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
 
-    // 2) InventoryMaster খুঁজে বের করো (Products.Id দিয়ে)
-    const received = await DamageStock.findOne({
+    const received = await DamageReparingStock.findOne({
       where: { productId: ret.productId }, // ✅ Products.Id
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    // if (!received) throw new ApiError(404, "Damage Repair product not found");
+    if (!received)
+      throw new ApiError(404, "DamageReparingStock product not found");
 
-    // 3) stock ফিরিয়ে দাও
-    await DamageStock.update(
+    await DamageReparingStock.update(
       {
         quantity: Number(received.quantity || 0) + qty,
         variants: mergeVariants(received.variants, ret.variants),
-        purchase_price:
-          Number(received.purchase_price || 0) +
-          Number(ret.purchase_price || 0),
-        sale_price:
-          Number(received.sale_price || 0) + Number(ret.sale_price || 0),
       },
       { where: { Id: received.Id }, transaction: t },
     );
@@ -446,18 +437,23 @@ const updateOneFromDB = async (id, data) => {
       throw new ApiError(400, "DamageRepair.productId missing (Products.Id)");
     }
 
-    const oldDamageStock = await DamageStock.findOne({
+    const oldDamageReparingStock = await DamageReparingStock.findOne({
       where: { productId: oldProductId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (!oldDamageStock) throw new ApiError(404, "DamageStock not found");
+    if (!oldDamageReparingStock) {
+      throw new ApiError(404, "DamageReparingStock not found");
+    }
 
-    await oldDamageStock.update(
+    await oldDamageReparingStock.update(
       {
-        quantity: Number(oldDamageStock.quantity || 0) + oldRepairedQty,
-        variants: mergeVariants(oldDamageStock.variants, existingVariants),
+        quantity: Number(oldDamageReparingStock.quantity || 0) + oldRepairedQty,
+        variants: mergeVariants(
+          oldDamageReparingStock.variants,
+          existingVariants,
+        ),
       },
       { transaction: t },
     );
@@ -484,10 +480,13 @@ const updateOneFromDB = async (id, data) => {
       { transaction: t },
     );
 
-    let targetDamageStock = oldDamageStock;
+    let targetDamageReparingStock = oldDamageReparingStock;
     let targetInventory = oldInventory;
     if (realProductId !== oldProductId) {
-      targetDamageStock = await findDamageStockByReference(realProductId, t);
+      targetDamageReparingStock = await findDamageReparingStockByReference(
+        realProductId,
+        t,
+      );
       targetInventory = await InventoryMaster.findOne({
         where: { productId: realProductId },
         transaction: t,
@@ -495,25 +494,26 @@ const updateOneFromDB = async (id, data) => {
       });
     }
 
-    if (!targetDamageStock)
-      throw new ApiError(404, "DamageStock product not found");
+    if (!targetDamageReparingStock) {
+      throw new ApiError(404, "DamageReparingStock product not found");
+    }
     if (!targetInventory) throw new ApiError(404, "Inventory not found");
 
-    const availableDamageQty = Number(targetDamageStock.quantity || 0);
+    const availableDamageQty = Number(targetDamageReparingStock.quantity || 0);
     if (availableDamageQty < returnQty) {
       throw new ApiError(
         400,
-        `Not enough stock. Available: ${availableDamageQty}`,
+        `Not enough repairing stock. Available: ${availableDamageQty}`,
       );
     }
 
     const perUnitPurchase =
       availableDamageQty > 0
-        ? Number(targetDamageStock.purchase_price || 0) / availableDamageQty
+        ? Number(received.purchase_price || 0) / Number(received.quantity || 0)
         : 0;
     const perUnitSale =
       availableDamageQty > 0
-        ? Number(targetDamageStock.sale_price || 0) / availableDamageQty
+        ? Number(received.sale_price || 0) / Number(received.quantity || 0)
         : 0;
 
     const deductPurchaseNew = perUnitPurchase * returnQty;
@@ -539,14 +539,14 @@ const updateOneFromDB = async (id, data) => {
 
     const newDamageQty = availableDamageQty - returnQty;
     if (newDamageQty < 0) {
-      throw new ApiError(400, "DamageStock cannot be negative");
+      throw new ApiError(400, "DamageReparingStock cannot be negative");
     }
 
-    await targetDamageStock.update(
+    await targetDamageReparingStock.update(
       {
         quantity: newDamageQty,
         variants: subtractVariants(
-          targetDamageStock.variants,
+          targetDamageReparingStock.variants,
           incomingVariants,
         ),
       },

@@ -82,6 +82,12 @@ db.damageStock = require("../app/modules/damageStock/damageStock.model")(
   DataTypes,
 );
 
+db.damageReparingStock =
+  require("../app/modules/damageReparingStock/damageReparingStock.model")(
+    db.sequelize,
+    DataTypes,
+  );
+
 db.damageRepair = require("../app/modules/damageRepair/damageRepair.model")(
   db.sequelize,
   DataTypes,
@@ -182,6 +188,11 @@ db.payable = require("../app/modules/payable/payable.model")(
 );
 
 db.employee = require("../app/modules/employee/employee.model")(
+  db.sequelize,
+  DataTypes,
+);
+
+db.employeeList = require("../app/modules/employeeList/employeeList.model")(
   db.sequelize,
   DataTypes,
 );
@@ -295,8 +306,16 @@ db.damageStock.belongsTo(db.product, { foreignKey: "productId" });
 db.damageStock.hasMany(db.damageRepair, { foreignKey: "productId" });
 db.damageRepair.belongsTo(db.damageStock, { foreignKey: "productId" });
 
-db.damageStock.hasMany(db.damageRepaired, { foreignKey: "productId" });
-db.damageRepaired.belongsTo(db.damageStock, { foreignKey: "productId" });
+db.product.hasMany(db.damageReparingStock, { foreignKey: "productId" });
+db.damageReparingStock.belongsTo(db.product, { foreignKey: "productId" });
+
+db.damageReparingStock.hasMany(db.damageRepaired, { foreignKey: "productId" });
+db.damageRepaired.belongsTo(db.damageReparingStock, {
+  foreignKey: "productId",
+});
+
+// db.damageStock.hasMany(db.damageRepaired, { foreignKey: "productId" });
+// db.damageRepaired.belongsTo(db.damageStock, { foreignKey: "productId" });
 
 db.inventoryMaster.hasMany(db.purchaseReturnProduct, {
   foreignKey: "productId",

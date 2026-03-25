@@ -46,6 +46,8 @@ const LedgerRoutes = require("../modules/ledger/ledger.routes");
 const LedgerHistoryRoutes = require("../modules/ledgerHistory/ledgerHistory.routes");
 const StockAdjustmentRoutes = require("../modules/stockAdjustment/stockAdjustment.routes");
 const VariationRoutes = require("../modules/variation/variation.routes");
+const DamageReparingStockRoutes = require("../modules/damageReparingStock/damageReparingStock.routes");
+const EmployeeListRoutes = require("../modules/employeeList/employeeList.routes");
 
 const router = express.Router();
 
@@ -110,6 +112,10 @@ const moduleRoutes = [
   {
     path: "/damage-stock",
     route: DamageStockRoutes,
+  },
+  {
+    path: "/damage-repairing-stock",
+    route: DamageReparingStockRoutes,
   },
   {
     path: "/damage-repair",
@@ -218,6 +224,10 @@ const moduleRoutes = [
   {
     path: "/employee",
     route: EmployeeRoutes,
+  },
+  {
+    path: "/employee-list",
+    route: EmployeeListRoutes,
   },
   {
     path: "/salary",

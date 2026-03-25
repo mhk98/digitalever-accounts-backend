@@ -12,6 +12,7 @@ const User = db.user;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
 const DamageStock = db.damageStock;
+const DamageReparingStock = db.damageReparingStock;
 
 const findDamageStockByReference = async (receivedId, transaction) => {
   const byId = await DamageStock.findOne({
@@ -27,6 +28,66 @@ const findDamageStockByReference = async (receivedId, transaction) => {
     transaction,
     lock: transaction?.LOCK?.UPDATE,
   });
+};
+
+const findDamageReparingStockByProductId = async (productId, transaction) =>
+  DamageReparingStock.findOne({
+    where: { productId },
+    transaction,
+    lock: transaction?.LOCK?.UPDATE,
+  });
+
+const syncDamageReparingStock = async (
+  { productId, name, quantityDelta, variants, date },
+  transaction,
+) => {
+  if (!productId || !quantityDelta) return;
+
+  const repairingStock = await findDamageReparingStockByProductId(
+    productId,
+    transaction,
+  );
+
+  if (!repairingStock) {
+    if (quantityDelta < 0) {
+      throw new ApiError(400, "DamageReparingStock balance cannot be negative");
+    }
+
+    await DamageReparingStock.create(
+      {
+        name,
+        productId,
+        quantity: quantityDelta,
+        variants: variants || [],
+        date,
+      },
+      { transaction },
+    );
+
+    return;
+  }
+
+  const currentQty = Number(repairingStock.quantity || 0);
+  const nextQty = currentQty + quantityDelta;
+
+  if (nextQty < 0) {
+    throw new ApiError(400, "DamageReparingStock balance cannot be negative");
+  }
+
+  const nextVariants =
+    quantityDelta > 0
+      ? mergeVariants(repairingStock.variants, variants)
+      : subtractVariants(repairingStock.variants, variants);
+
+  await repairingStock.update(
+    {
+      name: name || repairingStock.name,
+      date: date || repairingStock.date,
+      quantity: nextQty,
+      variants: nextVariants,
+    },
+    { transaction },
+  );
 };
 
 const insertIntoDB = async (data) => {
@@ -128,6 +189,17 @@ const insertIntoDB = async (data) => {
         ),
       },
       { where: { Id: received.Id }, transaction: t },
+    );
+
+    await syncDamageReparingStock(
+      {
+        productId: realProductId,
+        name: received.name,
+        quantityDelta: returnQty,
+        variants: incomingVariants,
+        date,
+      },
+      t,
     );
 
     const users = await User.findAll({
@@ -258,7 +330,7 @@ const deleteIdFromDB = async (id) => {
     // 1) Return row খুঁজে বের করো
     const ret = await DamageRepair.findOne({
       where: { Id: id },
-      attributes: ["Id", "productId", "quantity", "variants"],
+      attributes: ["Id", "name", "date", "productId", "quantity", "variants"],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -288,6 +360,17 @@ const deleteIdFromDB = async (id) => {
         sale_price: Number(received.sale_price * finalQuantity || 0),
       },
       { where: { Id: received.Id }, transaction: t },
+    );
+
+    await syncDamageReparingStock(
+      {
+        productId: Number(ret.productId),
+        name: ret.name,
+        quantityDelta: -qty,
+        variants: parseVariants(ret.variants),
+        date: ret.date,
+      },
+      t,
     );
 
     // 4) Return row delete
@@ -369,7 +452,7 @@ const updateOneFromDB = async (id, data) => {
   return await db.sequelize.transaction(async (t) => {
     const existing = await DamageRepair.findOne({
       where: { Id: id },
-      attributes: ["Id", "quantity", "variants", "productId"],
+      attributes: ["Id", "name", "date", "quantity", "variants", "productId"],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -396,6 +479,17 @@ const updateOneFromDB = async (id, data) => {
       { transaction: t },
     );
 
+    await syncDamageReparingStock(
+      {
+        productId: oldProductId,
+        name: existing.name,
+        quantityDelta: -qty,
+        variants: existingVariants,
+        date: existing.date,
+      },
+      t,
+    );
+
     let received = oldStock;
     if (Number(receivedId) !== oldProductId) {
       received = await findDamageStockByReference(rid, t);
@@ -409,7 +503,9 @@ const updateOneFromDB = async (id, data) => {
     }
 
     const perUnitPurchase =
-      availableQty > 0 ? Number(received.purchase_price || 0) / availableQty : 0;
+      availableQty > 0
+        ? Number(received.purchase_price || 0) / availableQty
+        : 0;
     const perUnitSale =
       availableQty > 0 ? Number(received.sale_price || 0) / availableQty : 0;
 
@@ -452,6 +548,17 @@ const updateOneFromDB = async (id, data) => {
         variants: updatedVariants,
       },
       { where: { Id: received.Id }, transaction: t },
+    );
+
+    await syncDamageReparingStock(
+      {
+        productId: realProductId,
+        name: received.name,
+        quantityDelta: nextQty,
+        variants: incomingVariants,
+        date: inputDateStr || date,
+      },
+      t,
     );
 
     // await DamageStock.update(
