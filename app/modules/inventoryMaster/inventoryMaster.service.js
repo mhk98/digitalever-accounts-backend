@@ -128,6 +128,29 @@ const getAllFromDBWithoutQuery = async () => {
   return result;
 };
 
+const getLowStockProductsFromDB = async (threshold = 10) => {
+  const parsedThreshold = Number(threshold);
+  const safeThreshold = Number.isNaN(parsedThreshold) ? 10 : parsedThreshold;
+
+  const result = await InventoryMaster.findAll({
+    where: {
+      quantity: {
+        [Op.lt]: safeThreshold,
+      },
+      deletedAt: {
+        [Op.is]: null,
+      },
+    },
+    paranoid: true,
+    order: [
+      ["quantity", "ASC"],
+      ["createdAt", "DESC"],
+    ],
+  });
+
+  return result;
+};
+
 const InventoryMasterService = {
   getAllFromDB,
   insertIntoDB,
@@ -135,6 +158,7 @@ const InventoryMasterService = {
   updateOneFromDB,
   getDataById,
   getAllFromDBWithoutQuery,
+  getLowStockProductsFromDB,
 };
 
 module.exports = InventoryMasterService;

@@ -14,7 +14,8 @@ router.post(
 );
 router.get("/", InventoryMasterController.getAllFromDB);
 router.get("/all", InventoryMasterController.getAllFromDBWithoutQuery);
-router.get("/", InventoryMasterController.getDataById);
+router.get("/low-stock", InventoryMasterController.getLowStockProducts);
+router.get("/:id", InventoryMasterController.getDataById);
 router.delete(
   "/:id",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),

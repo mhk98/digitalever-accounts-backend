@@ -566,7 +566,7 @@ const deleteIdFromDB = async (id) => {
 //         Notification.create({
 //           userId: u.Id,
 //           message,
-//           url: `/kafelamart.digitalever.com.bd/damage-product`,
+//           url: `/holygift.digitalever.com.bd/damage-product`,
 //         }),
 //       ),
 //     );
@@ -705,7 +705,10 @@ const updateOneFromDB = async (id, payload) => {
 
     let targetDamageStock = oldDamageStock;
     if (Number(targetInv.productId) !== oldProductId) {
-      targetDamageStock = await findDamageStockByProductId(targetInv.productId, t);
+      targetDamageStock = await findDamageStockByProductId(
+        targetInv.productId,
+        t,
+      );
     }
 
     if (targetDamageStock) {
@@ -759,7 +762,7 @@ const updateOneFromDB = async (id, payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/kafelamart.digitalever.com.bd/purchase-product`,
+          url: `/holygift.digitalever.com.bd/purchase-product`,
         }),
       ),
     );

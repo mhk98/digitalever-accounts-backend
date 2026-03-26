@@ -81,7 +81,7 @@ const ApiError = require("./error/ApiError");
 const app = express();
 const server = http.createServer(app);
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 4000;
 
 /* ========================
    MIDDLEWARE
@@ -216,7 +216,7 @@ process.on("SIGINT", async () => {
 // /* -------------------- CORS -------------------- */
 // const allowedOrigins = [
 //   "http://localhost:5173",
-//   "https://kafelamart.digitalever.com.bd",
+//   "https://holygift.digitalever.com.bd",
 // ];
 
 // const corsOptions = {

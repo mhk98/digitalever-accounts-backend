@@ -5,14 +5,32 @@ const ApiError = require("../../../error/ApiError");
 const { EmployeeListSearchableFields } = require("./employeeList.constants");
 const EmployeeList = db.employeeList;
 
-const insertIntoDB = async (data) => {
-  const { name } = data;
+const insertIntoDB = async (payload) => {
+  const { name, employee_id, salary, date, note, status } = payload;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
 
-  const payload = {
+  // ✅ Approved হলে পুরোনো date-ও allow + save
+  const isApproved = String(status || "").trim() === "Approved";
+
+  // ✅ current date না হলে auto Pending
+  const finalStatus = isApproved
+    ? "Approved"
+    : inputDateStr !== todayStr
+      ? "Pending"
+      : note
+        ? "Pending"
+        : "Active";
+
+  const data = {
     name,
+    employee_id,
+    salary,
+    status: finalStatus,
+    date,
+    note,
   };
-  console.log("data", data);
-  const result = await EmployeeList.create(payload);
+  const result = await EmployeeList.create(data);
   return result;
 };
 
@@ -103,10 +121,55 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { name } = payload;
+  const { name, employee_id, salary, date, status } = payload;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10);
+
+  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
+  const existing = await EmployeeList.findOne({
+    where: { Id: id },
+    attributes: ["Id", "note", "status"],
+  });
+
+  if (!existing) return 0;
+
+  const oldNote = String(existing.note || "").trim();
+  const newNote = String(note || "").trim();
+
+  // ✅ newNote খালি না হলে + oldNote থেকে আলাদা হলে => pending trigger
+  const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
+
+  // ✅ today না হলে pending trigger (date না পাঠালে trigger হবে না)
+  const dateTriggersPending =
+    Boolean(inputDateStr) && inputDateStr !== todayStr;
+
+  const inputStatus = String(status || "").trim();
+
+  let finalStatus = existing.status || "Pending";
+
+  const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
+
+  if (isPrivileged) {
+    // ✅ superAdmin/admin: যা পাঠাবে সেটাই
+    finalStatus = inputStatus || finalStatus;
+  } else {
+    // ✅ others: today date না হলে বা new note হলে Pending override
+    if (dateTriggersPending || noteTriggersPending) {
+      finalStatus = "Pending";
+    } else {
+      // ✅ otherwise: status পাঠালে সেটাই, না পাঠালে আগেরটা
+      finalStatus = inputStatus || finalStatus;
+    }
+  }
 
   const data = {
     name,
+    employee_id,
+    salary,
+    note: newNote || null,
+    date: inputDateStr || undefined,
+    status: finalStatus,
   };
   const result = await EmployeeList.update(data, {
     where: {

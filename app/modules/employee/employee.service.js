@@ -232,7 +232,6 @@ const updateOneFromDB = async (id, payload) => {
     unapproval_absent,
     net_salary,
     note: newNote || null,
-    status: finalStatus,
     date: inputDateStr || undefined,
     remarks,
     status: finalStatus,
@@ -265,7 +264,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/kafelamart.digitalever.com.bd/employee`,
+        url: `/holygift.digitalever.com.bd/employee`,
       }),
     ),
   );

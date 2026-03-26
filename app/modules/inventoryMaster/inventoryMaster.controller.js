@@ -73,6 +73,20 @@ const getAllFromDBWithoutQuery = catchAsync(async (req, res) => {
   });
 });
 
+const getLowStockProducts = catchAsync(async (req, res) => {
+  const threshold = req.query.threshold || 10;
+  const result = await InventoryMasterService.getLowStockProductsFromDB(
+    threshold,
+  );
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Low stock products fetched!!",
+    data: result,
+  });
+});
+
 const InventoryMasterController = {
   getAllFromDB,
   insertIntoDB,
@@ -80,6 +94,7 @@ const InventoryMasterController = {
   updateOneFromDB,
   deleteIdFromDB,
   getAllFromDBWithoutQuery,
+  getLowStockProducts,
 };
 
 module.exports = InventoryMasterController;

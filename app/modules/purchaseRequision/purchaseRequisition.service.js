@@ -58,7 +58,7 @@ const Warehouse = db.warehouse;
 //       Notification.create({
 //         userId: u.Id,
 //         message,
-//         url: `/kafelamart.digitalever.com.bd/purchase-requisition`,
+//         url: `/holygift.digitalever.com.bd/purchase-requisition`,
 //       }),
 //     ),
 //   );
@@ -198,7 +198,7 @@ const insertIntoDB = async (data) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/kafelamart.digitalever.com.bd/purchase-requisition`,
+          url: `/holygift.digitalever.com.bd/purchase-requisition`,
         }),
       ),
     );
@@ -420,7 +420,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/kafelamart.digitalever.com.bd/purchase-product`,
+        url: `/holygift.digitalever.com.bd/purchase-product`,
       }),
     ),
   );
