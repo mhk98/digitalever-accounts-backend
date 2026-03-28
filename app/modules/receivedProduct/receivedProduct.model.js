@@ -39,6 +39,17 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: [],
         allowNull: true,
       },
+      sku: {
+        type: DataTypes.STRING,
+        defaultValue: "",
+        allowNull: true,
+      },
+      weight: {
+        type: DataTypes.INTEGER(10),
+        defaultValue: 0,
+        allowNull: true,
+      },
+
       quantity: {
         type: DataTypes.INTEGER(10),
         defaultValue: 0,

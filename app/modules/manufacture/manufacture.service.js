@@ -14,6 +14,23 @@ const toNumber = (value) => {
   return Number.isFinite(num) ? num : 0;
 };
 
+const normalizeUnitPayload = (unit, unitValue) => {
+  const normalizedUnitValue = toNumber(unitValue);
+  const normalizedUnit = String(unit || "Pcs").trim() || "Pcs";
+
+  if (normalizedUnit.toLowerCase() === "kg") {
+    return {
+      unit: "ml",
+      unitValue: normalizedUnitValue * 1000,
+    };
+  }
+
+  return {
+    unit: normalizedUnit,
+    unitValue: normalizedUnitValue,
+  };
+};
+
 const resolveStatus = ({ status, date, note }) => {
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10);
@@ -32,7 +49,8 @@ const insertIntoDB = async (payload) => {
   const itemData = await Item.findOne({ where: { Id: itemId } });
   if (!itemData) throw new ApiError(404, "Item not found");
 
-  const totalUnitValue = toNumber(unitValue);
+  const normalizedPayload = normalizeUnitPayload(unit, unitValue);
+  const totalUnitValue = normalizedPayload.unitValue;
   const totalCost = toNumber(cost);
 
   if (totalUnitValue <= 0) {
@@ -48,7 +66,7 @@ const insertIntoDB = async (payload) => {
       itemId,
       productId: productId || null,
       name: itemData.name,
-      unit: unit || "Pcs",
+      unit: normalizedPayload.unit,
       unitValue: totalUnitValue,
       cost: totalCost,
       unitCost: calculatedUnitCost,
@@ -70,7 +88,7 @@ const insertIntoDB = async (payload) => {
           itemId,
           productId: productId || stockRow.productId || null,
           name: itemData.name,
-          unit: unit || stockRow.unit || "Pcs",
+          unit: normalizedPayload.unit,
           unitValue: nextQuantity,
           unitCost: calculatedUnitCost,
           cost: nextQuantity * calculatedUnitCost,
@@ -83,7 +101,7 @@ const insertIntoDB = async (payload) => {
           itemId,
           productId: productId || null,
           name: itemData.name,
-          unit: unit || "Pcs",
+          unit: normalizedPayload.unit,
           unitValue: totalUnitValue,
           unitCost: calculatedUnitCost,
           cost: totalCost,
@@ -181,7 +199,17 @@ const updateOneFromDB = async (id, payload) => {
 
   const existing = await Manufacture.findOne({
     where: { Id: id },
-    attributes: ["Id", "note", "status"],
+    attributes: [
+      "Id",
+      "itemId",
+      "productId",
+      "name",
+      "unit",
+      "unitValue",
+      "cost",
+      "note",
+      "status",
+    ],
   });
 
   if (!existing) return 0;
@@ -205,27 +233,112 @@ const updateOneFromDB = async (id, payload) => {
     finalStatus = inputStatus || finalStatus;
   }
 
-  const totalUnitValue =
-    unitValue === "" || unitValue == null ? undefined : toNumber(unitValue);
+  const nextUnitInput = unit === "" || unit == null ? existing.unit : unit;
+  const nextUnitValueInput =
+    unitValue === "" || unitValue == null ? existing.unitValue : unitValue;
+  const normalizedPayload = normalizeUnitPayload(
+    nextUnitInput,
+    nextUnitValueInput,
+  );
+  const totalUnitValue = normalizedPayload.unitValue;
   const totalCost = cost === "" || cost == null ? undefined : toNumber(cost);
+  const nextTotalCost =
+    totalCost === undefined ? toNumber(existing.cost) : totalCost;
+  const nextItemId = itemId || existing.itemId;
+  const nextProductId =
+    productId === "" || productId == null ? existing.productId : productId;
+  const nextName = name === "" || name == null ? existing.name : name;
 
   const data = {
-    itemId: itemId || undefined,
-    productId: productId || undefined,
-    name: name === "" || name == null ? undefined : name,
-    unit: unit === "" || unit == null ? undefined : unit,
+    itemId: nextItemId,
+    productId: nextProductId,
+    name: nextName,
+    unit: normalizedPayload.unit,
     unitValue: totalUnitValue,
-    cost: totalCost,
-    unitCost:
-      totalUnitValue && totalUnitValue > 0 && totalCost != null
-        ? totalCost / totalUnitValue
-        : undefined,
+    cost: nextTotalCost,
+    unitCost: totalUnitValue > 0 ? nextTotalCost / totalUnitValue : undefined,
     note: newNote || null,
     status: finalStatus,
     date: inputDateStr || undefined,
   };
 
-  const [updatedCount] = await Manufacture.update(data, { where: { Id: id } });
+  const oldItemId = existing.itemId;
+  const oldUnitValue = toNumber(existing.unitValue);
+
+  const updatedCount = await db.sequelize.transaction(async (t) => {
+    const oldStockRow = await ItemMaster.findOne({
+      where: { itemId: oldItemId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (oldStockRow) {
+      const reducedQuantity = toNumber(oldStockRow.unitValue) - oldUnitValue;
+
+      if (reducedQuantity < 0) {
+        throw new ApiError(400, "Item stock cannot be negative");
+      }
+
+      await oldStockRow.update(
+        {
+          unitValue: reducedQuantity,
+          cost: reducedQuantity * toNumber(oldStockRow.unitCost),
+        },
+        { transaction: t },
+      );
+    }
+
+    let targetStockRow = oldStockRow;
+    if (Number(oldItemId) !== Number(nextItemId)) {
+      targetStockRow = await ItemMaster.findOne({
+        where: { itemId: nextItemId },
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+    }
+
+    const nextUnitCost =
+      totalUnitValue > 0 ? nextTotalCost / totalUnitValue : 0;
+
+    if (!targetStockRow) {
+      await ItemMaster.create(
+        {
+          itemId: nextItemId,
+          productId: nextProductId || null,
+          name: nextName,
+          unit: normalizedPayload.unit,
+          unitValue: totalUnitValue,
+          unitCost: nextUnitCost,
+          cost: nextTotalCost,
+        },
+        { transaction: t },
+      );
+    } else {
+      const mergedQuantity =
+        toNumber(targetStockRow.unitValue) + totalUnitValue;
+
+      await targetStockRow.update(
+        {
+          itemId: nextItemId,
+          productId: nextProductId || targetStockRow.productId || null,
+          name: nextName,
+          unit: normalizedPayload.unit,
+          unitValue: mergedQuantity,
+          unitCost: nextUnitCost,
+          cost: mergedQuantity * nextUnitCost,
+        },
+        { transaction: t },
+      );
+    }
+
+    const [count] = await Manufacture.update(data, {
+      where: { Id: id },
+      transaction: t,
+    });
+
+    return count;
+  });
+
   if (updatedCount <= 0) return updatedCount;
 
   const users = await User.findAll({
@@ -248,7 +361,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: "/holygift.digitalever.com.bd/manufacture",
+        url: "/kafelamart.digitalever.com.bd/manufacture",
       }),
     ),
   );

@@ -342,7 +342,7 @@ const updateOneFromDB = async (id, data) => {
           {
             userId: u.Id,
             message,
-            url: `/holygift.digitalever.com.bd/assets-damage`,
+            url: `/kafelamart.digitalever.com.bd/assets-damage`,
           },
           { transaction: t },
         ),

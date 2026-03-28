@@ -593,7 +593,7 @@ const updateOneFromDB = async (id, data) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/holygift.digitalever.com.bd/damage-product`,
+          url: `/kafelamart.digitalever.com.bd/damage-product`,
         }),
       ),
     );
