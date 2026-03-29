@@ -121,7 +121,7 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { name, employee_id, salary, date, status } = payload;
+  const { name, employee_id, salary, date, note, status, actorRole } = payload;
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10);

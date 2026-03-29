@@ -14,7 +14,7 @@ const Warehouse = db.warehouse;
 const InventoryMaster = db.inventoryMaster;
 const DamageStock = db.damageStock;
 
-const findInventoryByReceivedId = async (receivedId, transaction) => {
+const findInventoryByStoredReference = async (receivedId, transaction) => {
   const inventoryByInventoryId = await InventoryMaster.findOne({
     where: { Id: receivedId },
     transaction,
@@ -28,6 +28,18 @@ const findInventoryByReceivedId = async (receivedId, transaction) => {
     transaction,
     lock: transaction?.LOCK?.UPDATE,
   });
+};
+
+const findInventoryByRequestReference = async (receivedId, transaction) => {
+  const inventoryByProductId = await InventoryMaster.findOne({
+    where: { productId: receivedId },
+    transaction,
+    lock: transaction?.LOCK?.UPDATE,
+  });
+
+  if (inventoryByProductId) return inventoryByProductId;
+
+  return findInventoryByStoredReference(receivedId, transaction);
 };
 
 const findDamageStockByProductId = async (productId, transaction) =>
@@ -150,7 +162,7 @@ const insertIntoDB = async (data) => {
         : "Active";
 
   return await db.sequelize.transaction(async (t) => {
-    const inventory = await findInventoryByReceivedId(rid, t);
+    const inventory = await findInventoryByRequestReference(rid, t);
 
     if (!inventory) throw new ApiError(404, "inventory product not found");
 
@@ -167,8 +179,13 @@ const insertIntoDB = async (data) => {
     // const deductPurchase = perUnitPurchase * returnQty;
     // const deductSale = perUnitSale * returnQty;
 
-    const realProductId = Number(inventory.productId);
-    if (!realProductId) {
+    const inventoryId = Number(inventory.Id);
+    if (!inventoryId) {
+      throw new ApiError(400, "InventoryMaster.Id missing");
+    }
+
+    const catalogProductId = Number(inventory.productId);
+    if (!catalogProductId) {
       throw new ApiError(
         400,
         "InventoryMaster.productId missing (Products.Id)",
@@ -185,7 +202,7 @@ const insertIntoDB = async (data) => {
         source: "Damage Product",
         purchase_price: inventory.purchase_price * returnQty,
         sale_price: inventory.sale_price * returnQty,
-        productId: realProductId, // ✅ Products.Id (FK)
+        productId: inventoryId,
         status: finalStatus || "---",
         note: note || null,
         date: date,
@@ -194,7 +211,7 @@ const insertIntoDB = async (data) => {
     );
 
     if (result) {
-      const dStock = await findDamageStockByProductId(realProductId, t);
+      const dStock = await findDamageStockByProductId(catalogProductId, t);
 
       if (dStock) {
         await dStock.update(
@@ -207,7 +224,7 @@ const insertIntoDB = async (data) => {
       } else {
         await DamageStock.create(
           {
-            productId: realProductId,
+            productId: catalogProductId,
             name: inventory.name,
             quantity: Number(quantity || 0),
             variants: incomingVariants,
@@ -369,17 +386,19 @@ const deleteIdFromDB = async (id) => {
     // if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
 
     // 2) InventoryMaster খুঁজে বের করো (Products.Id দিয়ে)
-    const received = await InventoryMaster.findOne({
-      where: { productId: ret.productId }, // ✅ Products.Id
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
+    const received = await findInventoryByStoredReference(
+      Number(ret.productId),
+      t,
+    );
 
     if (!received) throw new ApiError(404, "Received product not found");
 
     const finalQuantity = Number(received.quantity || 0) + qty;
     const finalVariants = mergeVariants(received.variants, ret.variants);
-    const damageStock = await findDamageStockByProductId(ret.productId, t);
+    const damageStock = await findDamageStockByProductId(
+      Number(received.productId),
+      t,
+    );
 
     if (damageStock) {
       const nextDamageQty = Number(damageStock.quantity || 0) - qty;
@@ -642,7 +661,7 @@ const updateOneFromDB = async (id, payload) => {
         : note || "Please approved my request";
 
     const oldInv = await InventoryMaster.findOne({
-      where: { productId: oldProductId },
+      where: { Id: oldProductId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -659,7 +678,7 @@ const updateOneFromDB = async (id, payload) => {
 
     let targetInv = oldInv;
     if (Number(receivedId) !== oldProductId) {
-      targetInv = await findInventoryByReceivedId(Number(receivedId), t);
+      targetInv = await findInventoryByRequestReference(Number(receivedId), t);
     }
 
     if (!targetInv) throw new ApiError(404, "Product not found in inventory");
@@ -681,13 +700,21 @@ const updateOneFromDB = async (id, payload) => {
       sale_price: Number(targetInv.sale_price || 0) * nextQty,
       supplierId,
       warehouseId,
-      productId: targetInv.productId,
+      productId: targetInv.Id,
       note: newNote || null,
       status: finalStatus,
       date: inputDateStr || undefined,
     };
 
-    const oldDamageStock = await findDamageStockByProductId(oldProductId, t);
+    const oldCatalogProductId = Number(oldInv.productId);
+    if (!oldCatalogProductId) {
+      throw new ApiError(400, "Old inventory productId missing");
+    }
+
+    const oldDamageStock = await findDamageStockByProductId(
+      oldCatalogProductId,
+      t,
+    );
     if (oldDamageStock) {
       const rolledBackDamageQty = Number(oldDamageStock.quantity || 0) - qty;
       if (rolledBackDamageQty < 0) {
@@ -703,10 +730,11 @@ const updateOneFromDB = async (id, payload) => {
       );
     }
 
+    const targetCatalogProductId = Number(targetInv.productId);
     let targetDamageStock = oldDamageStock;
-    if (Number(targetInv.productId) !== oldProductId) {
+    if (targetCatalogProductId !== oldCatalogProductId) {
       targetDamageStock = await findDamageStockByProductId(
-        targetInv.productId,
+        targetCatalogProductId,
         t,
       );
     }
@@ -722,7 +750,7 @@ const updateOneFromDB = async (id, payload) => {
     } else {
       await DamageStock.create(
         {
-          productId: targetInv.productId,
+          productId: targetCatalogProductId,
           name: targetInv.name,
           quantity: nextQty,
           variants: incomingVariants,

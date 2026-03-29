@@ -13,7 +13,7 @@ const Supplier = db.supplier;
 const Warehouse = db.warehouse;
 const InventoryMaster = db.inventoryMaster;
 
-const findInventoryByReceivedId = async (receivedId, transaction) => {
+const findInventoryByStoredReference = async (receivedId, transaction) => {
   const inventoryByInventoryId = await InventoryMaster.findOne({
     where: { Id: receivedId },
     transaction,
@@ -27,6 +27,18 @@ const findInventoryByReceivedId = async (receivedId, transaction) => {
     transaction,
     lock: transaction?.LOCK?.UPDATE,
   });
+};
+
+const findInventoryByRequestReference = async (receivedId, transaction) => {
+  const inventoryByProductId = await InventoryMaster.findOne({
+    where: { productId: receivedId },
+    transaction,
+    lock: transaction?.LOCK?.UPDATE,
+  });
+
+  if (inventoryByProductId) return inventoryByProductId;
+
+  return findInventoryByStoredReference(receivedId, transaction);
 };
 
 const insertIntoDB = async (data) => {
@@ -69,7 +81,7 @@ const insertIntoDB = async (data) => {
         : "Active";
 
   return await db.sequelize.transaction(async (t) => {
-    const inventory = await findInventoryByReceivedId(rid, t);
+    const inventory = await findInventoryByRequestReference(rid, t);
 
     if (!inventory) throw new ApiError(404, "inventory product not found");
 
@@ -86,12 +98,9 @@ const insertIntoDB = async (data) => {
     // const deductPurchase = perUnitPurchase * returnQty;
     // const deductSale = perUnitSale * returnQty;
 
-    const realProductId = Number(inventory.productId);
-    if (!realProductId) {
-      throw new ApiError(
-        400,
-        "InventoryMaster.productId missing (Products.Id)",
-      );
+    const inventoryId = Number(inventory.Id);
+    if (!inventoryId) {
+      throw new ApiError(400, "InventoryMaster.Id missing");
     }
 
     const result = await ReturnProduct.create(
@@ -104,7 +113,7 @@ const insertIntoDB = async (data) => {
         source: "Sales Return Product",
         purchase_price: inventory.purchase_price * returnQty,
         sale_price: inventory.sale_price * returnQty,
-        productId: realProductId, // ✅ Products.Id (FK)
+        productId: inventoryId,
         status: finalStatus || "---",
         note: note || null,
         date: date,
@@ -261,11 +270,10 @@ const deleteIdFromDB = async (id) => {
     if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
 
     // 2) InventoryMaster খুঁজে বের করো (Products.Id দিয়ে)
-    const received = await InventoryMaster.findOne({
-      where: { productId: ret.productId }, // ✅ Products.Id
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
+    const received = await findInventoryByStoredReference(
+      Number(ret.productId),
+      t,
+    );
 
     if (!received) throw new ApiError(404, "Received product not found");
 
@@ -556,7 +564,7 @@ const updateOneFromDB = async (id, payload) => {
         : note || "Please approved my request";
 
     const oldInv = await InventoryMaster.findOne({
-      where: { productId: oldProductId },
+      where: { Id: oldProductId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -578,7 +586,7 @@ const updateOneFromDB = async (id, payload) => {
 
     let targetInv = oldInv;
     if (Number(receivedId) !== oldProductId) {
-      targetInv = await findInventoryByReceivedId(Number(receivedId), t);
+      targetInv = await findInventoryByRequestReference(Number(receivedId), t);
     }
 
     if (!targetInv) throw new ApiError(404, "Product not found in inventory");
@@ -594,7 +602,7 @@ const updateOneFromDB = async (id, payload) => {
       sale_price: Number(targetInv.sale_price || 0) * nextQty,
       supplierId,
       warehouseId,
-      productId: targetInv.productId,
+      productId: targetInv.Id,
       note: newNote || null,
       status: finalStatus,
       date: inputDateStr || undefined,

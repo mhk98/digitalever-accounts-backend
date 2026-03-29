@@ -147,8 +147,13 @@ const insertIntoDB = async (data) => {
     const deductPurchase = perUnitPurchase * returnQty;
     const deductSale = perUnitSale * returnQty;
 
-    const realProductId = Number(received.productId);
-    if (!realProductId) {
+    const damageStockId = Number(received.Id);
+    if (!damageStockId) {
+      throw new ApiError(400, "DamageStock.Id missing");
+    }
+
+    const catalogProductId = Number(received.productId);
+    if (!catalogProductId) {
       throw new ApiError(400, "DamageStock.productId missing (Products.Id)");
     }
 
@@ -163,7 +168,7 @@ const insertIntoDB = async (data) => {
         variants: incomingVariants,
         purchase_price: deductPurchase,
         sale_price: deductSale,
-        productId: realProductId, // ✅ Products.Id (FK)
+        productId: damageStockId,
         status: finalStatus || "---",
         note: note || null,
         date: date,
@@ -193,7 +198,7 @@ const insertIntoDB = async (data) => {
 
     await syncDamageReparingStock(
       {
-        productId: realProductId,
+        productId: catalogProductId,
         name: received.name,
         quantityDelta: returnQty,
         variants: incomingVariants,
@@ -342,12 +347,12 @@ const deleteIdFromDB = async (id) => {
 
     // 2) ReceivedProduct খুঁজে বের করো (Products.Id দিয়ে)
     const received = await DamageStock.findOne({
-      where: { productId: ret.productId }, // ✅ Products.Id
+      where: { Id: ret.productId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    // if (!received) throw new ApiError(404, "Received product not found");
+    if (!received) throw new ApiError(404, "Received product not found");
 
     const finalQuantity = Number(received.quantity || 0) + qty;
     const finalVariants = mergeVariants(received.variants, ret.variants);
@@ -364,7 +369,7 @@ const deleteIdFromDB = async (id) => {
 
     await syncDamageReparingStock(
       {
-        productId: Number(ret.productId),
+        productId: Number(received.productId),
         name: ret.name,
         quantityDelta: -qty,
         variants: parseVariants(ret.variants),
@@ -464,7 +469,7 @@ const updateOneFromDB = async (id, data) => {
     const existingVariants = parseVariants(existing.variants);
 
     const oldStock = await DamageStock.findOne({
-      where: { productId: oldProductId },
+      where: { Id: oldProductId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -479,9 +484,14 @@ const updateOneFromDB = async (id, data) => {
       { transaction: t },
     );
 
+    const oldCatalogProductId = Number(oldStock.productId);
+    if (!oldCatalogProductId) {
+      throw new ApiError(400, "DamageStock.productId missing (Products.Id)");
+    }
+
     await syncDamageReparingStock(
       {
-        productId: oldProductId,
+        productId: oldCatalogProductId,
         name: existing.name,
         quantityDelta: -qty,
         variants: existingVariants,
@@ -512,8 +522,13 @@ const updateOneFromDB = async (id, data) => {
     const deductPurchase = perUnitPurchase * nextQty;
     const deductSale = perUnitSale * nextQty;
 
-    const realProductId = Number(received.productId);
-    if (!realProductId) {
+    const damageStockId = Number(received.Id);
+    if (!damageStockId) {
+      throw new ApiError(400, "DamageStock.Id missing");
+    }
+
+    const catalogProductId = Number(received.productId);
+    if (!catalogProductId) {
       throw new ApiError(400, "DamageStock.productId missing (Products.Id)");
     }
 
@@ -529,7 +544,7 @@ const updateOneFromDB = async (id, data) => {
       note: newNote || null,
       status: finalStatus,
       date: inputDateStr || undefined,
-      productId: realProductId, // ✅ Products.Id (FK)
+      productId: damageStockId,
     };
 
     const [updatedCount] = await DamageRepair.update(data, {
@@ -552,7 +567,7 @@ const updateOneFromDB = async (id, data) => {
 
     await syncDamageReparingStock(
       {
-        productId: realProductId,
+        productId: catalogProductId,
         name: received.name,
         quantityDelta: nextQty,
         variants: incomingVariants,

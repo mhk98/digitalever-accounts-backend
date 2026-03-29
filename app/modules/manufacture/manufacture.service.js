@@ -179,7 +179,29 @@ const getDataById = async (id) => {
 };
 
 const deleteIdFromDB = async (id) => {
-  return Manufacture.destroy({ where: { Id: id } });
+  return db.sequelize.transaction(async (t) => {
+    const existing = await Manufacture.findOne({
+      where: { Id: id },
+      attributes: ["Id", "itemId", "productId"],
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!existing) return 0;
+
+    await ItemMaster.destroy({
+      where: {
+        itemId: existing.itemId,
+        productId: existing.productId || null,
+      },
+      transaction: t,
+    });
+
+    return Manufacture.destroy({
+      where: { Id: id },
+      transaction: t,
+    });
+  });
 };
 
 const updateOneFromDB = async (id, payload) => {

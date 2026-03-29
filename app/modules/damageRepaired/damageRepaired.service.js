@@ -97,9 +97,32 @@ const insertIntoDB = async (data) => {
     const deductPurchase = perUnitPurchase * returnQty;
     const deductSale = perUnitSale * returnQty;
 
-    const realDamageStockId = Number(damageRepair.productId);
-    if (!realDamageStockId) {
-      throw new ApiError(400, "DamageRepair productId missing (Products.Id)");
+    const damageRepairId = Number(damageRepair.Id);
+    if (!damageRepairId) {
+      throw new ApiError(400, "DamageRepair.Id missing");
+    }
+
+    const damageStockId = Number(damageRepair.productId);
+    if (!damageStockId) {
+      throw new ApiError(
+        400,
+        "DamageRepair productId missing (DamageStock.Id)",
+      );
+    }
+
+    const damageStock = await db.damageStock.findOne({
+      where: { Id: damageStockId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!damageStock) {
+      throw new ApiError(404, "DamageStock not found");
+    }
+
+    const catalogProductId = Number(damageStock.productId);
+    if (!catalogProductId) {
+      throw new ApiError(400, "DamageStock.productId missing (Products.Id)");
     }
 
     const result = await DamageRepaired.create(
@@ -113,7 +136,7 @@ const insertIntoDB = async (data) => {
         variants: incomingVariants,
         purchase_price: deductPurchase,
         sale_price: deductSale,
-        productId: realDamageStockId, // ✅ Products.Id (FK)
+        productId: damageRepairId,
         status: finalStatus || "---",
         note: note || null,
         date: date,
@@ -122,7 +145,7 @@ const insertIntoDB = async (data) => {
     );
 
     const damageReparingStock = await DamageReparingStock.findOne({
-      where: { productId: realDamageStockId },
+      where: { productId: catalogProductId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -151,7 +174,7 @@ const insertIntoDB = async (data) => {
     );
 
     const inventory = await InventoryMaster.findOne({
-      where: { productId: realDamageStockId },
+      where: { productId: catalogProductId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -313,8 +336,33 @@ const deleteIdFromDB = async (id) => {
     const qty = Number(ret.quantity || 0);
     if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
 
+    const damageRepair = await DamageRepair.findOne({
+      where: { Id: ret.productId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!damageRepair) {
+      throw new ApiError(404, "DamageRepair product not found");
+    }
+
+    const damageStock = await db.damageStock.findOne({
+      where: { Id: damageRepair.productId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!damageStock) {
+      throw new ApiError(404, "DamageStock product not found");
+    }
+
+    const catalogProductId = Number(damageStock.productId);
+    if (!catalogProductId) {
+      throw new ApiError(400, "DamageStock.productId missing (Products.Id)");
+    }
+
     const received = await DamageReparingStock.findOne({
-      where: { productId: ret.productId }, // ✅ Products.Id
+      where: { productId: catalogProductId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -345,7 +393,7 @@ const deleteIdFromDB = async (id) => {
         quantity: finalQuantity,
         variants: subtractVariants(inventory.variants, ret.variants),
       },
-      { where: { productId: inventory.productId }, transaction: t },
+      { where: { Id: inventory.Id }, transaction: t },
     );
 
     // 4) Return row delete
@@ -422,7 +470,35 @@ const updateOneFromDB = async (id, data) => {
       }
     }
 
-    const newStatus = String(finalStatus || "").trim();
+    const oldDamageRepair = await DamageRepair.findOne({
+      where: { Id: oldProductId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!oldDamageRepair) {
+      throw new ApiError(404, "Old DamageRepair not found");
+    }
+
+    const oldDamageStockId = Number(oldDamageRepair.productId);
+    if (!oldDamageStockId) {
+      throw new ApiError(400, "Old DamageRepair.productId missing");
+    }
+
+    const oldDamageStock = await db.damageStock.findOne({
+      where: { Id: oldDamageStockId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!oldDamageStock) {
+      throw new ApiError(404, "Old DamageStock not found");
+    }
+
+    const oldCatalogProductId = Number(oldDamageStock.productId);
+    if (!oldCatalogProductId) {
+      throw new ApiError(400, "Old DamageStock.productId missing");
+    }
 
     const received = await DamageRepair.findOne({
       where: { Id: rid },
@@ -432,13 +508,36 @@ const updateOneFromDB = async (id, data) => {
 
     if (!received) throw new ApiError(404, "DamageRepair product not found");
 
-    const realProductId = Number(received.productId);
-    if (!realProductId) {
-      throw new ApiError(400, "DamageRepair.productId missing (Products.Id)");
+    const damageRepairId = Number(received.Id);
+    if (!damageRepairId) {
+      throw new ApiError(400, "DamageRepair.Id missing");
+    }
+
+    const targetDamageStockId = Number(received.productId);
+    if (!targetDamageStockId) {
+      throw new ApiError(
+        400,
+        "DamageRepair.productId missing (DamageStock.Id)",
+      );
+    }
+
+    const targetDamageStock = await db.damageStock.findOne({
+      where: { Id: targetDamageStockId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!targetDamageStock) {
+      throw new ApiError(404, "DamageStock not found");
+    }
+
+    const targetCatalogProductId = Number(targetDamageStock.productId);
+    if (!targetCatalogProductId) {
+      throw new ApiError(400, "DamageStock.productId missing (Products.Id)");
     }
 
     const oldDamageReparingStock = await DamageReparingStock.findOne({
-      where: { productId: oldProductId },
+      where: { productId: oldCatalogProductId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -459,7 +558,7 @@ const updateOneFromDB = async (id, data) => {
     );
 
     const oldInventory = await InventoryMaster.findOne({
-      where: { productId: oldProductId },
+      where: { productId: oldCatalogProductId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -482,13 +581,13 @@ const updateOneFromDB = async (id, data) => {
 
     let targetDamageReparingStock = oldDamageReparingStock;
     let targetInventory = oldInventory;
-    if (realProductId !== oldProductId) {
+    if (damageRepairId !== oldProductId) {
       targetDamageReparingStock = await findDamageReparingStockByReference(
-        realProductId,
+        targetCatalogProductId,
         t,
       );
       targetInventory = await InventoryMaster.findOne({
-        where: { productId: realProductId },
+        where: { productId: targetCatalogProductId },
         transaction: t,
         lock: t.LOCK.UPDATE,
       });
@@ -532,7 +631,7 @@ const updateOneFromDB = async (id, data) => {
         note: newNote || null,
         status: finalStatus,
         date: inputDateStr || undefined,
-        productId: realProductId,
+        productId: damageRepairId,
       },
       { where: { Id: id }, transaction: t },
     );

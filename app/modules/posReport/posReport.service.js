@@ -10,6 +10,22 @@ const WarrantyProduct = db.warrantyProduct;
 const InventoryMaster = db.inventoryMaster;
 const ConfirmOrder = db.confirmOrder;
 
+const findInventoryByReference = async (referenceId, transaction) => {
+  const inventoryByInventoryId = await InventoryMaster.findOne({
+    where: { Id: referenceId },
+    transaction,
+    lock: transaction?.LOCK?.UPDATE,
+  });
+
+  if (inventoryByInventoryId) return inventoryByInventoryId;
+
+  return InventoryMaster.findOne({
+    where: { productId: referenceId },
+    transaction,
+    lock: transaction?.LOCK?.UPDATE,
+  });
+};
+
 const insertIntoDB = async (payload) => {
   const {
     name,
@@ -75,11 +91,7 @@ const insertIntoDB = async (payload) => {
       if (!rid) throw new ApiError(400, "inventory id is required");
       if (!qty || qty <= 0) throw new ApiError(400, "qty must be > 0");
 
-      const inventory = await InventoryMaster.findOne({
-        where: { productId: rid },
-        transaction: t,
-        lock: t.LOCK.UPDATE,
-      });
+      const inventory = await findInventoryByReference(rid, t);
 
       if (!inventory)
         throw new ApiError(404, `inventory product not found: ${rid}`);
@@ -270,11 +282,7 @@ const deleteIdFromDB = async (id) => {
     if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
 
     // 2) InventoryMaster খুঁজে বের করো (Products.Id দিয়ে)
-    const received = await InventoryMaster.findOne({
-      where: { productId: ret.productId }, // ✅ Products.Id
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
+    const received = await findInventoryByReference(ret.productId, t);
 
     if (!received) throw new ApiError(404, "Received product not found");
 
@@ -468,11 +476,7 @@ const updateOneFromDB = async (data) => {
   }
 
   return await db.sequelize.transaction(async (t) => {
-    const received = await InventoryMaster.findOne({
-      where: { productId: rid },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
+    const received = await findInventoryByReference(rid, t);
 
     if (!received) throw new ApiError(404, "Received product not found");
 
