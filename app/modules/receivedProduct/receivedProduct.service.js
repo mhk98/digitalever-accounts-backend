@@ -27,6 +27,11 @@ const normalizeNullableId = (value) => {
   return trimmedValue === "" ? null : trimmedValue;
 };
 
+const toNumber = (value) => {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number : 0;
+};
+
 const insertIntoDB = async (data, file) => {
   const {
     quantity,
@@ -339,9 +344,7 @@ const deleteIdFromDB = async (id) => {
     if (!existing) throw new ApiError(404, "Received product not found");
 
     const productId = Number(existing.productId);
-    const qty = Number(existing.quantity || 0);
-    const purchaseTotal = Number(existing.purchase_price || 0);
-    const saleTotal = Number(existing.sale_price || 0);
+    const qty = toNumber(existing.quantity);
 
     // ✅ 2) InventoryMaster subtract
     const inv = await InventoryMaster.findOne({
@@ -426,8 +429,8 @@ const updateOneFromDB = async (id, payload) => {
 
     // await Payable.create(payableData, { transaction: t });
 
-    const qty = Number(existing.quantity || 0);
-    const nextQty = Number(quantity || 0);
+    const qty = toNumber(existing.quantity);
+    const nextQty = toNumber(quantity);
     const oldProductId = Number(existing.productId);
     const newProductId = Number(productId);
     const existingVariants = parseVariants(existing.variants);
@@ -475,66 +478,97 @@ const updateOneFromDB = async (id, payload) => {
       file,
     };
 
-    // ✅ 2) InventoryMaster: old entry minus + new entry plus
+    // ✅ 2) InventoryMaster: quantity change হলে existing quantity এর diff অনুযায়ী adjust করো
     const oldInv = await InventoryMaster.findOne({
       where: { productId: oldProductId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (oldInv) {
-      const reducedQty = Number(oldInv.quantity || 0) - qty;
-      if (reducedQty < 0) {
+    if (!oldInv && oldProductId === newProductId) {
+      throw new ApiError(404, "Inventory not found for this product");
+    }
+
+    if (oldProductId === newProductId) {
+      const quantityDiff = nextQty - qty;
+      const nextInventoryQty = toNumber(oldInv.quantity) + quantityDiff;
+
+      if (nextInventoryQty < 0) {
         throw new ApiError(400, "Inventory cannot be negative");
       }
 
+      const nextInventoryVariants = mergeVariants(
+        subtractVariants(oldInv.variants, existingVariants),
+        incomingVariants,
+      );
+
       await oldInv.update(
         {
-          quantity: reducedQty,
-          variants: subtractVariants(oldInv.variants, existingVariants),
-        },
-        { transaction: t },
-      );
-    }
-
-    let targetInv = oldInv;
-    if (oldProductId !== newProductId) {
-      targetInv = await InventoryMaster.findOne({
-        where: { productId: newProductId },
-        transaction: t,
-        lock: t.LOCK.UPDATE,
-      });
-    }
-
-    if (!targetInv) {
-      await InventoryMaster.create(
-        {
           name: productData.name,
-          productId: newProductId,
-          quantity: nextQty,
           sku,
           weight,
-          variants: incomingVariants,
+          quantity: nextInventoryQty,
+          variants: nextInventoryVariants,
           purchase_price: Number(purchase_price || 0),
           sale_price: Number(sale_price || 0),
         },
         { transaction: t },
       );
     } else {
-      const updatedVariants = mergeVariants(
-        targetInv.variants,
-        incomingVariants,
-      );
+      const reducedQty = toNumber(oldInv?.quantity) - qty;
+      if (reducedQty < 0) {
+        throw new ApiError(400, "Inventory cannot be negative");
+      }
 
-      await targetInv.update(
-        {
-          quantity: Number(targetInv.quantity || 0) + nextQty,
-          variants: updatedVariants,
-          purchase_price: Number(purchase_price || 0),
-          sale_price: Number(sale_price || 0),
-        },
-        { transaction: t },
-      );
+      if (oldInv) {
+        await oldInv.update(
+          {
+            quantity: reducedQty,
+            variants: subtractVariants(oldInv.variants, existingVariants),
+          },
+          { transaction: t },
+        );
+      }
+
+      const targetInv = await InventoryMaster.findOne({
+        where: { productId: newProductId },
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+
+      if (!targetInv) {
+        await InventoryMaster.create(
+          {
+            name: productData.name,
+            productId: newProductId,
+            quantity: nextQty,
+            sku,
+            weight,
+            variants: incomingVariants,
+            purchase_price: Number(purchase_price || 0),
+            sale_price: Number(sale_price || 0),
+          },
+          { transaction: t },
+        );
+      } else {
+        const updatedVariants = mergeVariants(
+          targetInv.variants,
+          incomingVariants,
+        );
+
+        await targetInv.update(
+          {
+            name: productData.name,
+            sku,
+            weight,
+            quantity: toNumber(targetInv.quantity) + nextQty,
+            variants: updatedVariants,
+            purchase_price: Number(purchase_price || 0),
+            sale_price: Number(sale_price || 0),
+          },
+          { transaction: t },
+        );
+      }
     }
 
     const [updatedCount] = await ReceivedProduct.update(data, {

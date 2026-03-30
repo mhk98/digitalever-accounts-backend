@@ -48,6 +48,7 @@ const StockAdjustmentRoutes = require("../modules/stockAdjustment/stockAdjustmen
 const VariationRoutes = require("../modules/variation/variation.routes");
 const DamageReparingStockRoutes = require("../modules/damageReparingStock/damageReparingStock.routes");
 const EmployeeListRoutes = require("../modules/employeeList/employeeList.routes");
+const ProfileLossRoutes = require("../modules/profileLoss/profileLoss.routes");
 
 const router = express.Router();
 
@@ -188,6 +189,10 @@ const moduleRoutes = [
   {
     path: "/marketing-expense",
     route: MarketingExpenseRoutes,
+  },
+  {
+    path: "/profit-loss",
+    route: ProfileLossRoutes,
   },
   {
     path: "/category",

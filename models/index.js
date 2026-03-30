@@ -141,6 +141,12 @@ db.expense = require("../app/modules/expense/expense.model")(
 );
 
 db.book = require("../app/modules/book/book.model")(db.sequelize, DataTypes);
+
+db.profileLoss = require("../app/modules/profileLoss/profileLoss.model")(
+  db.sequelize,
+  DataTypes,
+);
+
 db.marketingBook = require("../app/modules/marketingBook/marketingBook.model")(
   db.sequelize,
   DataTypes,

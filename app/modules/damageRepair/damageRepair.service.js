@@ -226,7 +226,7 @@ const insertIntoDB = async (data) => {
           Notification.create({
             userId: u.Id,
             message,
-            url: "/purchase-requisition",
+            url: "/kafelamart.digitalever.com.bd/purchase-requisition",
           }),
         ),
       );
