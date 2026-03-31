@@ -15,6 +15,7 @@ const CashInOutSearchableFields = [
   "paymentMode",
   "paymentStatus",
   "category",
+  "bankAccount",
 ]; // ✅ এখানে searchTerm দিবে না
 
 module.exports = {

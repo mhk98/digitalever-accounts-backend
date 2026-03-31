@@ -3,7 +3,7 @@ const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { VariationSearchableFields } = require("./variation.constants");
-const Variation = db.Variation;
+const Variation = db.variation;
 
 const insertIntoDB = async (payload) => {
   const result = await Variation.create(payload);

@@ -5,7 +5,11 @@ const router = require("express").Router();
 
 router.post(
   "/create",
-  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  auth(
+    ENUM_USER_ROLE.SUPER_ADMIN,
+    ENUM_USER_ROLE.ADMIN,
+    ENUM_USER_ROLE.ACCOUNTANT,
+  ),
   SalaryController.insertIntoDB,
 );
 router.get("/", SalaryController.getAllFromDB);
@@ -13,12 +17,20 @@ router.get("/all", SalaryController.getAllFromDBWithoutQuery);
 router.get("/:id", SalaryController.getDataById);
 router.delete(
   "/:id",
-  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  auth(
+    ENUM_USER_ROLE.SUPER_ADMIN,
+    ENUM_USER_ROLE.ADMIN,
+    ENUM_USER_ROLE.ACCOUNTANT,
+  ),
   SalaryController.deleteIdFromDB,
 );
 router.put(
   "/:id",
-  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  auth(
+    ENUM_USER_ROLE.SUPER_ADMIN,
+    ENUM_USER_ROLE.ADMIN,
+    ENUM_USER_ROLE.ACCOUNTANT,
+  ),
   SalaryController.updateOneFromDB,
 );
 const SalaryRoutes = router;

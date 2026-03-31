@@ -89,6 +89,147 @@ const insertIntoDB = async (data) => {
 //   };
 // };
 
+// const getAllFromDB = async (filters, options) => {
+//   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
+
+//   const {
+//     searchTerm,
+//     startDate,
+//     endDate,
+//     paymentMode,
+//     paymentStatus,
+//     bookId,
+//     ...otherFilters
+//   } = filters;
+
+//   const andConditions = [];
+
+//   console.log("searchTerm", searchTerm);
+
+//   // if (searchTerm) {
+//   //   andConditions.push({
+//   //     [Op.or]: CashInOutSearchableFields.map((field) => ({
+//   //       [field]: { [Op.like]: `%${searchTerm}%` }, // Postgres হলে Op.iLike
+//   //     })),
+//   //   });
+//   // }
+
+//   if (searchTerm && String(searchTerm).trim()) {
+//     const term = String(searchTerm).trim();
+
+//     andConditions.push({
+//       [Op.or]: [
+//         { status: { [Op.like]: `%${term}%` } },
+//         { remarks: { [Op.like]: `%${term}%` } },
+//         { paymentMode: { [Op.like]: `%${term}%` } },
+//         { paymentStatus: { [Op.like]: `%${term}%` } },
+//         { category: { [Op.like]: `%${term}%` } },
+
+//         db.Sequelize.where(
+//           db.Sequelize.cast(db.Sequelize.col("amount"), "CHAR"),
+//           { [Op.like]: `%${term}%` },
+//         ),
+
+//         db.Sequelize.where(
+//           db.Sequelize.cast(db.Sequelize.col("bankAccount"), "CHAR"),
+//           { [Op.like]: `%${term}%` },
+//         ),
+//       ],
+//     });
+//   }
+
+//   // ✅ Date range filter (createdAt)
+//   if (startDate && endDate) {
+//     const start = new Date(startDate);
+//     start.setHours(0, 0, 0, 0);
+
+//     const end = new Date(endDate);
+//     end.setHours(23, 59, 59, 999);
+
+//     andConditions.push({
+//       date: { [Op.between]: [start, end] },
+//     });
+//   } else if (startDate) {
+//     const start = new Date(startDate);
+//     start.setHours(0, 0, 0, 0);
+
+//     andConditions.push({
+//       date: { [Op.gte]: start },
+//     });
+//   } else if (endDate) {
+//     const end = new Date(endDate);
+//     end.setHours(23, 59, 59, 999);
+
+//     andConditions.push({
+//       date: { [Op.lte]: end },
+//     });
+//   }
+//   // ✅ exact filters
+//   if (paymentMode) {
+//     andConditions.push({ paymentMode: { [Op.eq]: paymentMode } });
+//   }
+//   if (paymentStatus) {
+//     andConditions.push({ paymentStatus: { [Op.eq]: paymentStatus } });
+//   }
+//   if (bookId) {
+//     andConditions.push({ bookId: { [Op.eq]: bookId } });
+//   }
+
+//   if (Object.keys(otherFilters).length) {
+//     andConditions.push(
+//       ...Object.entries(otherFilters).map(([key, value]) => ({
+//         [key]: { [Op.eq]: value },
+//       })),
+//     );
+//   }
+//   // ✅ Exclude soft deleted records
+//   andConditions.push({
+//     deletedAt: { [Op.is]: null }, // Only include records with deletedAt as null (not deleted)
+//   });
+
+//   const whereConditions = andConditions.length
+//     ? { [Op.and]: andConditions }
+//     : {};
+
+//   const data = await CashInOut.findAll({
+//     where: whereConditions,
+//     offset: skip,
+//     limit,
+//     paranoid: true,
+//     order:
+//       options.sortBy && options.sortOrder
+//         ? [[options.sortBy, options.sortOrder.toUpperCase()]]
+//         : [["date", "DESC"]],
+//   });
+
+//   // const total = await CashInOut.count({ where: whereConditions });
+//   const [count, totalCashIn, totalCashOut] = await Promise.all([
+//     CashInOut.count({ where: whereConditions }),
+//     CashInOut.sum("amount", {
+//       where: { ...whereConditions, paymentStatus: "CashIn" },
+//     }),
+//     CashInOut.sum("amount", {
+//       where: { ...whereConditions, paymentStatus: "CashOut" },
+//     }),
+//   ]);
+
+//   const cashIn = Number(totalCashIn || 0);
+//   const cashOut = Number(totalCashOut || 0);
+//   const netBalance = cashIn - cashOut;
+
+//   return {
+//     meta: {
+//       count,
+//       totalCashIn: cashIn,
+//       totalCashOut: cashOut,
+//       netBalance,
+//       page,
+//       limit,
+//     },
+//     data,
+//   };
+// };
+
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
 
@@ -102,41 +243,33 @@ const getAllFromDB = async (filters, options) => {
     ...otherFilters
   } = filters;
 
-  const andConditions = [];
-
-  console.log("searchTerm", searchTerm);
-
-  // if (searchTerm) {
-  //   andConditions.push({
-  //     [Op.or]: CashInOutSearchableFields.map((field) => ({
-  //       [field]: { [Op.like]: `%${searchTerm}%` }, // Postgres হলে Op.iLike
-  //     })),
-  //   });
-  // }
+  const baseConditions = [];
 
   if (searchTerm && String(searchTerm).trim()) {
     const term = String(searchTerm).trim();
 
-    andConditions.push({
+    baseConditions.push({
       [Op.or]: [
         { status: { [Op.like]: `%${term}%` } },
         { remarks: { [Op.like]: `%${term}%` } },
         { paymentMode: { [Op.like]: `%${term}%` } },
         { paymentStatus: { [Op.like]: `%${term}%` } },
         { category: { [Op.like]: `%${term}%` } },
+        { bankAccount: { [Op.like]: `%${term}%` } },
 
-        // ✅ numeric field search
         db.Sequelize.where(
           db.Sequelize.cast(db.Sequelize.col("amount"), "CHAR"),
-          {
-            [Op.like]: `%${term}%`,
-          },
+          { [Op.like]: `%${term}%` },
         ),
+
+        // db.Sequelize.where(
+        //   db.Sequelize.cast(db.Sequelize.col("bankAccount"), "CHAR"),
+        //   { [Op.like]: `%${term}%` },
+        // ),
       ],
     });
   }
 
-  // ✅ Date range filter (createdAt)
   if (startDate && endDate) {
     const start = new Date(startDate);
     start.setHours(0, 0, 0, 0);
@@ -144,83 +277,65 @@ const getAllFromDB = async (filters, options) => {
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
 
-    andConditions.push({
+    baseConditions.push({
       date: { [Op.between]: [start, end] },
     });
   } else if (startDate) {
     const start = new Date(startDate);
     start.setHours(0, 0, 0, 0);
 
-    andConditions.push({
+    baseConditions.push({
       date: { [Op.gte]: start },
     });
   } else if (endDate) {
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
 
-    andConditions.push({
+    baseConditions.push({
       date: { [Op.lte]: end },
     });
   }
-  // ✅ exact filters
+
   if (paymentMode) {
-    andConditions.push({ paymentMode: { [Op.eq]: paymentMode } });
+    baseConditions.push({ paymentMode: { [Op.eq]: paymentMode } });
   }
+
   if (paymentStatus) {
-    andConditions.push({ paymentStatus: { [Op.eq]: paymentStatus } });
+    baseConditions.push({ paymentStatus: { [Op.eq]: paymentStatus } });
   }
+
   if (bookId) {
-    andConditions.push({ bookId: { [Op.eq]: bookId } });
+    baseConditions.push({ bookId: { [Op.eq]: bookId } });
   }
-
-  // ✅ date range
-  // if (startDate && endDate) {
-  //   andConditions.push({
-  //     date: {
-  //       [Op.between]: [new Date(startDate), new Date(endDate)],
-  //     },
-  //   });
-  // } else if (startDate) {
-  //   andConditions.push({
-  //     date: {
-  //       [Op.gte]: new Date(startDate),
-  //     },
-  //   });
-  // } else if (endDate) {
-  //   andConditions.push({
-  //     date: {
-  //       [Op.lte]: new Date(endDate),
-  //     },
-  //   });
-  // }
-
-  // ✅ any other exact filters
-  // if (Object.keys(otherFilters).length) {
-  //   Object.entries(otherFilters).forEach(([key, value]) => {
-  //     if (value !== undefined && value !== null && value !== "") {
-  //       andConditions.push({ [key]: { [Op.eq]: value } });
-  //     }
-  //   });
-  // }
 
   if (Object.keys(otherFilters).length) {
-    andConditions.push(
-      ...Object.entries(otherFilters).map(([key, value]) => ({
-        [key]: { [Op.eq]: value },
-      })),
+    baseConditions.push(
+      ...Object.entries(otherFilters)
+        .filter(
+          ([_, value]) => value !== undefined && value !== null && value !== "",
+        )
+        .map(([key, value]) => ({
+          [key]: { [Op.eq]: value },
+        })),
     );
   }
-  // ✅ Exclude soft deleted records
-  andConditions.push({
-    deletedAt: { [Op.is]: null }, // Only include records with deletedAt as null (not deleted)
+
+  baseConditions.push({
+    deletedAt: { [Op.is]: null },
   });
 
-  const whereConditions = andConditions.length
-    ? { [Op.and]: andConditions }
-    : {};
+  const listWhere = baseConditions.length ? { [Op.and]: baseConditions } : {};
+
+  const cashInWhere = {
+    [Op.and]: [...baseConditions, { paymentStatus: "CashIn" }],
+  };
+
+  const cashOutWhere = {
+    [Op.and]: [...baseConditions, { paymentStatus: "CashOut" }],
+  };
 
   const data = await CashInOut.findAll({
-    where: whereConditions,
+    where: listWhere,
     offset: skip,
     limit,
     paranoid: true,
@@ -230,15 +345,10 @@ const getAllFromDB = async (filters, options) => {
         : [["date", "DESC"]],
   });
 
-  // const total = await CashInOut.count({ where: whereConditions });
   const [count, totalCashIn, totalCashOut] = await Promise.all([
-    CashInOut.count({ where: whereConditions }),
-    CashInOut.sum("amount", {
-      where: { ...whereConditions, paymentStatus: "CashIn" },
-    }),
-    CashInOut.sum("amount", {
-      where: { ...whereConditions, paymentStatus: "CashOut" },
-    }),
+    CashInOut.count({ where: listWhere }),
+    CashInOut.sum("amount", { where: cashInWhere }),
+    CashInOut.sum("amount", { where: cashOutWhere }),
   ]);
 
   const cashIn = Number(totalCashIn || 0);
@@ -257,7 +367,6 @@ const getAllFromDB = async (filters, options) => {
     data,
   };
 };
-
 const getDataById = async (id) => {
   const result = await CashInOut.findAll({
     where: {

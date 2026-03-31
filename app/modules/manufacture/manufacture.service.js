@@ -18,13 +18,6 @@ const normalizeUnitPayload = (unit, unitValue) => {
   const normalizedUnitValue = toNumber(unitValue);
   const normalizedUnit = String(unit || "Pcs").trim() || "Pcs";
 
-  if (normalizedUnit.toLowerCase() === "kg") {
-    return {
-      unit: "ml",
-      unitValue: normalizedUnitValue * 1000,
-    };
-  }
-
   return {
     unit: normalizedUnit,
     unitValue: normalizedUnitValue,
