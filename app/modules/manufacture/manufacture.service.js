@@ -1,5 +1,10 @@
 const { Op } = require("sequelize");
 const paginationHelpers = require("../../../helpers/paginationHelper");
+const {
+  formatStockForDisplay,
+  toBaseStockPayload,
+  toNumber,
+} = require("../../../helpers/unitConversionHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { ManufactureSearchableFields } = require("./manufacture.constants");
@@ -9,19 +14,8 @@ const User = db.user;
 const Item = db.item;
 const ItemMaster = db.itemMaster;
 
-const toNumber = (value) => {
-  const num = Number(value || 0);
-  return Number.isFinite(num) ? num : 0;
-};
-
 const normalizeUnitPayload = (unit, unitValue) => {
-  const normalizedUnitValue = toNumber(unitValue);
-  const normalizedUnit = String(unit || "Pcs").trim() || "Pcs";
-
-  return {
-    unit: normalizedUnit,
-    unitValue: normalizedUnitValue,
-  };
+  return toBaseStockPayload(unit, unitValue);
 };
 
 const resolveStatus = ({ status, date, note }) => {
@@ -36,8 +30,17 @@ const resolveStatus = ({ status, date, note }) => {
 };
 
 const insertIntoDB = async (payload) => {
-  const { itemId, productId, unit, unitValue, cost, date, note, status } =
-    payload;
+  const {
+    itemId,
+    productId,
+    unit,
+    unitValue,
+    cost,
+    date,
+    note,
+    status,
+    supplierId,
+  } = payload;
 
   const itemData = await Item.findOne({ where: { Id: itemId } });
   if (!itemData) throw new ApiError(404, "Item not found");
@@ -62,7 +65,9 @@ const insertIntoDB = async (payload) => {
       unit: normalizedPayload.unit,
       unitValue: totalUnitValue,
       cost: totalCost,
-      unitCost: calculatedUnitCost,
+      supplierId,
+
+      // unitCost: calculatedUnitCost,
       date,
       note: note || null,
       status: finalStatus,
@@ -75,15 +80,21 @@ const insertIntoDB = async (payload) => {
     });
 
     if (stockRow) {
-      const nextQuantity = toNumber(stockRow.unitValue) + totalUnitValue;
+      const currentStockPayload = toBaseStockPayload(
+        stockRow.unit,
+        stockRow.unitValue,
+      );
+      const nextQuantity = currentStockPayload.unitValue + totalUnitValue;
       await stockRow.update(
         {
           itemId,
           productId: productId || stockRow.productId || null,
           name: itemData.name,
-          unit: normalizedPayload.unit,
+          unit: currentStockPayload.isWeightUnit
+            ? "Gram"
+            : normalizedPayload.unit,
           unitValue: nextQuantity,
-          unitCost: calculatedUnitCost,
+          // unitCost: calculatedUnitCost,
           cost: nextQuantity * calculatedUnitCost,
         },
         { transaction: t },
@@ -96,7 +107,8 @@ const insertIntoDB = async (payload) => {
           name: itemData.name,
           unit: normalizedPayload.unit,
           unitValue: totalUnitValue,
-          unitCost: calculatedUnitCost,
+          // unitCost: calculatedUnitCost,
+
           cost: totalCost,
         },
         { transaction: t },
@@ -163,12 +175,13 @@ const getAllFromDB = async (filters, options) => {
 
   return {
     meta: { page, limit, count },
-    data,
+    data: data.map(formatStockForDisplay),
   };
 };
 
 const getDataById = async (id) => {
-  return Manufacture.findAll({ where: { productId: id } });
+  const data = await Manufacture.findAll({ where: { productId: id } });
+  return data.map(formatStockForDisplay);
 };
 
 const deleteIdFromDB = async (id) => {
@@ -208,6 +221,7 @@ const updateOneFromDB = async (id, payload) => {
     note,
     date,
     status,
+    supplierId,
     userId,
     actorRole,
   } = payload;
@@ -271,14 +285,19 @@ const updateOneFromDB = async (id, payload) => {
     unit: normalizedPayload.unit,
     unitValue: totalUnitValue,
     cost: nextTotalCost,
-    unitCost: totalUnitValue > 0 ? nextTotalCost / totalUnitValue : undefined,
+    supplierId,
+    // unitCost: totalUnitValue > 0 ? nextTotalCost / totalUnitValue : undefined,
     note: newNote || null,
     status: finalStatus,
     date: inputDateStr || undefined,
   };
 
   const oldItemId = existing.itemId;
-  const oldUnitValue = toNumber(existing.unitValue);
+  const existingBasePayload = toBaseStockPayload(
+    existing.unit,
+    existing.unitValue,
+  );
+  const oldUnitValue = existingBasePayload.unitValue;
 
   const updatedCount = await db.sequelize.transaction(async (t) => {
     const oldStockRow = await ItemMaster.findOne({
@@ -288,7 +307,11 @@ const updateOneFromDB = async (id, payload) => {
     });
 
     if (oldStockRow) {
-      const reducedQuantity = toNumber(oldStockRow.unitValue) - oldUnitValue;
+      const oldStockPayload = toBaseStockPayload(
+        oldStockRow.unit,
+        oldStockRow.unitValue,
+      );
+      const reducedQuantity = oldStockPayload.unitValue - oldUnitValue;
 
       if (reducedQuantity < 0) {
         throw new ApiError(400, "Item stock cannot be negative");
@@ -323,23 +346,28 @@ const updateOneFromDB = async (id, payload) => {
           name: nextName,
           unit: normalizedPayload.unit,
           unitValue: totalUnitValue,
-          unitCost: nextUnitCost,
+          // unitCost: nextUnitCost,
           cost: nextTotalCost,
         },
         { transaction: t },
       );
     } else {
-      const mergedQuantity =
-        toNumber(targetStockRow.unitValue) + totalUnitValue;
+      const targetStockPayload = toBaseStockPayload(
+        targetStockRow.unit,
+        targetStockRow.unitValue,
+      );
+      const mergedQuantity = targetStockPayload.unitValue + totalUnitValue;
 
       await targetStockRow.update(
         {
           itemId: nextItemId,
           productId: nextProductId || targetStockRow.productId || null,
           name: nextName,
-          unit: normalizedPayload.unit,
+          unit: targetStockPayload.isWeightUnit
+            ? "Gram"
+            : normalizedPayload.unit,
           unitValue: mergedQuantity,
-          unitCost: nextUnitCost,
+          // unitCost: nextUnitCost,
           cost: mergedQuantity * nextUnitCost,
         },
         { transaction: t },
@@ -385,7 +413,8 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  return Manufacture.findAll();
+  const data = await Manufacture.findAll();
+  return data.map(formatStockForDisplay);
 };
 
 const ManufactureService = {

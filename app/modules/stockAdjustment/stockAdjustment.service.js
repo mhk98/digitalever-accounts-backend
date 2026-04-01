@@ -1,5 +1,10 @@
 const { Op } = require("sequelize");
 const paginationHelpers = require("../../../helpers/paginationHelper");
+const {
+  formatStockForDisplay,
+  toBaseStockPayload,
+  toNumber,
+} = require("../../../helpers/unitConversionHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const {
@@ -11,18 +16,15 @@ const User = db.user;
 const Item = db.item;
 const ItemMaster = db.itemMaster;
 
-const toNumber = (value) => {
-  const num = Number(value || 0);
-  return Number.isFinite(num) ? num : 0;
-};
-
 const insertIntoDB = async (payload) => {
-  const { itemId, unit, unitValue, date, note, status, stock } = payload;
+  const { itemId, unit, unitValue, date, note, status, stock, supplierId } =
+    payload;
 
   const itemData = await Item.findOne({ where: { Id: itemId } });
   if (!itemData) throw new ApiError(404, "Item not found");
 
-  const totalUnitValue = toNumber(unitValue);
+  const normalizedPayload = toBaseStockPayload(unit, unitValue);
+  const totalUnitValue = normalizedPayload.unitValue;
 
   if (totalUnitValue <= 0) {
     throw new ApiError(400, "unitValue must be greater than 0");
@@ -45,9 +47,10 @@ const insertIntoDB = async (payload) => {
     const StockAdjustmentData = {
       itemId,
       name: itemData.name,
-      unit: unit || "Pcs",
+      unit: normalizedPayload.unit,
       unitValue: totalUnitValue,
       date,
+      supplierId,
       note: note || null,
       status: finalStatus,
     };
@@ -59,14 +62,25 @@ const insertIntoDB = async (payload) => {
     });
 
     if (stockRow) {
-      const plusQuantity = toNumber(stockRow.unitValue) + totalUnitValue;
-      const minusQuantity = toNumber(stockRow.unitValue) - totalUnitValue;
+      const currentStockPayload = toBaseStockPayload(
+        stockRow.unit,
+        stockRow.unitValue,
+      );
+      const plusQuantity = currentStockPayload.unitValue + totalUnitValue;
+      const minusQuantity = currentStockPayload.unitValue - totalUnitValue;
+
+      if (stock === "Out" && minusQuantity < 0) {
+        throw new ApiError(400, "Item stock cannot be negative");
+      }
+
       await stockRow.update(
         {
           itemId,
           name: itemData.name,
           unitValue: stock === "In" ? plusQuantity : minusQuantity,
-          unit: unit || stockRow.unit || "Pcs",
+          unit: currentStockPayload.isWeightUnit
+            ? "Gram"
+            : normalizedPayload.unit,
           stock,
         },
         { transaction: t },
@@ -133,12 +147,13 @@ const getAllFromDB = async (filters, options) => {
 
   return {
     meta: { page, limit, count },
-    data,
+    data: data.map(formatStockForDisplay),
   };
 };
 
 const getDataById = async (id) => {
-  return StockAdjustment.findAll({ where: { productId: id } });
+  const data = await StockAdjustment.findAll({ where: { productId: id } });
+  return data.map(formatStockForDisplay);
 };
 
 const deleteIdFromDB = async (id) => {
@@ -156,13 +171,15 @@ const updateOneFromDB = async (id, payload) => {
     note,
     date,
     status,
+    supplierId,
+
     userId,
     actorRole,
   } = payload;
 
   const existing = await StockAdjustment.findOne({
     where: { Id: id },
-    attributes: ["Id", "note", "status"],
+    attributes: ["Id", "unit", "note", "status"],
   });
 
   if (!existing) return 0;
@@ -186,21 +203,29 @@ const updateOneFromDB = async (id, payload) => {
     finalStatus = inputStatus || finalStatus;
   }
 
-  const totalUnitValue =
-    unitValue === "" || unitValue == null ? undefined : toNumber(unitValue);
+  const normalizedPayload =
+    unitValue === "" || unitValue == null
+      ? null
+      : toBaseStockPayload(
+          unit === "" || unit == null ? existing.unit : unit,
+          unitValue,
+        );
+  const totalUnitValue = normalizedPayload?.unitValue;
   const totalCost = cost === "" || cost == null ? undefined : toNumber(cost);
 
   const data = {
     itemId: itemId || undefined,
     productId: productId || undefined,
     name: name === "" || name == null ? undefined : name,
-    unit: unit === "" || unit == null ? undefined : unit,
+    unit: normalizedPayload ? normalizedPayload.unit : undefined,
     unitValue: totalUnitValue,
     cost: totalCost,
-    unitCost:
-      totalUnitValue && totalUnitValue > 0 && totalCost != null
-        ? totalCost / totalUnitValue
-        : undefined,
+    supplierId,
+
+    // unitCost:
+    //   totalUnitValue && totalUnitValue > 0 && totalCost != null
+    //     ? totalCost / totalUnitValue
+    //     : undefined,
     note: newNote || null,
     status: finalStatus,
     date: inputDateStr || undefined,
@@ -240,7 +265,8 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  return StockAdjustment.findAll();
+  const data = await StockAdjustment.findAll();
+  return data.map(formatStockForDisplay);
 };
 
 const StockAdjustmentService = {

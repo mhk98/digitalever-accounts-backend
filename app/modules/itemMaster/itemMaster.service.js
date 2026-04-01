@@ -1,5 +1,8 @@
 const { Op } = require("sequelize"); // Ensure Op is imported
 const paginationHelpers = require("../../../helpers/paginationHelper");
+const {
+  formatStockForDisplay,
+} = require("../../../helpers/unitConversionHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { ItemMasterSearchableFields } = require("./itemMaster.constants");
@@ -83,7 +86,7 @@ const getAllFromDB = async (filters, options) => {
       page,
       limit,
     },
-    data,
+    data: data.map(formatStockForDisplay),
   };
 };
 
@@ -94,7 +97,7 @@ const getDataById = async (id) => {
     },
   });
 
-  return result;
+  return result.map(formatStockForDisplay);
 };
 
 const deleteIdFromDB = async (id) => {
@@ -120,7 +123,7 @@ const updateOneFromDB = async (id, payload) => {
 const getAllFromDBWithoutQuery = async () => {
   const result = await ItemMaster.findAll();
 
-  return result;
+  return result.map(formatStockForDisplay);
 };
 
 const ItemMasterService = {

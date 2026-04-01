@@ -273,6 +273,17 @@ db.manufacture.belongsTo(db.item, { foreignKey: "itemId" });
 db.product.hasMany(db.manufacture, { foreignKey: "productId" });
 db.manufacture.belongsTo(db.product, { foreignKey: "productId" });
 
+db.supplier.hasMany(db.manufacture, { foreignKey: "supplierId" });
+db.manufacture.belongsTo(db.supplier, {
+  foreignKey: "supplierId",
+  as: "supplier",
+});
+db.supplier.hasMany(db.stockAdjustment, { foreignKey: "supplierId" });
+db.stockAdjustment.belongsTo(db.supplier, {
+  foreignKey: "supplierId",
+  as: "supplier",
+});
+
 // db.item.hasMany(db.mixer, { foreignKey: "itemId" });
 // db.mixer.belongsTo(db.item, { foreignKey: "itemId", as: "item" });
 

@@ -275,10 +275,10 @@ const updateOneFromDB = async (id, payload) => {
     unit: unit === "" || unit == null ? undefined : unit,
     unitValue: totalUnitValue,
     cost: totalCost,
-    unitCost:
-      totalUnitValue && totalUnitValue > 0 && totalCost != null
-        ? totalCost / totalUnitValue
-        : undefined,
+    // unitCost:
+    //   totalUnitValue && totalUnitValue > 0 && totalCost != null
+    //     ? totalCost / totalUnitValue
+    //     : undefined,
     note: newNote || null,
     status: finalStatus,
     date: inputDateStr || undefined,

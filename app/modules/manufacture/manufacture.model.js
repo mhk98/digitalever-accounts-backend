@@ -43,11 +43,6 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
-      unitCost: {
-        type: DataTypes.DECIMAL(10, 2),
-        defaultValue: 0,
-        allowNull: false,
-      },
       deletedAt: {
         type: DataTypes.DATE,
         allowNull: true,
