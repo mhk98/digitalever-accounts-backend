@@ -120,7 +120,10 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await Book.findAll();
+  const result = await Book.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
 
   return result;
 };

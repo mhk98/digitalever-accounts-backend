@@ -59,7 +59,7 @@ const insertIntoDB = async (data) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/kafelamart.digitalever.com.bd/${url}`,
+          url: `/holygift.digitalever.com.bd/${url}`,
         }),
       ),
     );
@@ -236,7 +236,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/kafelamart.digitalever.com.bd/`,
+        url: `/holygift.digitalever.com.bd/`,
       }),
     ),
   );
@@ -245,7 +245,10 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await Meta.findAll();
+  const result = await Meta.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
 
   return result;
 };

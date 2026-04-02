@@ -318,7 +318,10 @@ const updateOneFromDB = async (id, payload) => {
 
 const getAllFromDBWithoutQuery = async () => {
  
-  const result = await Sale.findAll()
+  const result = await Sale.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  })
 
   return result
 

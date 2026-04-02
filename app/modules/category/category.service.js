@@ -106,7 +106,10 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await Category.findAll();
+  const result = await Category.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
 
   return result;
 };

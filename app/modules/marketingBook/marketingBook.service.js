@@ -117,7 +117,10 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await MarketingBook.findAll();
+  const result = await MarketingBook.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
 
   return result;
 };

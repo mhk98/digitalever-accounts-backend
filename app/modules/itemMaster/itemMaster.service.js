@@ -121,7 +121,10 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await ItemMaster.findAll();
+  const result = await ItemMaster.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
 
   return result.map(formatStockForDisplay);
 };

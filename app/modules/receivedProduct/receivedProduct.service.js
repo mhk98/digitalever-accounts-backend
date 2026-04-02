@@ -606,7 +606,7 @@ const updateOneFromDB = async (id, payload) => {
           {
             userId: u.Id,
             message,
-            url: `/kafelamart.digitalever.com.bd/purchase-product`,
+            url: `/holygift.digitalever.com.bd/purchase-product`,
           },
           { transaction: t },
         ),
@@ -617,7 +617,10 @@ const updateOneFromDB = async (id, payload) => {
   });
 };
 const getAllFromDBWithoutQuery = async () => {
-  const result = await ReceivedProduct.findAll();
+  const result = await ReceivedProduct.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
 
   return result;
 };

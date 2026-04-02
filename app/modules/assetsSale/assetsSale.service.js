@@ -340,7 +340,7 @@ const updateOneFromDB = async (id, data) => {
           {
             userId: u.Id,
             message,
-            url: `/kafelamart.digitalever.com.bd/assets-sale`,
+            url: `/holygift.digitalever.com.bd/assets-sale`,
           },
           {
             transaction: t,
@@ -354,7 +354,10 @@ const updateOneFromDB = async (id, data) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await AssetsSale.findAll();
+  const result = await AssetsSale.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
 
   return result;
 };

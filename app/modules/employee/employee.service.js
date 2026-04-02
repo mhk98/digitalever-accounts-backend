@@ -264,7 +264,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/kafelamart.digitalever.com.bd/employee`,
+        url: `/holygift.digitalever.com.bd/employee`,
       }),
     ),
   );
@@ -273,7 +273,10 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await Employee.findAll();
+  const result = await Employee.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
 
   return result;
 };

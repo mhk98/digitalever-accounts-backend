@@ -483,7 +483,7 @@ const deleteIdFromDB = async (id) => {
 //           {
 //             userId: u.Id,
 //             message,
-//             url: `/kafelamart.digitalever.com.bd/purchase-return`,
+//             url: `/holygift.digitalever.com.bd/purchase-return`,
 //           },
 //           { transaction: t },
 //         ),
@@ -638,7 +638,7 @@ const updateOneFromDB = async (id, payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/kafelamart.digitalever.com.bd/purchase-product`,
+          url: `/holygift.digitalever.com.bd/purchase-product`,
         }),
       ),
     );
@@ -647,7 +647,10 @@ const updateOneFromDB = async (id, payload) => {
   });
 };
 const getAllFromDBWithoutQuery = async () => {
-  const result = await InTransitProduct.findAll();
+  const result = await InTransitProduct.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
 
   return result;
 };

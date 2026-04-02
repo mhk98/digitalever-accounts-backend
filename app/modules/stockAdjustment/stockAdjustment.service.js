@@ -15,6 +15,68 @@ const Notification = db.notification;
 const User = db.user;
 const Item = db.item;
 const ItemMaster = db.itemMaster;
+const Supplier = db.supplier;
+
+const getStockDirectionMultiplier = (stock) => {
+  return String(stock || "").trim() === "In" ? 1 : -1;
+};
+
+const reconcileItemMasterStockAdjustment = async (
+  previousAdjustment,
+  nextAdjustment,
+  transaction,
+) => {
+  const previousEffects = new Map();
+  const nextEffects = new Map();
+
+  if (previousAdjustment?.itemId && previousAdjustment?.unitValue > 0) {
+    previousEffects.set(
+      Number(previousAdjustment.itemId),
+      getStockDirectionMultiplier(previousAdjustment.stock) *
+        toNumber(previousAdjustment.unitValue),
+    );
+  }
+
+  if (nextAdjustment?.itemId && nextAdjustment?.unitValue > 0) {
+    nextEffects.set(
+      Number(nextAdjustment.itemId),
+      getStockDirectionMultiplier(nextAdjustment.stock) *
+        toNumber(nextAdjustment.unitValue),
+    );
+  }
+
+  const itemIds = new Set([...previousEffects.keys(), ...nextEffects.keys()]);
+
+  for (const itemId of itemIds) {
+    const previousEffect = toNumber(previousEffects.get(itemId));
+    const nextEffect = toNumber(nextEffects.get(itemId));
+    const delta = nextEffect - previousEffect;
+
+    if (!delta) continue;
+
+    const stockRow = await ItemMaster.findOne({
+      where: { itemId },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!stockRow) {
+      throw new ApiError(404, `ItemMaster not found for itemId ${itemId}`);
+    }
+
+    const currentStockPayload = toBaseStockPayload(
+      stockRow.unit,
+      stockRow.unitValue,
+    );
+    const nextUnitValue = currentStockPayload.unitValue + delta;
+
+    if (nextUnitValue < 0) {
+      throw new ApiError(400, "Item stock cannot be negative");
+    }
+
+    await stockRow.update({ unitValue: nextUnitValue }, { transaction });
+  }
+};
 
 const insertIntoDB = async (payload) => {
   const { itemId, unit, unitValue, date, note, status, stock, supplierId } =
@@ -51,6 +113,7 @@ const insertIntoDB = async (payload) => {
       unitValue: totalUnitValue,
       date,
       supplierId,
+      stock,
       note: note || null,
       status: finalStatus,
     };
@@ -69,9 +132,9 @@ const insertIntoDB = async (payload) => {
       const plusQuantity = currentStockPayload.unitValue + totalUnitValue;
       const minusQuantity = currentStockPayload.unitValue - totalUnitValue;
 
-      if (stock === "Out" && minusQuantity < 0) {
-        throw new ApiError(400, "Item stock cannot be negative");
-      }
+      // if (stock === "Out" && minusQuantity < 0) {
+      //   throw new ApiError(400, "Item stock cannot be negative");
+      // }
 
       await stockRow.update(
         {
@@ -136,6 +199,13 @@ const getAllFromDB = async (filters, options) => {
       where: whereConditions,
       offset: skip,
       limit,
+      include: [
+        {
+          model: Supplier,
+          as: "supplier",
+          attributes: ["Id", "name"],
+        },
+      ],
       paranoid: true,
       order:
         options.sortBy && options.sortOrder
@@ -175,11 +245,23 @@ const updateOneFromDB = async (id, payload) => {
 
     userId,
     actorRole,
+    stock,
   } = payload;
 
   const existing = await StockAdjustment.findOne({
     where: { Id: id },
-    attributes: ["Id", "unit", "note", "status"],
+    attributes: [
+      "Id",
+      "itemId",
+      "name",
+      "unit",
+      "unitValue",
+      "date",
+      "note",
+      "status",
+      "stock",
+      "supplierId",
+    ],
   });
 
   if (!existing) return 0;
@@ -205,22 +287,38 @@ const updateOneFromDB = async (id, payload) => {
 
   const normalizedPayload =
     unitValue === "" || unitValue == null
-      ? null
+      ? toBaseStockPayload(existing.unit, existing.unitValue)
       : toBaseStockPayload(
           unit === "" || unit == null ? existing.unit : unit,
           unitValue,
         );
-  const totalUnitValue = normalizedPayload?.unitValue;
-  const totalCost = cost === "" || cost == null ? undefined : toNumber(cost);
+  const totalUnitValue = normalizedPayload.unitValue;
+  const nextItemId = itemId || existing.itemId;
+  const nextStock = stock === "" || stock == null ? existing.stock : stock;
+  const nextSupplierId =
+    supplierId === "" || supplierId == null ? existing.supplierId : supplierId;
+  const itemData =
+    nextItemId && Number(nextItemId) !== Number(existing.itemId)
+      ? await Item.findOne({ where: { Id: nextItemId } })
+      : null;
+
+  if (
+    nextItemId &&
+    Number(nextItemId) !== Number(existing.itemId) &&
+    !itemData
+  ) {
+    throw new ApiError(404, "Item not found");
+  }
 
   const data = {
-    itemId: itemId || undefined,
+    itemId: nextItemId || undefined,
     productId: productId || undefined,
-    name: name === "" || name == null ? undefined : name,
-    unit: normalizedPayload ? normalizedPayload.unit : undefined,
+    name:
+      itemData?.name || (name === "" || name == null ? existing.name : name),
+    unit: normalizedPayload.unit,
     unitValue: totalUnitValue,
-    cost: totalCost,
-    supplierId,
+    supplierId: nextSupplierId,
+    stock: nextStock,
 
     // unitCost:
     //   totalUnitValue && totalUnitValue > 0 && totalCost != null
@@ -228,11 +326,31 @@ const updateOneFromDB = async (id, payload) => {
     //     : undefined,
     note: newNote || null,
     status: finalStatus,
-    date: inputDateStr || undefined,
+    date: inputDateStr || existing.date || undefined,
   };
 
-  const [updatedCount] = await StockAdjustment.update(data, {
-    where: { Id: id },
+  const updatedCount = await db.sequelize.transaction(async (t) => {
+    await reconcileItemMasterStockAdjustment(
+      {
+        itemId: existing.itemId,
+        unitValue: toBaseStockPayload(existing.unit, existing.unitValue)
+          .unitValue,
+        stock: existing.stock,
+      },
+      {
+        itemId: nextItemId,
+        unitValue: totalUnitValue,
+        stock: nextStock,
+      },
+      t,
+    );
+
+    const [count] = await StockAdjustment.update(data, {
+      where: { Id: id },
+      transaction: t,
+    });
+
+    return count;
   });
   if (updatedCount <= 0) return updatedCount;
 
@@ -256,7 +374,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: "/kafelamart.digitalever.com.bd/StockAdjustment",
+        url: "/holygift.digitalever.com.bd/StockAdjustment",
       }),
     ),
   );
@@ -265,7 +383,10 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const data = await StockAdjustment.findAll();
+  const data = await StockAdjustment.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
   return data.map(formatStockForDisplay);
 };
 

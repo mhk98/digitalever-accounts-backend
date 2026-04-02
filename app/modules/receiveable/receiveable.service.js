@@ -158,7 +158,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/kafelamart.digitalever.com.bd/receivable`,
+        url: `/holygift.digitalever.com.bd/receivable`,
       }),
     ),
   );
@@ -167,7 +167,10 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await Receiveable.findAll();
+  const result = await Receiveable.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
 
   return result;
 };

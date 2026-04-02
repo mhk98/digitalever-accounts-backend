@@ -402,7 +402,7 @@ const deleteIdFromDB = async (id) => {
 //         Notification.create({
 //           userId: u.Id,
 //           message,
-//           url: `/kafelamart.digitalever.com.bd/intransit-product`,
+//           url: `/holygift.digitalever.com.bd/intransit-product`,
 //         }),
 //       ),
 //     );
@@ -546,7 +546,10 @@ const updateOneFromDB = async (data) => {
   });
 };
 const getAllFromDBWithoutQuery = async () => {
-  const result = await PosReport.findAll();
+  const result = await PosReport.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
 
   return result;
 };

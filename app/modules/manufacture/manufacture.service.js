@@ -12,6 +12,7 @@ const Manufacture = db.manufacture;
 const Notification = db.notification;
 const User = db.user;
 const Item = db.item;
+const Supplier = db.supplier;
 const ItemMaster = db.itemMaster;
 
 const normalizeUnitPayload = (unit, unitValue) => {
@@ -164,6 +165,13 @@ const getAllFromDB = async (filters, options) => {
       where: whereConditions,
       offset: skip,
       limit,
+      include: [
+        {
+          model: Supplier,
+          as: "supplier",
+          attributes: ["Id", "name"],
+        },
+      ],
       paranoid: true,
       order:
         options.sortBy && options.sortOrder
@@ -313,9 +321,9 @@ const updateOneFromDB = async (id, payload) => {
       );
       const reducedQuantity = oldStockPayload.unitValue - oldUnitValue;
 
-      if (reducedQuantity < 0) {
-        throw new ApiError(400, "Item stock cannot be negative");
-      }
+      // if (reducedQuantity < 0) {
+      //   throw new ApiError(400, "Item stock cannot be negative");
+      // }
 
       await oldStockRow.update(
         {
@@ -404,7 +412,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: "/kafelamart.digitalever.com.bd/manufacture",
+        url: "/holygift.digitalever.com.bd/manufacture",
       }),
     ),
   );
@@ -413,7 +421,10 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const data = await Manufacture.findAll();
+  const data = await Manufacture.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
   return data.map(formatStockForDisplay);
 };
 

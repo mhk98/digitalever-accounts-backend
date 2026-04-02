@@ -137,7 +137,6 @@ const getAllFromDB = async (filters, options) => {
     offset: skip,
     limit,
     paranoid: true, // Ensure this is added to include soft deleted records
-
     order:
       options.sortBy && options.sortOrder
         ? [[options.sortBy, options.sortOrder.toUpperCase()]]
@@ -342,7 +341,7 @@ const updateOneFromDB = async (id, data) => {
           {
             userId: u.Id,
             message,
-            url: `/kafelamart.digitalever.com.bd/assets-damage`,
+            url: `/holygift.digitalever.com.bd/assets-damage`,
           },
           { transaction: t },
         ),
@@ -354,7 +353,10 @@ const updateOneFromDB = async (id, data) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await AssetsDamage.findAll();
+  const result = await AssetsDamage.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
 
   return result;
 };

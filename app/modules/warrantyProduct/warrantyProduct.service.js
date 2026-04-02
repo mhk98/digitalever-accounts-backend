@@ -299,7 +299,7 @@ const updateOneFromDB = async (id, data) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/kafelamart.digitalever.com.bd/confirm-order`,
+        url: `/holygift.digitalever.com.bd/confirm-order`,
       }),
     ),
   );
@@ -307,7 +307,10 @@ const updateOneFromDB = async (id, data) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await WarrantyProduct.findAll();
+  const result = await WarrantyProduct.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
 
   return result;
 };

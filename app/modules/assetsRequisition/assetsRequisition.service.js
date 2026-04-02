@@ -58,7 +58,7 @@ const insertIntoDB = async (payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/kafelamart.digitalever.com.bd/assets-requisition`,
+          url: `/holygift.digitalever.com.bd/assets-requisition`,
         }),
       ),
     );
@@ -237,7 +237,7 @@ const deleteIdFromDB = async (id) => {
 //         {
 //           userId: u.Id,
 //           message,
-//           url: `/kafelamart.digitalever.com.bd/assets-purchase`,
+//           url: `/holygift.digitalever.com.bd/assets-purchase`,
 //         },
 //         {
 //           transaction: t,
@@ -333,7 +333,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/kafelamart.digitalever.com.bd/assets-requisition`,
+        url: `/holygift.digitalever.com.bd/assets-requisition`,
       }),
     ),
   );
@@ -342,7 +342,10 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await AssetsRequisition.findAll();
+  const result = await AssetsRequisition.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
 
   return result;
 };

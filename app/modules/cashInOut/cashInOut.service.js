@@ -10,22 +10,28 @@ const SupplierHistory = db.supplierHistory;
 
 const insertIntoDB = async (data) => {
   const { amount, date, bookId, supplierId, file } = data;
+  const hasSupplierId =
+    supplierId !== undefined &&
+    supplierId !== null &&
+    String(supplierId) !== "";
 
   return db.sequelize.transaction(async (t) => {
     const result = await CashInOut.create(data, { transaction: t });
 
-    const supplierData = {
-      supplierId,
-      bookId,
-      amount,
-      status: "Paid",
-      date,
-      file,
-    };
+    if (hasSupplierId) {
+      const supplierData = {
+        supplierId,
+        bookId,
+        amount,
+        status: "Paid",
+        date,
+        file,
+      };
 
-    console.log("supplierData", supplierData);
+      console.log("supplierData", supplierData);
 
-    await SupplierHistory.create(supplierData, { transaction: t });
+      await SupplierHistory.create(supplierData, { transaction: t });
+    }
 
     return result;
   });
@@ -390,6 +396,10 @@ const deleteIdFromDB = async (id) => {
 const updateOneFromDB = async (id, payload) => {
   const { note, status, amount, userId, bookId, supplierId, date, file } =
     payload;
+  const hasSupplierId =
+    supplierId !== undefined &&
+    supplierId !== null &&
+    String(supplierId) !== "";
 
   console.log("supplierDetails", payload);
   return db.sequelize.transaction(async (t) => {
@@ -400,19 +410,21 @@ const updateOneFromDB = async (id, payload) => {
       transaction: t,
     });
 
-    const supplierData = {
-      supplierId,
-      bookId,
-      amount,
-      status: "Paid",
-      date,
-      file,
-    };
+    if (hasSupplierId) {
+      const supplierData = {
+        supplierId,
+        bookId,
+        amount,
+        status: "Paid",
+        date,
+        file,
+      };
 
-    await SupplierHistory.update(supplierData, {
-      where: { supplierId },
-      transaction: t,
-    });
+      await SupplierHistory.update(supplierData, {
+        where: { supplierId },
+        transaction: t,
+      });
+    }
 
     const users = await User.findAll({
       attributes: ["Id", "role"],
@@ -435,7 +447,7 @@ const updateOneFromDB = async (id, payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/kafelamart.digitalever.com.bd/book/${bookId}`,
+          url: `/holygift.digitalever.com.bd/book/${bookId}`,
         }),
       ),
     );
@@ -445,7 +457,10 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await CashInOut.findAll();
+  const result = await CashInOut.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
 
   return result;
 };
