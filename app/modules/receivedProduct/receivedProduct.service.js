@@ -119,6 +119,7 @@ const insertIntoDB = async (data, file) => {
       {
         supplierId,
         bookId: normalizedBookId,
+        paymentStatus: "Unpaid",
         amount: Number(purchase_price || 0) * Number(quantity || 0),
         date,
         file,
