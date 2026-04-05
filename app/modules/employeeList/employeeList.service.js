@@ -30,8 +30,12 @@ const insertIntoDB = async (payload) => {
     date,
     note,
   };
-  const result = await EmployeeList.create(data);
-  return result;
+
+  return db.sequelize.transaction(async (t) => {
+    const result = await EmployeeList.create(data, { transaction: t });
+
+    return result;
+  });
 };
 
 const getAllFromDB = async (filters, options) => {

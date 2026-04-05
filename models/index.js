@@ -357,8 +357,29 @@ db.product.hasMany(db.confirmOrder, {
 db.book.hasMany(db.cashInOut, { foreignKey: "bookId" });
 db.cashInOut.belongsTo(db.book, { foreignKey: "bookId" });
 
+db.supplier.hasMany(db.ledger, { foreignKey: "supplierId" });
+db.ledger.belongsTo(db.supplier, { foreignKey: "supplierId", as: "supplier" });
+
+db.employeeList.hasMany(db.ledger, { foreignKey: "employeeId" });
+db.ledger.belongsTo(db.employeeList, {
+  foreignKey: "employeeId",
+  as: "employee",
+});
+
 db.ledger.hasMany(db.ledgerHistory, { foreignKey: "ledgerId" });
 db.ledgerHistory.belongsTo(db.ledger, { foreignKey: "ledgerId", as: "ledger" });
+
+db.supplier.hasMany(db.ledgerHistory, { foreignKey: "supplierId" });
+db.ledgerHistory.belongsTo(db.supplier, {
+  foreignKey: "supplierId",
+  as: "supplier",
+});
+
+db.employeeList.hasMany(db.ledgerHistory, { foreignKey: "employeeId" });
+db.ledgerHistory.belongsTo(db.employeeList, {
+  foreignKey: "employeeId",
+  as: "employee",
+});
 
 db.supplier.hasMany(db.cashInOut, { foreignKey: "supplierId" });
 db.cashInOut.belongsTo(db.supplier, { foreignKey: "supplierId" });

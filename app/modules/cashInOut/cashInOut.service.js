@@ -9,11 +9,16 @@ const User = db.user;
 const SupplierHistory = db.supplierHistory;
 
 const insertIntoDB = async (data) => {
-  const { amount, date, bookId, supplierId, file } = data;
+  const { amount, date, bookId, supplierId, employeeId, file } = data;
   const hasSupplierId =
     supplierId !== undefined &&
     supplierId !== null &&
     String(supplierId) !== "";
+
+  // const hasEmployeeId =
+  //   employeeId !== undefined &&
+  //   employeeId !== null &&
+  //   String(employeeId) !== "";
 
   return db.sequelize.transaction(async (t) => {
     const result = await CashInOut.create(data, { transaction: t });

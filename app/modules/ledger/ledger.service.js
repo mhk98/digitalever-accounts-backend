@@ -1,18 +1,141 @@
 const { Op } = require("sequelize");
 const paginationHelpers = require("../../../helpers/paginationHelper");
+const ApiError = require("../../../error/ApiError");
 const db = require("../../../models");
 const { LedgerSearchableFields } = require("./ledger.constants");
 const Ledger = db.ledger;
 const LedgerHistory = db.ledgerHistory;
+const EmployeeList = db.employeeList;
+const SupplierHistory = db.supplierHistory;
+const CashInOut = db.cashInOut;
+
+const normalizeOptionalForeignKey = (value) => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    const trimmedValue = value.trim();
+
+    if (!trimmedValue) {
+      return null;
+    }
+
+    return trimmedValue;
+  }
+
+  return value;
+};
+
+const normalizeLedgerPayload = (payload) => {
+  const normalizedPayload = {
+    ...payload,
+    supplierId: normalizeOptionalForeignKey(payload?.supplierId),
+    employeeId: normalizeOptionalForeignKey(payload?.employeeId),
+  };
+
+  if (normalizedPayload.role === "Supplier") {
+    normalizedPayload.employeeId = null;
+  }
+
+  if (normalizedPayload.role === "Employee") {
+    normalizedPayload.supplierId = null;
+  }
+
+  return normalizedPayload;
+};
+
+const resolveEmployeeListId = async (employeeId) => {
+  const normalizedEmployeeId = normalizeOptionalForeignKey(employeeId);
+
+  if (!normalizedEmployeeId) {
+    return null;
+  }
+
+  const employeeRecord = await EmployeeList.findOne({
+    where: {
+      [Op.or]: [
+        { Id: normalizedEmployeeId },
+        { employee_id: normalizedEmployeeId },
+      ],
+    },
+    order: [
+      ["status", "ASC"],
+      ["createdAt", "DESC"],
+    ],
+  });
+
+  if (!employeeRecord) {
+    throw new ApiError(
+      400,
+      `Employee not found in EmployeeLists for value "${normalizedEmployeeId}"`,
+    );
+  }
+
+  return employeeRecord.Id;
+};
 
 const insertIntoDB = async (data) => {
-  const { cashType, amount, note, date } = data;
+  const normalizedData = normalizeLedgerPayload(data);
+
   return db.sequelize.transaction(async (t) => {
-    const result = await Ledger.create(data, { transaction: t });
+    if (normalizedData.role === "Employee") {
+      normalizedData.employeeId = await resolveEmployeeListId(
+        normalizedData.employeeId,
+      );
+    }
+
+    const { cashType, amount, note, date, supplierId, employeeId, bookId, file } =
+      normalizedData;
+
+    const result = await Ledger.create(normalizedData, { transaction: t });
+
+    if (supplierId) {
+      // SupplierHistory
+      await SupplierHistory.create(
+        {
+          supplierId,
+          bookId,
+          amount,
+          status: cashType,
+          date: date || new Date(),
+          note: note || "",
+        },
+        { transaction: t },
+      );
+      // CashInOut
+      await CashInOut.create(
+        {
+          supplierId,
+          bookId,
+          paymentStatus: cashType,
+          amount,
+          date,
+          file,
+        },
+        { transaction: t },
+      );
+    }
+
+    if (employeeId) {
+      // CashInOut
+      await CashInOut.create(
+        {
+          employeeId,
+          bookId,
+          paymentStatus: cashType,
+          amount,
+          date,
+        },
+        { transaction: t },
+      );
+    }
 
     await LedgerHistory.create(
       {
         ledgerId: result.Id,
+        supplierId,
+        employeeId,
         status: cashType,
         paidAmount: cashType === "Paid" ? amount : 0,
         unpaidAmount: cashType === "Unpaid" ? amount : 0,
@@ -104,7 +227,15 @@ const getDataById = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const result = await Ledger.update(payload, {
+  const normalizedPayload = normalizeLedgerPayload(payload);
+
+  if (normalizedPayload.role === "Employee" && normalizedPayload.employeeId) {
+    normalizedPayload.employeeId = await resolveEmployeeListId(
+      normalizedPayload.employeeId,
+    );
+  }
+
+  const result = await Ledger.update(normalizedPayload, {
     where: {
       Id: id,
     },

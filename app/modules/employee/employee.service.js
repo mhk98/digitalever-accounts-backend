@@ -6,6 +6,8 @@ const { EmployeeSearchableFields } = require("./employee.constants");
 const Employee = db.employee;
 const Notification = db.notification;
 const User = db.user;
+const LedgerHistory = db.ledgerHistory;
+const CashInOut = db.cashInOut;
 
 const insertIntoDB = async (payload) => {
   const {
@@ -64,8 +66,37 @@ const insertIntoDB = async (payload) => {
     userId,
     date,
   };
-  const result = await Employee.create(data);
-  return result;
+
+  return db.sequelize.transaction(async (t) => {
+    const result = await Employee.create(data, { transaction: t });
+
+    if (!result) {
+      throw new ApiError(500, "Failed to create employee record");
+    }
+
+    if (result.employee_id && result.advance) {
+      await LedgerHistory.create(
+        {
+          employeeId: result.employee_id,
+          amount: result.advance,
+          status: "Paid",
+          date: result.date || new Date(),
+        },
+        { transaction: t },
+      );
+
+      await CashInOut.create(
+        {
+          employeeId: result.employee_id,
+          paymentStatus: "CashIn",
+          amount: result.advance,
+          date: result.date || new Date(),
+        },
+        { transaction: t },
+      );
+    }
+    return result;
+  });
 };
 
 const getAllFromDB = async (filters, options) => {
