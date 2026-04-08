@@ -1,6 +1,7 @@
 const catchAsync = require("../../../shared/catchAsync");
 const sendResponse = require("../../../shared/sendResponse");
 const pick = require("../../../shared/pick");
+const ApiError = require("../../../error/ApiError");
 const { ProfileLossFilterAbleFileds } = require("./profileLoss.constants");
 const ProfileLossService = require("./profileLoss.service");
 
@@ -11,6 +12,21 @@ const insertIntoDB = catchAsync(async (req, res) => {
     statusCode: 200,
     success: true,
     message: "ProfileLoss data created!!",
+    data: result,
+  });
+});
+
+const sendInvoiceEmail = catchAsync(async (req, res) => {
+  const result = await ProfileLossService.sendInvoiceEmail(req.body);
+
+  if (!result) {
+    throw new ApiError(400, "Invoice email could not be sent");
+  }
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Invoice email sent!!",
     data: result,
   });
 });
@@ -83,6 +99,7 @@ const getAllFromDBWithoutQuery = catchAsync(async (req, res) => {
 const ProfileLossController = {
   getAllFromDB,
   insertIntoDB,
+  sendInvoiceEmail,
   getDataById,
   updateOneFromDB,
   deleteIdFromDB,

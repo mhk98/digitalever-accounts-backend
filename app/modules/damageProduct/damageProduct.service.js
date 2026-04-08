@@ -585,7 +585,7 @@ const deleteIdFromDB = async (id) => {
 //         Notification.create({
 //           userId: u.Id,
 //           message,
-//           url: `/holygift.digitalever.com.bd/damage-product`,
+//           url: `/kafelamart.digitalever.com.bd/damage-product`,
 //         }),
 //       ),
 //     );
@@ -790,7 +790,7 @@ const updateOneFromDB = async (id, payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/holygift.digitalever.com.bd/purchase-product`,
+          url: `/kafelamart.digitalever.com.bd/purchase-product`,
         }),
       ),
     );

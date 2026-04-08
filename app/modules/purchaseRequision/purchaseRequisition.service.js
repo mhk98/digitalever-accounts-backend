@@ -90,7 +90,7 @@ const insertIntoDB = async (data) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/holygift.digitalever.com.bd/purchase-requisition`,
+          url: `/kafelamart.digitalever.com.bd/purchase-requisition`,
         }),
       ),
     );
@@ -316,7 +316,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/holygift.digitalever.com.bd/purchase-product`,
+        url: `/kafelamart.digitalever.com.bd/purchase-product`,
       }),
     ),
   );

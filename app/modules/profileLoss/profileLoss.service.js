@@ -3,12 +3,34 @@ const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { ProfileLossSearchableFields } = require("./profileLoss.constants");
+const profitLossInvoiceTemplate = require("../../utils/emailTemplates/profitLossInvoice");
+const sendEmail = require("../../middlewares/sendEmail");
 const ProfileLoss = db.profileLoss;
 const Notification = db.notification;
 const User = db.user;
 
 const insertIntoDB = async (payload) => {
   const result = await ProfileLoss.create(payload);
+  return result;
+};
+
+const sendInvoiceEmail = async (payload) => {
+  const { clientEmail, invoiceNumber, companyName, reportTitle, reportDate } =
+    payload;
+  const htmlContent = profitLossInvoiceTemplate({
+    companyName: companyName || "",
+    reportTitle: reportTitle || "Profit & Loss Invoice",
+    reportDate: reportDate ? new Date(reportDate).toLocaleDateString() : "",
+    invoiceNumber: invoiceNumber,
+    message: "Attached PDF-এ আপনার profit and loss summary দেওয়া আছে।",
+    supportEmail: "ceo@eaconsultancy.info",
+  });
+
+  const result = await sendEmail({
+    to: clientEmail,
+    subject: "Your Profit & Loss Invoice PDF",
+    htmlContent,
+  });
   return result;
 };
 
@@ -175,7 +197,7 @@ const deleteIdFromDB = async (id) => {
 //         {
 //           userId: u.Id,
 //           message,
-//           url: `/holygift.digitalever.com.bd/assets-purchase`,
+//           url: `/kafelamart.digitalever.com.bd/assets-purchase`,
 //         },
 //         {
 //           transaction: t,
@@ -212,7 +234,7 @@ const updateOneFromDB = async (id, payload) => {
   //     Notification.create({
   //       userId: u.Id,
   //       message,
-  //       url: `/holygift.digitalever.com.bd/assets-purchase`,
+  //       url: `/kafelamart.digitalever.com.bd/assets-purchase`,
   //     }),
   //   ),
   // );
@@ -232,6 +254,7 @@ const getAllFromDBWithoutQuery = async () => {
 const ProfileLossService = {
   getAllFromDB,
   insertIntoDB,
+  sendInvoiceEmail,
   deleteIdFromDB,
   updateOneFromDB,
   getDataById,

@@ -1,13 +1,7 @@
 const nodemailer = require("nodemailer");
 const path = require("path");
 
-const sendEmail = async ({
-  from,
-  to,
-  subject,
-  htmlContent,
-  filePath = null,
-}) => {
+const sendEmail = async ({ to, subject, htmlContent, filePath = null }) => {
   const transporter = nodemailer.createTransport({
     host: "premium15.web-hosting.com",
     port: 465,

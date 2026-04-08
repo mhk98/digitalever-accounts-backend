@@ -18,7 +18,21 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
 
+      purchase: {
+        type: DataTypes.INTEGER(10),
+        allowNull: false,
+        validate: {
+          notEmpty: true, // Ensure price is not empty
+        },
+      },
       revenue: {
+        type: DataTypes.INTEGER(10),
+        allowNull: false,
+        validate: {
+          notEmpty: true, // Ensure price is not empty
+        },
+      },
+      return: {
         type: DataTypes.INTEGER(10),
         allowNull: false,
         validate: {

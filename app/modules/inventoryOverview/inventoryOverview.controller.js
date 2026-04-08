@@ -74,7 +74,7 @@ const getInventoryOverviewList = catchAsync(async (req, res) => {
 
 // ✅ GET /inventory-overview/summary?from=&to=
 const getInventoryOverviewSummary = catchAsync(async (req, res) => {
-  const filters = pick(req.query, ["from", "to"]);
+  const filters = pick(req.query, ["from", "to", "name", "source"]);
 
   const result =
     await InventoryOverviewService.getInventoryOverviewSummaryFromDB(filters);

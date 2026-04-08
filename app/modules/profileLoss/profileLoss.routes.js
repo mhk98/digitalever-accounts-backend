@@ -12,6 +12,15 @@ router.post(
   ),
   ProfileLossController.insertIntoDB,
 );
+router.post(
+  "/invoice",
+  auth(
+    ENUM_USER_ROLE.SUPER_ADMIN,
+    ENUM_USER_ROLE.ADMIN,
+    ENUM_USER_ROLE.INVENTOR,
+  ),
+  ProfileLossController.sendInvoiceEmail,
+);
 router.get("/", ProfileLossController.getAllFromDB);
 router.get("/all", ProfileLossController.getAllFromDBWithoutQuery);
 router.get("/:id", ProfileLossController.getDataById);

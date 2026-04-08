@@ -402,7 +402,7 @@ const deleteIdFromDB = async (id) => {
 //         Notification.create({
 //           userId: u.Id,
 //           message,
-//           url: `/holygift.digitalever.com.bd/intransit-product`,
+//           url: `/kafelamart.digitalever.com.bd/intransit-product`,
 //         }),
 //       ),
 //     );
@@ -410,37 +410,41 @@ const deleteIdFromDB = async (id) => {
 //   });
 // };
 
-const updateOneFromDB = async (data) => {
+const updateOneFromDB = async (id, data) => {
   const {
     name,
     date,
     note,
-    amount,
+    status,
     mobile,
     address,
-    status,
-    quantity,
+    deliveryCharge,
+    discount,
+    dueAmount,
+    items,
+    paidAmount,
+    subTotal,
+    total,
     userId,
-    productId,
     actorRole,
   } = data;
 
   console.log("InTransit", data);
 
-  const returnQty = Number(quantity);
-  const rid = Number(productId);
+  // const returnQty = Number(quantity);
+  // const rid = Number(productId);
 
-  if (!rid) throw new ApiError(400, "productId is required");
-  if (!returnQty || returnQty <= 0) {
-    throw new ApiError(400, "Quantity must be greater than 0");
-  }
+  // if (!rid) throw new ApiError(400, "productId is required");
+  // if (!returnQty || returnQty <= 0) {
+  //   throw new ApiError(400, "Quantity must be greater than 0");
+  // }
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10);
 
   // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
   const existing = await PosReport.findOne({
-    where: { Id: data.id || productId },
+    where: { Id: id },
     attributes: ["Id", "note", "status"],
   });
 
@@ -475,76 +479,55 @@ const updateOneFromDB = async (data) => {
     }
   }
 
-  return await db.sequelize.transaction(async (t) => {
-    const received = await findInventoryByReference(rid, t);
+  const result = await PosReport.update(
+    {
+      name,
+      note: newNote || null,
+      status: finalStatus,
+      date: inputDateStr || undefined,
+      mobile,
+      address,
+      deliveryCharge,
+      discount,
+      dueAmount,
+      items,
+      paidAmount,
+      subTotal,
+      total,
+    },
+    {
+      where: { Id: id },
+    },
+  );
 
-    if (!received) throw new ApiError(404, "Received product not found");
-
-    const oldQty = Number(received.quantity || 0);
-    if (oldQty < returnQty) {
-      throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
-    }
-
-    const realProductId = Number(received.productId);
-    if (!realProductId) {
-      throw new ApiError(
-        400,
-        "InventoryMaster.productId missing (Products.Id)",
-      );
-    }
-
-    const result = await PosReport.update(
-      {
-        name,
-        quantity: returnQty,
-        price,
-        productId: realProductId, // ✅ Products.Id (FK)
-        note: newNote || null,
-        status: finalStatus,
-        date: inputDateStr || undefined,
-        amount,
-        mobile,
-        address,
-      },
-      { transaction: t },
-    );
-
-    const finalQuantity = oldQty - returnQty;
-    await InventoryMaster.update(
-      {
-        quantity: finalQuantity,
-      },
-      { where: { Id: received.Id }, transaction: t },
-    );
-
-    const users = await User.findAll({
-      attributes: ["Id", "role"],
-      where: {
-        Id: { [Op.ne]: userId },
-        role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
-      },
-    });
-
-    if (users.length) {
-      const message =
-        status === "Approved"
-          ? "Received product request approved"
-          : note || "Please approved my request";
-
-      await Promise.all(
-        users.map((u) =>
-          Notification.create({
-            userId: u.Id,
-            message,
-            url: "/purchase-requisition",
-          }),
-        ),
-      );
-    }
-
-    return result;
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId },
+      role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+    },
   });
+
+  if (users.length) {
+    const message =
+      status === "Approved"
+        ? "Received product request approved"
+        : note || "Please approved my request";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: "/purchase-requisition",
+        }),
+      ),
+    );
+  }
+
+  return result;
 };
+
 const getAllFromDBWithoutQuery = async () => {
   const result = await PosReport.findAll({
     paranoid: true,

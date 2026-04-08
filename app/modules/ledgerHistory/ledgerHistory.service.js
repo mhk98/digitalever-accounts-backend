@@ -1,10 +1,12 @@
 const { Op } = require("sequelize");
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
+const ApiError = require("../../../error/ApiError");
 const { LedgerHistorySearchableFields } = require("./ledgerHistory.constants");
 const LedgerHistory = db.ledgerHistory;
 const Ledger = db.ledger;
 const CashInOut = db.cashInOut;
+const SupplierHistory = db.supplierHistory;
 
 const normalizeOptionalForeignKey = (value) => {
   if (value === undefined || value === null) {
@@ -19,17 +21,48 @@ const normalizeOptionalForeignKey = (value) => {
   return value;
 };
 
+const normalizePrimaryKey = (value) => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value === "object") {
+    if (value.Id !== undefined && value.Id !== null) {
+      return value.Id;
+    }
+
+    if (value.id !== undefined && value.id !== null) {
+      return value.id;
+    }
+  }
+
+  if (typeof value === "string") {
+    const trimmedValue = value.trim();
+    return trimmedValue ? trimmedValue : null;
+  }
+
+  return value;
+};
+
 const insertIntoDB = async (payload) => {
   const {
     cashType,
     paidAmount,
-    ledgerId,
+    ledgerId: rawLedgerId,
     unpaidAmount,
     note,
     date,
+    bookId,
     supplierId,
     employeeId,
   } = payload;
+
+  console.log("payload", payload);
+  const ledgerId = normalizePrimaryKey(rawLedgerId);
+
+  if (!ledgerId) {
+    throw new ApiError(400, "ledgerId is required");
+  }
 
   const data = {
     paidAmount,
@@ -43,13 +76,19 @@ const insertIntoDB = async (payload) => {
   };
 
   return db.sequelize.transaction(async (t) => {
+    const existingLedger = await Ledger.findByPk(ledgerId, { transaction: t });
+
+    if (!existingLedger) {
+      throw new ApiError(404, "Ledger not found for the provided ledgerId");
+    }
+
     if (supplierId) {
       // SupplierHistory
       await SupplierHistory.create(
         {
           supplierId,
           bookId,
-          amount,
+          amount: cashType === "Paid" ? paidAmount : unpaidAmount,
           status: cashType,
           date: date || new Date(),
           note: note || "",
@@ -62,9 +101,8 @@ const insertIntoDB = async (payload) => {
           supplierId,
           bookId,
           paymentStatus: cashType === "Paid" ? "CashIn" : "Unpaid",
-          amount,
+          amount: cashType === "Paid" ? paidAmount : unpaidAmount,
           date,
-          file,
         },
         { transaction: t },
       );
@@ -77,14 +115,14 @@ const insertIntoDB = async (payload) => {
           employeeId,
           bookId,
           paymentStatus: cashType === "Paid" ? "CashIn" : "Unpaid",
-          amount,
+          amount: cashType === "Paid" ? paidAmount : unpaidAmount,
           date,
         },
         { transaction: t },
       );
     }
 
-    const result = await LedgerHistory.create(data);
+    const result = await LedgerHistory.create(data, { transaction: t });
 
     return result;
   });
@@ -171,34 +209,36 @@ const getAllFromDB = async (filters, options) => {
   //   LedgerHistory.sum("amount", { where: whereConditions }),
   // ]);
 
-  const [result, count, totalPaidAmount, totalUnpaidAmount] = await Promise.all([
-    LedgerHistory.findAll({
-      where: whereConditions,
-      offset: skip,
-      limit,
-      include: [
-        {
-          model: Ledger,
-          as: "ledger",
-          attributes: ["Id", "name"],
-        },
-      ],
-      paranoid: true,
-      order:
-        options.sortBy && options.sortOrder
-          ? [[options.sortBy, options.sortOrder.toUpperCase()]]
-          : [["date", "DESC"]],
-    }),
-    LedgerHistory.count({
-      where: whereConditions,
-    }),
-    LedgerHistory.sum("paidAmount", {
-      where: whereConditions,
-    }),
-    LedgerHistory.sum("unpaidAmount", {
-      where: whereConditions,
-    }),
-  ]);
+  const [result, count, totalPaidAmount, totalUnpaidAmount] = await Promise.all(
+    [
+      LedgerHistory.findAll({
+        where: whereConditions,
+        offset: skip,
+        limit,
+        include: [
+          {
+            model: Ledger,
+            as: "ledger",
+            attributes: ["Id", "name"],
+          },
+        ],
+        paranoid: true,
+        order:
+          options.sortBy && options.sortOrder
+            ? [[options.sortBy, options.sortOrder.toUpperCase()]]
+            : [["date", "DESC"]],
+      }),
+      LedgerHistory.count({
+        where: whereConditions,
+      }),
+      LedgerHistory.sum("paidAmount", {
+        where: whereConditions,
+      }),
+      LedgerHistory.sum("unpaidAmount", {
+        where: whereConditions,
+      }),
+    ],
+  );
 
   const paid = Number(totalPaidAmount) || 0;
   const unpaid = Number(totalUnpaidAmount) || 0;

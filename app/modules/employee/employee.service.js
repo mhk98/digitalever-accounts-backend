@@ -133,7 +133,7 @@ const getAllFromDB = async (filters, options) => {
     end.setHours(23, 59, 59, 999);
 
     andConditions.push({
-      date: { [Op.between]: [start, end] },
+      createdAt: { [Op.between]: [start, end] },
     });
   }
 
@@ -146,21 +146,25 @@ const getAllFromDB = async (filters, options) => {
     ? { [Op.and]: andConditions }
     : {};
 
-  const result = await Employee.findAll({
-    where: whereConditions,
-    offset: skip,
-    limit,
-    paranoid: true,
-    order:
-      options.sortBy && options.sortOrder
-        ? [[options.sortBy, options.sortOrder.toUpperCase()]]
-        : [["createdAt", "DESC"]],
-  });
+  const order =
+    options.sortBy && options.sortOrder
+      ? [[options.sortBy, options.sortOrder.toUpperCase()]]
+      : [["createdAt", "DESC"]];
 
-  const count = await Employee.count({ where: whereConditions });
+  const [result, count, totalSalary] = await Promise.all([
+    Employee.findAll({
+      where: whereConditions,
+      offset: skip,
+      limit,
+      paranoid: true,
+      order,
+    }),
+    Employee.count({ where: whereConditions }),
+    Employee.sum("net_salary", { where: whereConditions }),
+  ]);
 
   return {
-    meta: { count, page, limit },
+    meta: { count, totalSalary: Number(totalSalary || 0), page, limit },
     data: result,
   };
 };
@@ -295,7 +299,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/holygift.digitalever.com.bd/employee`,
+        url: `/kafelamart.digitalever.com.bd/employee`,
       }),
     ),
   );

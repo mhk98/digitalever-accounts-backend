@@ -331,9 +331,9 @@ const getAllFromDB = async (filters, options) => {
     );
   }
 
-  baseConditions.push({
-    deletedAt: { [Op.is]: null },
-  });
+  // baseConditions.push({
+  //   deletedAt: { [Op.is]: null },
+  // });
 
   const listWhere = baseConditions.length ? { [Op.and]: baseConditions } : {};
 
@@ -452,7 +452,7 @@ const updateOneFromDB = async (id, payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/holygift.digitalever.com.bd/book/${bookId}`,
+          url: `/kafelamart.digitalever.com.bd/book/${bookId}`,
         }),
       ),
     );

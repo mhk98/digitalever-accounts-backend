@@ -165,7 +165,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/holygift.digitalever.com.bd/payable`,
+        url: `/kafelamart.digitalever.com.bd/payable`,
       }),
     ),
   );
