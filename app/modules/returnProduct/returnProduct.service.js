@@ -23,7 +23,7 @@ const findInventoryByStoredReference = async (receivedId, transaction) => {
   if (inventoryByInventoryId) return inventoryByInventoryId;
 
   return InventoryMaster.findOne({
-    where: { productId: receivedId },
+    where: { Id: receivedId },
     transaction,
     lock: transaction?.LOCK?.UPDATE,
   });
@@ -31,7 +31,7 @@ const findInventoryByStoredReference = async (receivedId, transaction) => {
 
 const findInventoryByRequestReference = async (receivedId, transaction) => {
   const inventoryByProductId = await InventoryMaster.findOne({
-    where: { productId: receivedId },
+    where: { Id: receivedId },
     transaction,
     lock: transaction?.LOCK?.UPDATE,
   });

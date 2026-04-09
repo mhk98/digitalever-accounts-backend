@@ -1,5 +1,6 @@
 const { ENUM_USER_ROLE } = require("../../enums/user");
 const auth = require("../../middlewares/auth");
+const { requireMenuPermission } = require("../../middlewares/requireMenuPermission");
 const { uploadFile } = require("../../middlewares/upload");
 
 const PettyCashController = require("./pettyCash.controller");
@@ -13,10 +14,16 @@ router.post(
     ENUM_USER_ROLE.ADMIN,
     ENUM_USER_ROLE.ACCOUNTANT,
   ),
+  requireMenuPermission("petty_cash"),
   PettyCashController.insertIntoDB,
 );
-router.get("/", PettyCashController.getAllFromDB);
-router.get("/all", PettyCashController.getAllFromDBWithoutQuery);
+router.get("/", auth(), requireMenuPermission("petty_cash"), PettyCashController.getAllFromDB);
+router.get(
+  "/all",
+  auth(),
+  requireMenuPermission("petty_cash"),
+  PettyCashController.getAllFromDBWithoutQuery,
+);
 // router.get("/:id", PettyCashController.getDataById);
 router.delete(
   "/:id",
@@ -25,6 +32,7 @@ router.delete(
     ENUM_USER_ROLE.ADMIN,
     ENUM_USER_ROLE.ACCOUNTANT,
   ),
+  requireMenuPermission("petty_cash"),
   PettyCashController.deleteIdFromDB,
 );
 router.put(
@@ -35,6 +43,7 @@ router.put(
     ENUM_USER_ROLE.ADMIN,
     ENUM_USER_ROLE.ACCOUNTANT,
   ),
+  requireMenuPermission("petty_cash"),
   PettyCashController.updateOneFromDB,
 );
 const PettyCashRoutes = router;

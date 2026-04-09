@@ -9,6 +9,7 @@ const ApiError = require("../../../error/ApiError");
 const { UserSearchableFields } = require("./user.constants");
 const sendEmail = require("../../middlewares/sendEmail");
 const welcomeCredentialsTemplate = require("../../utils/emailTemplates/welcomeCredentials");
+const RolePermissionService = require("../rolePermission/rolePermission.service");
 
 const login = async (buyerData) => {
   const { Email, Password } = buyerData;
@@ -44,9 +45,16 @@ const login = async (buyerData) => {
   };
   // res.cookie("accessToken", accessToken, cookieOptions);
 
+  const plainUser = user.get({ plain: true });
+  delete plainUser.Password;
+
+  const menuPermissions =
+    await RolePermissionService.getEffectiveMenuPermissions(user.role);
+
   const result = {
     accessToken,
-    user,
+    user: plainUser,
+    menuPermissions,
   };
 
   return result;

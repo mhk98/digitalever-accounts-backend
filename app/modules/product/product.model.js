@@ -22,6 +22,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      stockId: {
+        type: DataTypes.INTEGER(10),
+        allowNull: true,
+      },
 
       date: {
         type: DataTypes.DATEONLY,

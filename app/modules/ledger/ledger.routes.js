@@ -1,5 +1,6 @@
 const { ENUM_USER_ROLE } = require("../../enums/user");
 const auth = require("../../middlewares/auth");
+const { requireMenuPermission } = require("../../middlewares/requireMenuPermission");
 const LedgerController = require("./ledger.controller");
 const router = require("express").Router();
 
@@ -10,11 +11,17 @@ router.post(
     ENUM_USER_ROLE.ADMIN,
     ENUM_USER_ROLE.ACCOUNTANT,
   ),
+  requireMenuPermission("credit_ledger"),
   LedgerController.insertIntoDB,
 );
-router.get("/", LedgerController.getAllFromDB);
-router.get("/all", LedgerController.getAllFromDBWithoutQuery);
-router.get("/:id", LedgerController.getDataById);
+router.get("/", auth(), requireMenuPermission("credit_ledger"), LedgerController.getAllFromDB);
+router.get(
+  "/all",
+  auth(),
+  requireMenuPermission("credit_ledger"),
+  LedgerController.getAllFromDBWithoutQuery,
+);
+router.get("/:id", auth(), requireMenuPermission("credit_ledger"), LedgerController.getDataById);
 router.delete(
   "/:id",
   auth(
@@ -22,6 +29,7 @@ router.delete(
     ENUM_USER_ROLE.ADMIN,
     ENUM_USER_ROLE.ACCOUNTANT,
   ),
+  requireMenuPermission("credit_ledger"),
   LedgerController.deleteIdFromDB,
 );
 router.put(
@@ -31,6 +39,7 @@ router.put(
     ENUM_USER_ROLE.ADMIN,
     ENUM_USER_ROLE.ACCOUNTANT,
   ),
+  requireMenuPermission("credit_ledger"),
   LedgerController.updateOneFromDB,
 );
 

@@ -1,5 +1,6 @@
 const { ENUM_USER_ROLE } = require("../../enums/user");
 const auth = require("../../middlewares/auth");
+const { requireAnyPermission } = require("../../middlewares/requireMenuPermission");
 const { uploadFile } = require("../../middlewares/upload");
 const MarketingExpenseController = require("./marketingExpense.controller");
 const router = require("express").Router();
@@ -12,12 +13,33 @@ router.post(
     ENUM_USER_ROLE.ADMIN,
     ENUM_USER_ROLE.MARKETER,
   ),
+  requireAnyPermission(["marketing", "dm_expense"]),
   MarketingExpenseController.insertIntoDB,
 );
-router.get("/", MarketingExpenseController.getAllFromDB);
-router.get("/summary", MarketingExpenseController.getOverviewSummaryFromDB);
-router.get("/all", MarketingExpenseController.getAllFromDBWithoutQuery);
-router.get("/:id", MarketingExpenseController.getDataById);
+router.get(
+  "/",
+  auth(),
+  requireAnyPermission(["marketing", "dm_expense"]),
+  MarketingExpenseController.getAllFromDB,
+);
+router.get(
+  "/summary",
+  auth(),
+  requireAnyPermission(["marketing", "dm_expense"]),
+  MarketingExpenseController.getOverviewSummaryFromDB,
+);
+router.get(
+  "/all",
+  auth(),
+  requireAnyPermission(["marketing", "dm_expense"]),
+  MarketingExpenseController.getAllFromDBWithoutQuery,
+);
+router.get(
+  "/:id",
+  auth(),
+  requireAnyPermission(["marketing", "dm_expense"]),
+  MarketingExpenseController.getDataById,
+);
 router.delete(
   "/:id",
   auth(
@@ -25,6 +47,7 @@ router.delete(
     ENUM_USER_ROLE.ADMIN,
     ENUM_USER_ROLE.MARKETER,
   ),
+  requireAnyPermission(["marketing", "dm_expense"]),
   MarketingExpenseController.deleteIdFromDB,
 );
 router.put(
@@ -35,6 +58,7 @@ router.put(
     ENUM_USER_ROLE.ADMIN,
     ENUM_USER_ROLE.MARKETER,
   ),
+  requireAnyPermission(["marketing", "dm_expense"]),
   MarketingExpenseController.updateOneFromDB,
 );
 const MarketingExpenseRoutes = router;

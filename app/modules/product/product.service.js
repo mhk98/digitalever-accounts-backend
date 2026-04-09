@@ -103,7 +103,7 @@ const getAllFromDB = async (filters, options) => {
 const getDataById = async (id) => {
   const result = await Product.findOne({
     where: {
-      Id: id,
+      stockId: id,
     },
     include: [
       {
@@ -174,12 +174,29 @@ const getAllFromDBWithoutQuery = async () => {
   return result;
 };
 
+const getReceivedDataById = async (id) => {
+  const result = await Product.findOne({
+    where: {
+      Id: id,
+    },
+    include: [
+      {
+        model: db.variation,
+        as: "variations",
+      },
+    ],
+  });
+
+  return result;
+};
+
 const ProductService = {
   getAllFromDB,
   insertIntoDB,
   deleteIdFromDB,
   updateOneFromDB,
   getDataById,
+  getReceivedDataById,
   getAllFromDBWithoutQuery,
 };
 

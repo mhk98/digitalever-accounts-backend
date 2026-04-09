@@ -48,7 +48,8 @@ const StockAdjustmentRoutes = require("../modules/stockAdjustment/stockAdjustmen
 const VariationRoutes = require("../modules/variation/variation.routes");
 const DamageReparingStockRoutes = require("../modules/damageReparingStock/damageReparingStock.routes");
 const EmployeeListRoutes = require("../modules/employeeList/employeeList.routes");
-const ProfileLossRoutes = require("../modules/profileLoss/profileLoss.routes");
+const ProfileLossRoutes = require("../modules/profitLoss/profitLoss.routes");
+const RolePermissionRoutes = require("../modules/rolePermission/rolePermission.routes");
 
 const router = express.Router();
 
@@ -56,6 +57,10 @@ const moduleRoutes = [
   {
     path: "/user",
     route: UserRoutes,
+  },
+  {
+    path: "/role-permissions",
+    route: RolePermissionRoutes,
   },
 
   {

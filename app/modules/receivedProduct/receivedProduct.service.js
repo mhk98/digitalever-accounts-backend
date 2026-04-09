@@ -148,8 +148,18 @@ const insertIntoDB = async (data, file) => {
         },
         { transaction: t },
       );
+
+      if (!productData.stockId) {
+        await Product.update(
+          { stockId: inv.Id },
+          {
+            where: { Id: productId },
+            transaction: t,
+          },
+        );
+      }
     } else {
-      await InventoryMaster.create(
+      const stock = await InventoryMaster.create(
         {
           productId,
           sku,
@@ -162,6 +172,16 @@ const insertIntoDB = async (data, file) => {
         },
         { transaction: t },
       );
+
+      if (!productData.stockId) {
+        await Product.update(
+          { stockId: stock.Id },
+          {
+            where: { Id: productId },
+            transaction: t,
+          },
+        );
+      }
     }
 
     // =========================

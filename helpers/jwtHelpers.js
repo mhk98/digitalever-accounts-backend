@@ -5,11 +5,10 @@ require("dotenv").config();
 exports.generateToken = (userInfo) => {
   try {
     const payload = {
+      Id: userInfo.Id,
       Email: userInfo.Email,
       role: userInfo.role,
     };
-
-    console.log(payload);
 
     // Token generation with 24 hours expiration
     const token = jwt.sign(payload, process.env.TOKEN_SECRET, {

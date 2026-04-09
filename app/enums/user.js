@@ -7,4 +7,5 @@ exports.ENUM_USER_ROLE = {
   INVENTOR: "inventor",
   ACCOUNTANT: "accountant",
   STAFF: "staff",
+  USER: "user",
 };

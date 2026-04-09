@@ -10,6 +10,115 @@ const WarrantyProduct = db.warrantyProduct;
 const InventoryMaster = db.inventoryMaster;
 const ConfirmOrder = db.confirmOrder;
 
+const normalizeItems = (items) => {
+  if (Array.isArray(items)) return items;
+
+  if (typeof items === "string") {
+    try {
+      const parsed = JSON.parse(items);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  return [];
+};
+
+const buildItemQuantityMap = (items = []) => {
+  return normalizeItems(items).reduce((acc, item) => {
+    const referenceId = Number(item?.Id);
+    const qty = Number(item?.qty) || 0;
+
+    if (!referenceId || qty <= 0) return acc;
+
+    acc[referenceId] = (acc[referenceId] || 0) + qty;
+    return acc;
+  }, {});
+};
+
+const applyInventoryDeltaMap = async (deltaMap, transaction) => {
+  for (const [referenceIdString, diff] of Object.entries(deltaMap)) {
+    const referenceId = Number(referenceIdString);
+    const quantityDiff = Number(diff) || 0;
+
+    if (!referenceId || quantityDiff === 0) continue;
+
+    const inventory = await findInventoryByReference(referenceId, transaction);
+
+    if (!inventory) {
+      throw new ApiError(404, `inventory product not found: ${referenceId}`);
+    }
+
+    const currentQuantity = Number(inventory.quantity || 0);
+    const nextQuantity = currentQuantity - quantityDiff;
+
+    if (nextQuantity < 0) {
+      throw new ApiError(
+        400,
+        `Not enough stock for inventory_id=${referenceId}. Available: ${currentQuantity}`,
+      );
+    }
+
+    await InventoryMaster.update(
+      { quantity: nextQuantity },
+      {
+        where: { Id: inventory.Id },
+        transaction,
+      },
+    );
+  }
+};
+
+const removeConfirmOrdersForPosReportItems = async (
+  items,
+  saleDate,
+  transaction,
+  createdAt,
+) => {
+  const normalizedItems = normalizeItems(items);
+
+  for (const item of normalizedItems) {
+    const productId = Number(item?.Id) || 0;
+    const qty = Number(item?.qty) || 0;
+    const totalPrice = Number(item?.total ?? (Number(item?.price) || 0) * qty);
+    const itemName = String(item?.name || "").trim();
+
+    if (!productId || qty <= 0) continue;
+
+    const whereConditions = {
+      productId,
+      quantity: qty,
+      sale_price: totalPrice,
+      date: saleDate,
+    };
+
+    if (itemName) {
+      whereConditions.name = itemName;
+    }
+
+    if (createdAt) {
+      const from = new Date(new Date(createdAt).getTime() - 5 * 60 * 1000);
+      const to = new Date(new Date(createdAt).getTime() + 5 * 60 * 1000);
+      whereConditions.createdAt = { [Op.between]: [from, to] };
+    }
+
+    const row = await ConfirmOrder.findOne({
+      where: whereConditions,
+      order: [["createdAt", "DESC"]],
+      transaction,
+      lock: transaction?.LOCK?.UPDATE,
+    });
+
+    if (!row) continue;
+
+    await ConfirmOrder.destroy({
+      where: { Id: row.Id },
+      transaction,
+    });
+  }
+};
+
 const findInventoryByReference = async (referenceId, transaction) => {
   const inventoryByInventoryId = await InventoryMaster.findOne({
     where: { Id: referenceId },
@@ -20,7 +129,7 @@ const findInventoryByReference = async (referenceId, transaction) => {
   if (inventoryByInventoryId) return inventoryByInventoryId;
 
   return InventoryMaster.findOne({
-    where: { productId: referenceId },
+    where: { Id: referenceId },
     transaction,
     lock: transaction?.LOCK?.UPDATE,
   });
@@ -83,32 +192,7 @@ const insertIntoDB = async (payload) => {
         : "Active";
 
   return await db.sequelize.transaction(async (t) => {
-    // ✅ 1) Stock check + deduct
-    for (const it of items) {
-      const rid = Number(it.Id);
-      const qty = Number(it.qty);
-
-      if (!rid) throw new ApiError(400, "inventory id is required");
-      if (!qty || qty <= 0) throw new ApiError(400, "qty must be > 0");
-
-      const inventory = await findInventoryByReference(rid, t);
-
-      if (!inventory)
-        throw new ApiError(404, `inventory product not found: ${rid}`);
-
-      const oldQty = Number(inventory.quantity || 0);
-      if (oldQty < qty) {
-        throw new ApiError(
-          400,
-          `Not enough stock for inventory_id=${rid}. Available: ${oldQty}`,
-        );
-      }
-
-      await InventoryMaster.update(
-        { quantity: oldQty - qty },
-        { where: { Id: inventory.Id }, transaction: t },
-      );
-    }
+    await applyInventoryDeltaMap(buildItemQuantityMap(items), t);
 
     // ✅ 2) PosReport create
     const result = await PosReport.create(
@@ -269,32 +353,30 @@ const getDataById = async (id) => {
 
 const deleteIdFromDB = async (id) => {
   return await db.sequelize.transaction(async (t) => {
-    // 1) Return row খুঁজে বের করো
     const ret = await PosReport.findOne({
       where: { Id: id },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (!ret) throw new ApiError(404, "Return product not found");
+    if (!ret) throw new ApiError(404, "POS report not found");
 
-    const qty = Number(ret.quantity || 0);
-    if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
+    const existingItems = normalizeItems(ret.items);
+    const restoreMap = Object.entries(
+      buildItemQuantityMap(existingItems),
+    ).reduce((acc, [referenceId, qty]) => {
+      acc[referenceId] = -Number(qty || 0);
+      return acc;
+    }, {});
 
-    // 2) InventoryMaster খুঁজে বের করো (Products.Id দিয়ে)
-    const received = await findInventoryByReference(ret.productId, t);
-
-    if (!received) throw new ApiError(404, "Received product not found");
-
-    // 3) stock ফিরিয়ে দাও
-    await InventoryMaster.update(
-      {
-        quantity: Number(received.quantity || 0) + qty,
-      },
-      { where: { Id: received.Id }, transaction: t },
+    await applyInventoryDeltaMap(restoreMap, t);
+    await removeConfirmOrdersForPosReportItems(
+      existingItems,
+      ret.date,
+      t,
+      ret.createdAt,
     );
 
-    // 4) Return row delete
     await PosReport.destroy({
       where: { Id: id },
       transaction: t,
@@ -429,76 +511,76 @@ const updateOneFromDB = async (id, data) => {
     actorRole,
   } = data;
 
-  console.log("InTransit", data);
-
-  // const returnQty = Number(quantity);
-  // const rid = Number(productId);
-
-  // if (!rid) throw new ApiError(400, "productId is required");
-  // if (!returnQty || returnQty <= 0) {
-  //   throw new ApiError(400, "Quantity must be greater than 0");
-  // }
-
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10);
 
-  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
-  const existing = await PosReport.findOne({
-    where: { Id: id },
-    attributes: ["Id", "note", "status"],
-  });
+  const result = await db.sequelize.transaction(async (t) => {
+    const existing = await PosReport.findOne({
+      where: { Id: id },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
 
-  if (!existing) return 0;
+    if (!existing) throw new ApiError(404, "POS report not found");
 
-  const oldNote = String(existing.note || "").trim();
-  const newNote = String(note || "").trim();
+    const oldNote = String(existing.note || "").trim();
+    const newNote = String(note || "").trim();
 
-  // ✅ newNote খালি না হলে + oldNote থেকে আলাদা হলে => pending trigger
-  const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
+    const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
+    const dateTriggersPending =
+      Boolean(inputDateStr) && inputDateStr !== todayStr;
+    const inputStatus = String(status || "").trim();
 
-  // ✅ today না হলে pending trigger (date না পাঠালে trigger হবে না)
-  const dateTriggersPending =
-    Boolean(inputDateStr) && inputDateStr !== todayStr;
+    let finalStatus = existing.status || "Pending";
+    const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
 
-  const inputStatus = String(status || "").trim();
-
-  let finalStatus = existing.status || "Pending";
-
-  const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
-
-  if (isPrivileged) {
-    // ✅ superAdmin/admin: যা পাঠাবে সেটাই
-    finalStatus = inputStatus || finalStatus;
-  } else {
-    // ✅ others: today date না হলে বা new note হলে Pending override
-    if (dateTriggersPending || noteTriggersPending) {
+    if (isPrivileged) {
+      finalStatus = inputStatus || finalStatus;
+    } else if (dateTriggersPending || noteTriggersPending) {
       finalStatus = "Pending";
     } else {
-      // ✅ otherwise: status পাঠালে সেটাই, না পাঠালে আগেরটা
       finalStatus = inputStatus || finalStatus;
     }
-  }
 
-  const result = await PosReport.update(
-    {
-      name,
-      note: newNote || null,
-      status: finalStatus,
-      date: inputDateStr || undefined,
-      mobile,
-      address,
-      deliveryCharge,
-      discount,
-      dueAmount,
-      items,
-      paidAmount,
-      subTotal,
-      total,
-    },
-    {
-      where: { Id: id },
-    },
-  );
+    const existingItemsMap = buildItemQuantityMap(existing.items);
+    const nextItemsMap = buildItemQuantityMap(items);
+    const allReferenceIds = new Set([
+      ...Object.keys(existingItemsMap),
+      ...Object.keys(nextItemsMap),
+    ]);
+
+    const deltaMap = {};
+    for (const referenceId of allReferenceIds) {
+      const nextQty = Number(nextItemsMap[referenceId] || 0);
+      const oldQty = Number(existingItemsMap[referenceId] || 0);
+      const diff = nextQty - oldQty;
+      if (diff !== 0) deltaMap[referenceId] = diff;
+    }
+
+    await applyInventoryDeltaMap(deltaMap, t);
+
+    return PosReport.update(
+      {
+        name,
+        note: newNote || null,
+        status: finalStatus,
+        date: inputDateStr || undefined,
+        mobile,
+        address,
+        deliveryCharge,
+        discount,
+        dueAmount,
+        items,
+        paidAmount,
+        subTotal,
+        total,
+      },
+      {
+        where: { Id: id },
+        transaction: t,
+      },
+    );
+  });
 
   const users = await User.findAll({
     attributes: ["Id", "role"],

@@ -39,6 +39,16 @@ const getDataById = catchAsync(async (req, res) => {
   });
 });
 
+const getReceivedDataById = catchAsync(async (req, res) => {
+  const result = await ProductService.getReceivedDataById(req.params.id);
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Product data fetched!!",
+    data: result,
+  });
+});
+
 const updateOneFromDB = catchAsync(async (req, res) => {
   const { id } = req.params;
   const result = await ProductService.updateOneFromDB(id, req.body);
@@ -74,6 +84,7 @@ const ProductController = {
   getAllFromDB,
   insertIntoDB,
   getDataById,
+  getReceivedDataById,
   updateOneFromDB,
   deleteIdFromDB,
   getAllFromDBWithoutQuery,

@@ -9,6 +9,10 @@ const { DataTypes } = require("sequelize");
 // Define models
 // =====================
 db.user = require("../app/modules/user/user.model")(db.sequelize, DataTypes);
+db.rolePermission = require("../app/modules/rolePermission/rolePermission.model")(
+  db.sequelize,
+  DataTypes,
+);
 
 db.product = require("../app/modules/product/product.model")(
   db.sequelize,
@@ -142,7 +146,7 @@ db.expense = require("../app/modules/expense/expense.model")(
 
 db.book = require("../app/modules/book/book.model")(db.sequelize, DataTypes);
 
-db.profileLoss = require("../app/modules/profileLoss/profileLoss.model")(
+db.profitLoss = require("../app/modules/profitLoss/profitLoss.model")(
   db.sequelize,
   DataTypes,
 );
@@ -527,7 +531,27 @@ db.payable.belongsTo(db.supplier, { foreignKey: "supplierId", as: "supplier" });
 // =====================
 db.sequelize
   .sync({ force: false })
-  .then(() => console.log("Connection re-synced successfully"))
+  .then(async () => {
+    const {
+      DEFAULT_ROLE_MENU_PERMISSIONS,
+    } = require("../app/config/roleMenuPermissions");
+
+    await Promise.all(
+      Object.entries(DEFAULT_ROLE_MENU_PERMISSIONS).map(
+        async ([role, menuPermissions]) => {
+          await db.rolePermission.findOrCreate({
+            where: { role },
+            defaults: {
+              role,
+              menuPermissions,
+            },
+          });
+        },
+      ),
+    );
+
+    console.log("Connection re-synced successfully");
+  })
   .catch((err) => console.error("Error on re-sync:", err));
 
 module.exports = db;

@@ -94,6 +94,16 @@ const insertIntoDB = async (payload) => {
         },
         { transaction: t },
       );
+
+      await CashInOut.create(
+        {
+          employeeId: result.employee_id,
+          paymentStatus: "CashOut",
+          amount: result.total_salary,
+          date: result.date || new Date(),
+        },
+        { transaction: t },
+      );
     }
     return result;
   });
