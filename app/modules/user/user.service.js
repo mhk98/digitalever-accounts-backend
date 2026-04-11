@@ -10,6 +10,7 @@ const { UserSearchableFields } = require("./user.constants");
 const sendEmail = require("../../middlewares/sendEmail");
 const welcomeCredentialsTemplate = require("../../utils/emailTemplates/welcomeCredentials");
 const RolePermissionService = require("../rolePermission/rolePermission.service");
+const DEFAULT_REGISTER_PASSWORD = "123456";
 
 const login = async (buyerData) => {
   const { Email, Password } = buyerData;
@@ -78,18 +79,25 @@ const login = async (buyerData) => {
 
 const register = async (userData) => {
   const { Email, Password, Name } = userData;
+  const plainPassword =
+    typeof Password === "string" && Password.trim()
+      ? Password
+      : DEFAULT_REGISTER_PASSWORD;
 
   const isUserExist = await User.findOne({ where: { Email } });
   if (isUserExist) throw new ApiError(409, "User already exist");
 
   // ✅ user create
-  const result = await User.create(userData);
+  const result = await User.create({
+    ...userData,
+    Password: plainPassword,
+  });
 
   // ✅ send email after success
   const htmlContent = welcomeCredentialsTemplate({
     name: Name || "User",
     email: Email,
-    password: Password, // ⚠️ plain password দরকার
+    password: plainPassword,
     loginUrl: "https://accounts.digitalever.com.bd/login", // চাইলে পরিবর্তন করো
   });
 

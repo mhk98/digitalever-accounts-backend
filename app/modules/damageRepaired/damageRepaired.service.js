@@ -17,6 +17,13 @@ const Warehouse = db.warehouse;
 const InventoryMaster = db.inventoryMaster;
 const DamageReparingStock = db.damageReparingStock;
 
+const normalizeOptionalForeignKey = (value) => {
+  const numericValue = Number(value);
+  return Number.isInteger(numericValue) && numericValue > 0
+    ? numericValue
+    : null;
+};
+
 const findDamageReparingStockByReference = async (receivedId, transaction) => {
   const byId = await DamageReparingStock.findOne({
     where: { Id: receivedId },
@@ -37,6 +44,7 @@ const insertIntoDB = async (data) => {
   const {
     quantity,
     receivedId,
+    productId,
     variants,
     date,
     note,
@@ -51,6 +59,8 @@ const insertIntoDB = async (data) => {
   const returnQty = Number(quantity);
   const rid = Number(receivedId);
   const incomingVariants = parseVariants(variants);
+  const normalizedSupplierId = normalizeOptionalForeignKey(supplierId);
+  const normalizedWarehouseId = normalizeOptionalForeignKey(warehouseId);
 
   if (!rid) throw new ApiError(400, "receivedId is required");
   if (!returnQty || returnQty <= 0) {
@@ -73,70 +83,59 @@ const insertIntoDB = async (data) => {
         : "Active";
 
   return await db.sequelize.transaction(async (t) => {
-    const damageRepair = await DamageRepair.findOne({
+    const damageRepairingStock = await DamageReparingStock.findOne({
       where: { Id: rid },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    console.log("DamageRepair", rid);
+    console.log("DamageRepairingStock", rid);
 
-    if (!damageRepair)
-      throw new ApiError(404, "DamageRepair product not found");
+    if (!damageRepairingStock)
+      throw new ApiError(404, "DamageRepairingStock product not found");
 
-    const oldQty = Number(damageRepair.quantity || 0);
+    const oldQty = Number(damageRepairingStock.quantity || 0);
     if (oldQty < returnQty) {
       throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
     }
 
     const perUnitPurchase =
-      oldQty > 0 ? Number(damageRepair.purchase_price || 0) / oldQty : 0;
+      oldQty > 0
+        ? Number(damageRepairingStock.purchase_price || 0) / oldQty
+        : 0;
     const perUnitSale =
-      oldQty > 0 ? Number(damageRepair.sale_price || 0) / oldQty : 0;
+      oldQty > 0 ? Number(damageRepairingStock.sale_price || 0) / oldQty : 0;
 
     const deductPurchase = perUnitPurchase * returnQty;
     const deductSale = perUnitSale * returnQty;
 
-    const damageRepairId = Number(damageRepair.Id);
-    if (!damageRepairId) {
-      throw new ApiError(400, "DamageRepair.Id missing");
+    const damageRepairingStockId = Number(damageRepairingStock.Id);
+    if (!damageRepairingStockId) {
+      throw new ApiError(400, "DamageRepairingStock.Id missing");
     }
 
-    const damageStockId = Number(damageRepair.productId);
-    if (!damageStockId) {
+    const damageStockRepairingProductId = Number(
+      damageRepairingStock.productId,
+    );
+    if (!damageStockRepairingProductId) {
       throw new ApiError(
         400,
-        "DamageRepair productId missing (DamageStock.Id)",
+        "DamageRepairingStock productId missing (DamageStock.Id)",
       );
-    }
-
-    const damageStock = await db.damageStock.findOne({
-      where: { Id: damageStockId },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
-
-    if (!damageStock) {
-      throw new ApiError(404, "DamageStock not found");
-    }
-
-    const catalogProductId = Number(damageStock.productId);
-    if (!catalogProductId) {
-      throw new ApiError(400, "DamageStock.productId missing (Products.Id)");
     }
 
     const result = await DamageRepaired.create(
       {
-        name: damageRepair.name,
-        supplierId,
-        warehouseId,
+        name: damageRepairingStock.name,
+        supplierId: normalizedSupplierId,
+        warehouseId: normalizedWarehouseId,
         source: "Damage Repaired",
-        remarks: damageRepair.remarks,
+        remarks: note,
         quantity: returnQty,
         variants: incomingVariants,
         purchase_price: deductPurchase,
         sale_price: deductSale,
-        productId: damageRepairId,
+        productId: damageRepairingStockId,
         status: finalStatus || "---",
         note: note || null,
         date: date,
@@ -144,17 +143,7 @@ const insertIntoDB = async (data) => {
       { transaction: t },
     );
 
-    const damageReparingStock = await DamageReparingStock.findOne({
-      where: { productId: catalogProductId },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
-
-    if (!damageReparingStock) {
-      throw new ApiError(404, "DamageReparingStock not found");
-    }
-
-    const repairingQty = Number(damageReparingStock.quantity || 0);
+    const repairingQty = Number(damageRepairingStock.quantity || 0);
     if (repairingQty < returnQty) {
       throw new ApiError(
         400,
@@ -166,15 +155,15 @@ const insertIntoDB = async (data) => {
       {
         quantity: repairingQty - returnQty,
         variants: subtractVariants(
-          damageReparingStock.variants,
+          damageRepairingStock.variants,
           incomingVariants,
         ),
       },
-      { where: { Id: damageReparingStock.Id }, transaction: t },
+      { where: { Id: damageRepairingStock.Id }, transaction: t },
     );
 
     const inventory = await InventoryMaster.findOne({
-      where: { productId: catalogProductId },
+      where: { productId: damageStockRepairingProductId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -429,6 +418,8 @@ const updateOneFromDB = async (id, data) => {
 
   const returnQty = Number(quantity);
   const rid = Number(receivedId);
+  const normalizedSupplierId = normalizeOptionalForeignKey(supplierId);
+  const normalizedWarehouseId = normalizeOptionalForeignKey(warehouseId);
 
   if (!rid) throw new ApiError(400, "receivedId is required");
   if (!returnQty || returnQty <= 0) {
@@ -621,8 +612,8 @@ const updateOneFromDB = async (id, data) => {
     const [updatedCount] = await DamageRepaired.update(
       {
         name: received.name,
-        supplierId,
-        warehouseId,
+        supplierId: normalizedSupplierId,
+        warehouseId: normalizedWarehouseId,
         remarks: received.remarks,
         quantity: returnQty,
         variants: incomingVariants,
@@ -672,7 +663,7 @@ const updateOneFromDB = async (id, data) => {
 
     if (users.length) {
       const msg =
-        newStatus === "Approved"
+        finalStatus === "Approved"
           ? "Damage product request approved"
           : newNote || "Damage product updated";
 

@@ -62,6 +62,7 @@ module.exports = (sequelize, DataTypes) => {
           "inventor",
           "accountant",
           "staff",
+          "employee",
           "user",
         ),
         allowNull: true,

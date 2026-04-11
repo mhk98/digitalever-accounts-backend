@@ -30,9 +30,9 @@ const findInventoryByStoredReference = async (receivedId, transaction) => {
   });
 };
 
-const findInventoryByRequestReference = async (receivedId, transaction) => {
+const findInventoryByRequestReference = async (rid, transaction) => {
   const inventoryByProductId = await InventoryMaster.findOne({
-    where: { productId: receivedId },
+    where: { Id: rid },
     transaction,
     lock: transaction?.LOCK?.UPDATE,
   });
@@ -171,6 +171,7 @@ const insertIntoDB = async (data) => {
       throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
     }
 
+    console.log("inventory", inventory);
     // const perUnitPurchase =
     //   oldQty > 0 ? Number(inventory.purchase_price || 0) / oldQty : 0;
     // const perUnitSale =
@@ -271,6 +272,7 @@ const insertIntoDB = async (data) => {
         ),
       );
     }
+    console.log("damageproduct", inventory.name, "-----result", result);
 
     return result;
   });
@@ -386,17 +388,18 @@ const deleteIdFromDB = async (id) => {
     // if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
 
     // 2) InventoryMaster খুঁজে বের করো (Products.Id দিয়ে)
-    const received = await findInventoryByStoredReference(
+    const inventoryMaster = await findInventoryByStoredReference(
       Number(ret.productId),
       t,
     );
 
-    if (!received) throw new ApiError(404, "Received product not found");
+    if (!inventoryMaster)
+      throw new ApiError(404, "Inventory product not found");
 
-    const finalQuantity = Number(received.quantity || 0) + qty;
-    const finalVariants = mergeVariants(received.variants, ret.variants);
+    const finalQuantity = Number(inventoryMaster.quantity || 0) + qty;
+    const finalVariants = mergeVariants(inventoryMaster.variants, ret.variants);
     const damageStock = await findDamageStockByProductId(
-      Number(received.productId),
+      Number(inventoryMaster.productId),
       t,
     );
 
@@ -423,7 +426,7 @@ const deleteIdFromDB = async (id) => {
         // purchase_price: Number(received.purchase_price * finalQuantity),
         // sale_price: Number(received.sale_price * finalQuantity),
       },
-      { where: { Id: received.Id }, transaction: t },
+      { where: { Id: inventoryMaster.Id }, transaction: t },
     );
 
     // 4) Return row delete
