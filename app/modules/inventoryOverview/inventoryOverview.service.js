@@ -80,12 +80,29 @@ const buildNameWhere = (name) => {
   };
 };
 
+const buildTotalQuantityWhere = (totalQuantity) => {
+  if (totalQuantity === undefined || totalQuantity === null || totalQuantity === "") {
+    return {};
+  }
+
+  const parsedTotalQuantity = Number(totalQuantity);
+
+  if (Number.isNaN(parsedTotalQuantity)) {
+    throw new ApiError(400, "totalQuantity অবশ্যই number হতে হবে");
+  }
+
+  return {
+    quantity: parsedTotalQuantity,
+  };
+};
+
 const buildOverviewWhere = (filters = {}) => {
-  const { from, to, name } = filters;
+  const { from, to, name, totalQuantity } = filters;
 
   return {
     ...buildDateWhere(from, to),
     ...buildNameWhere(name),
+    ...buildTotalQuantityWhere(totalQuantity),
   };
 };
 
@@ -121,13 +138,18 @@ const findRows = async (Model, where = {}, label) => {
 };
 
 const getInventoryOverviewListFromDB = async (filters) => {
-  const { from, to, name, source } = filters; // category here
+  const { from, to, name, source, totalQuantity: requestedTotalQuantity } = filters;
 
   const page = Math.max(1, Number(filters.page || 1));
   const limit = Math.max(1, Number(filters.limit || 10));
   const skip = (page - 1) * limit;
 
-  const where = buildOverviewWhere({ from, to, name });
+  const where = buildOverviewWhere({
+    from,
+    to,
+    name,
+    totalQuantity: requestedTotalQuantity,
+  });
   const selectedSources = getSelectedSources(source);
 
   const rowsBySource = await Promise.all(
@@ -150,6 +172,12 @@ const getInventoryOverviewListFromDB = async (filters) => {
       to: to || null,
       name: name || null,
       source: source || null, // Return category in the meta
+      requestedTotalQuantity:
+        requestedTotalQuantity === undefined ||
+        requestedTotalQuantity === null ||
+        requestedTotalQuantity === ""
+          ? null
+          : Number(requestedTotalQuantity),
       page,
       limit,
       count: all.length,

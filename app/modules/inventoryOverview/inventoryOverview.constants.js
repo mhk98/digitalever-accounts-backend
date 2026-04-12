@@ -10,6 +10,7 @@ const InventoryOverviewFilterAbleFileds = [
   "to",
   "name",
   "source",
+  "totalQuantity",
   "page",
   "limit",
 ];

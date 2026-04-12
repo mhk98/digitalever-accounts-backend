@@ -1,69 +1,142 @@
-const { Op, where } = require("sequelize"); // Ensure Op is imported
+const { Op } = require("sequelize");
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { EmployeeListSearchableFields } = require("./employeeList.constants");
+
 const EmployeeList = db.employeeList;
+const User = db.user;
+const Department = db.department;
+const Designation = db.designation;
+const Shift = db.shift;
+
+const normalizeOptionalForeignKey = (value) => {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const employeeIncludes = [
+  {
+    model: User,
+    as: "user",
+    attributes: ["Id", "FirstName", "LastName", "Email", "Phone", "role"],
+    required: false,
+  },
+  {
+    model: Department,
+    as: "department",
+    attributes: ["Id", "name", "code", "status"],
+    required: false,
+  },
+  {
+    model: Designation,
+    as: "designation",
+    attributes: ["Id", "name", "code", "status"],
+    required: false,
+  },
+  {
+    model: Shift,
+    as: "shift",
+    attributes: ["Id", "name", "code", "startTime", "endTime", "status"],
+    required: false,
+  },
+  {
+    model: EmployeeList,
+    as: "reportingManager",
+    attributes: ["Id", "name", "employeeCode", "employee_id"],
+    required: false,
+  },
+];
+
+const buildEmployeeData = (payload = {}, currentStatus) => {
+  const inputStatus = String(payload.status || "").trim();
+  const inputDateStr = String(payload.date || payload.joiningDate || "").slice(0, 10);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const note = String(payload.note || "").trim();
+
+  const finalStatus =
+    inputStatus ||
+    currentStatus ||
+    (inputDateStr && inputDateStr !== todayStr ? "Pending" : note ? "Pending" : "Active");
+
+  return {
+    name: payload.name,
+    employee_id: payload.employee_id,
+    employeeCode: payload.employeeCode || null,
+    userId: normalizeOptionalForeignKey(payload.userId),
+    email: payload.email || null,
+    phone: payload.phone || null,
+    departmentId: normalizeOptionalForeignKey(payload.departmentId),
+    designationId: normalizeOptionalForeignKey(payload.designationId),
+    shiftId: normalizeOptionalForeignKey(payload.shiftId),
+    reportingManagerId: normalizeOptionalForeignKey(payload.reportingManagerId),
+    employmentType: payload.employmentType || null,
+    joiningDate: payload.joiningDate || inputDateStr || null,
+    salary: payload.salary,
+    status: finalStatus,
+    date: inputDateStr || null,
+    note: note || null,
+  };
+};
+
+const ensureLinkedUserExists = async (userId) => {
+  if (!userId) return;
+
+  const user = await User.findOne({
+    where: { Id: userId },
+    attributes: ["Id"],
+  });
+
+  if (!user) {
+    throw new ApiError(400, "Linked user was not found");
+  }
+};
 
 const insertIntoDB = async (payload) => {
-  const { name, employee_id, salary, date, note, status } = payload;
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+  const data = buildEmployeeData(payload);
 
-  // ✅ Approved হলে পুরোনো date-ও allow + save
-  const isApproved = String(status || "").trim() === "Approved";
-
-  // ✅ current date না হলে auto Pending
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
-      ? "Pending"
-      : note
-        ? "Pending"
-        : "Active";
-
-  const data = {
-    name,
-    employee_id,
-    salary,
-    status: finalStatus,
-    date,
-    note,
-  };
+  await ensureLinkedUserExists(data.userId);
 
   return db.sequelize.transaction(async (t) => {
     const result = await EmployeeList.create(data, { transaction: t });
 
-    return result;
+    return EmployeeList.findOne({
+      where: { Id: result.Id },
+      include: employeeIncludes,
+      transaction: t,
+    });
   });
 };
 
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
-
   const { searchTerm, startDate, endDate, ...otherFilters } = filters;
 
   const andConditions = [];
 
-  // ✅ Search (ILIKE on searchable fields)
   if (searchTerm && searchTerm.trim()) {
+    const normalizedSearchTerm = searchTerm.trim();
     andConditions.push({
       [Op.or]: EmployeeListSearchableFields.map((field) => ({
-        [field]: { [Op.iLike]: `%${searchTerm.trim()}%` },
+        [field]: { [Op.like]: `%${normalizedSearchTerm}%` },
       })),
     });
   }
 
-  // ✅ Exact filters (e.g. name)
-  if (Object.keys(otherFilters).length) {
-    andConditions.push(
-      ...Object.entries(otherFilters).map(([key, value]) => ({
-        [key]: { [Op.eq]: value },
-      })),
-    );
-  }
+  Object.entries(otherFilters).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") {
+      return;
+    }
 
-  // ✅ Date range filter (createdAt)
+    andConditions.push({
+      [key]: { [Op.eq]: value },
+    });
+  });
+
   if (startDate && endDate) {
     const start = new Date(startDate);
     start.setHours(0, 0, 0, 0);
@@ -76,19 +149,17 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
-  // ✅ Exclude soft deleted records
   andConditions.push({
-    deletedAt: { [Op.is]: null }, // Only include records with deletedAt as null (not deleted)
+    deletedAt: { [Op.is]: null },
   });
 
-  const whereConditions = andConditions.length
-    ? { [Op.and]: andConditions }
-    : {};
+  const whereConditions = andConditions.length ? { [Op.and]: andConditions } : {};
 
   const result = await EmployeeList.findAll({
     where: whereConditions,
     offset: skip,
     limit,
+    include: employeeIncludes,
     paranoid: true,
     order:
       options.sortBy && options.sortOrder
@@ -105,92 +176,58 @@ const getAllFromDB = async (filters, options) => {
 };
 
 const getDataById = async (id) => {
-  const result = await EmployeeList.findOne({
-    where: {
-      Id: id,
-    },
+  return EmployeeList.findOne({
+    where: { Id: id },
+    include: employeeIncludes,
   });
+};
+
+const getProfileByUserId = async (userId) => {
+  const result = await EmployeeList.findOne({
+    where: { userId },
+    include: employeeIncludes,
+  });
+
+  if (!result) {
+    throw new ApiError(404, "Employee profile was not found for this user");
+  }
 
   return result;
 };
 
 const deleteIdFromDB = async (id) => {
-  const result = await EmployeeList.destroy({
-    where: {
-      Id: id,
-    },
+  return EmployeeList.destroy({
+    where: { Id: id },
   });
-
-  return result;
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { name, employee_id, salary, date, note, status, actorRole } = payload;
-
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10);
-
-  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
   const existing = await EmployeeList.findOne({
     where: { Id: id },
-    attributes: ["Id", "note", "status"],
+    attributes: ["Id", "status"],
   });
 
-  if (!existing) return 0;
-
-  const oldNote = String(existing.note || "").trim();
-  const newNote = String(note || "").trim();
-
-  // ✅ newNote খালি না হলে + oldNote থেকে আলাদা হলে => pending trigger
-  const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
-
-  // ✅ today না হলে pending trigger (date না পাঠালে trigger হবে না)
-  const dateTriggersPending =
-    Boolean(inputDateStr) && inputDateStr !== todayStr;
-
-  const inputStatus = String(status || "").trim();
-
-  let finalStatus = existing.status || "Pending";
-
-  const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
-
-  if (isPrivileged) {
-    // ✅ superAdmin/admin: যা পাঠাবে সেটাই
-    finalStatus = inputStatus || finalStatus;
-  } else {
-    // ✅ others: today date না হলে বা new note হলে Pending override
-    if (dateTriggersPending || noteTriggersPending) {
-      finalStatus = "Pending";
-    } else {
-      // ✅ otherwise: status পাঠালে সেটাই, না পাঠালে আগেরটা
-      finalStatus = inputStatus || finalStatus;
-    }
+  if (!existing) {
+    throw new ApiError(404, "Employee record not found");
   }
 
-  const data = {
-    name,
-    employee_id,
-    salary,
-    note: newNote || null,
-    date: inputDateStr || undefined,
-    status: finalStatus,
-  };
-  const result = await EmployeeList.update(data, {
-    where: {
-      Id: id,
-    },
+  const data = buildEmployeeData(payload, existing.status);
+
+  await ensureLinkedUserExists(data.userId);
+
+  await EmployeeList.update(data, {
+    where: { Id: id },
   });
 
-  return result;
+  return getDataById(id);
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  const result = await EmployeeList.findAll({
+  return EmployeeList.findAll({
+    include: employeeIncludes,
     paranoid: true,
     order: [["createdAt", "DESC"]],
   });
-
-  return result;
 };
 
 const EmployeeListService = {
@@ -199,6 +236,7 @@ const EmployeeListService = {
   deleteIdFromDB,
   updateOneFromDB,
   getDataById,
+  getProfileByUserId,
   getAllFromDBWithoutQuery,
 };
 

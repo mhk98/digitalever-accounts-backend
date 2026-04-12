@@ -7,10 +7,19 @@ const { ENUM_USER_ROLE } = require("../../enums/user");
 const RolePermission = db.rolePermission;
 
 const validRoles = Object.values(ENUM_USER_ROLE);
+const validMenuPermissionSet = new Set(ALL_MENU_PERMISSIONS);
 
 const uniq = (items = []) => [...new Set(items)];
 
 const isValidRole = (role) => validRoles.includes(role);
+
+const sanitizePermission = (permission) => {
+  if (typeof permission !== "string") {
+    return permission;
+  }
+
+  return permission.trim().toLowerCase();
+};
 
 const normalizeMenuPermissions = (menuPermissions) => {
   if (Array.isArray(menuPermissions)) {
@@ -47,14 +56,16 @@ const validateRole = (role) => {
 };
 
 const validateMenuPermissions = (menuPermissions) => {
-  const normalizedPermissions = normalizeMenuPermissions(menuPermissions);
+  const normalizedPermissions = normalizeMenuPermissions(menuPermissions).map(
+    sanitizePermission,
+  );
 
   if (!Array.isArray(normalizedPermissions)) {
     throw new ApiError(400, "menuPermissions must be an array");
   }
 
   const invalidPermissions = uniq(normalizedPermissions).filter(
-    (permission) => !ALL_MENU_PERMISSIONS.includes(permission),
+    (permission) => !validMenuPermissionSet.has(permission),
   );
 
   if (invalidPermissions.length) {
@@ -83,7 +94,10 @@ const getEffectiveMenuPermissions = async (role) => {
     return getDefaultPermissionsForRole(role);
   }
 
-  return validateMenuPermissions(record.menuPermissions || []);
+  const storedPermissions = validateMenuPermissions(record.menuPermissions || []);
+  const defaultPermissions = getDefaultPermissionsForRole(role);
+
+  return uniq([...defaultPermissions, ...storedPermissions]);
 };
 
 const getAllRolePermissions = async () => {

@@ -25,6 +25,46 @@ module.exports = (sequelize, DataTypes) => {
           notEmpty: true, // Ensure name is not empty
         },
       },
+      employeeCode: {
+        type: DataTypes.STRING(64),
+        allowNull: true,
+      },
+      userId: {
+        type: DataTypes.INTEGER(10),
+        allowNull: true,
+      },
+      email: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      phone: {
+        type: DataTypes.STRING(32),
+        allowNull: true,
+      },
+      departmentId: {
+        type: DataTypes.INTEGER(10),
+        allowNull: true,
+      },
+      designationId: {
+        type: DataTypes.INTEGER(10),
+        allowNull: true,
+      },
+      shiftId: {
+        type: DataTypes.INTEGER(10),
+        allowNull: true,
+      },
+      reportingManagerId: {
+        type: DataTypes.INTEGER(10),
+        allowNull: true,
+      },
+      employmentType: {
+        type: DataTypes.STRING(64),
+        allowNull: true,
+      },
+      joiningDate: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+      },
       salary: {
         type: DataTypes.INTEGER,
         allowNull: false,

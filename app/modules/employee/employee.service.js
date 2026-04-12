@@ -13,6 +13,7 @@ const insertIntoDB = async (payload) => {
   const {
     name,
     employee_id,
+    bookId,
     basic_salary,
     incentive,
     holiday_payment,
@@ -28,6 +29,7 @@ const insertIntoDB = async (payload) => {
     remarks,
     status,
     userId,
+    employeeListId,
     date,
   } = payload;
 
@@ -64,6 +66,7 @@ const insertIntoDB = async (payload) => {
     remarks,
     status: finalStatus,
     userId,
+    employeeListId,
     date,
   };
 
@@ -90,6 +93,7 @@ const insertIntoDB = async (payload) => {
           employeeId: result.employee_id,
           paymentStatus: "CashIn",
           amount: result.advance,
+          bookId: bookId || null,
           date: result.date || new Date(),
         },
         { transaction: t },
@@ -100,6 +104,7 @@ const insertIntoDB = async (payload) => {
           employeeId: result.employee_id,
           paymentStatus: "CashOut",
           amount: result.total_salary,
+          bookId: bookId || null,
           date: result.date || new Date(),
         },
         { transaction: t },
@@ -218,6 +223,7 @@ const updateOneFromDB = async (id, payload) => {
     remarks,
     status,
     userId,
+    employeeListId,
     date,
     actorRole,
   } = payload;
@@ -280,6 +286,8 @@ const updateOneFromDB = async (id, payload) => {
     date: inputDateStr || undefined,
     remarks,
     status: finalStatus,
+    userId,
+    employeeListId,
   };
 
   const [updatedCount] = await Employee.update(data, {

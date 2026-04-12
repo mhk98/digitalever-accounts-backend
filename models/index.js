@@ -207,6 +207,72 @@ db.employeeList = require("../app/modules/employeeList/employeeList.model")(
   DataTypes,
 );
 
+db.department = require("../app/modules/department/department.model")(
+  db.sequelize,
+  DataTypes,
+);
+
+db.designation = require("../app/modules/designation/designation.model")(
+  db.sequelize,
+  DataTypes,
+);
+
+db.shift = require("../app/modules/shift/shift.model")(db.sequelize, DataTypes);
+
+db.holiday = require("../app/modules/holiday/holiday.model")(
+  db.sequelize,
+  DataTypes,
+);
+
+db.attendanceDevice =
+  require("../app/modules/attendanceDevice/attendanceDevice.model")(
+    db.sequelize,
+    DataTypes,
+  );
+
+db.attendanceEnrollment =
+  require("../app/modules/attendanceEnrollment/attendanceEnrollment.model")(
+    db.sequelize,
+    DataTypes,
+  );
+
+db.attendanceLog = require("../app/modules/attendanceLog/attendanceLog.model")(
+  db.sequelize,
+  DataTypes,
+);
+
+db.attendanceSummary =
+  require("../app/modules/attendanceSummary/attendanceSummary.model")(
+    db.sequelize,
+    DataTypes,
+  );
+
+db.attendanceRegularization =
+  require("../app/modules/attendanceRegularization/attendanceRegularization.model")(
+    db.sequelize,
+    DataTypes,
+  );
+
+db.leaveType = require("../app/modules/leaveType/leaveType.model")(
+  db.sequelize,
+  DataTypes,
+);
+
+db.leaveRequest = require("../app/modules/leaveRequest/leaveRequest.model")(
+  db.sequelize,
+  DataTypes,
+);
+
+db.payrollRun = require("../app/modules/payrollRun/payrollRun.model")(
+  db.sequelize,
+  DataTypes,
+);
+
+db.payrollItem = require("../app/modules/payrollItem/payrollItem.model")(
+  db.sequelize,
+  DataTypes,
+);
+
 db.notification = require("../app/modules/notification/notification.model")(
   db.sequelize,
   DataTypes,
@@ -363,6 +429,201 @@ db.cashInOut.belongsTo(db.book, { foreignKey: "bookId" });
 
 db.supplier.hasMany(db.ledger, { foreignKey: "supplierId" });
 db.ledger.belongsTo(db.supplier, { foreignKey: "supplierId", as: "supplier" });
+
+db.user.hasOne(db.employeeList, { foreignKey: "userId", as: "employeeProfile" });
+db.employeeList.belongsTo(db.user, {
+  foreignKey: "userId",
+  as: "user",
+});
+
+db.department.hasMany(db.designation, {
+  foreignKey: "departmentId",
+  as: "designations",
+});
+db.designation.belongsTo(db.department, {
+  foreignKey: "departmentId",
+  as: "department",
+});
+
+db.department.hasMany(db.employeeList, {
+  foreignKey: "departmentId",
+  as: "employees",
+});
+db.employeeList.belongsTo(db.department, {
+  foreignKey: "departmentId",
+  as: "department",
+});
+
+db.designation.hasMany(db.employeeList, {
+  foreignKey: "designationId",
+  as: "employees",
+});
+db.employeeList.belongsTo(db.designation, {
+  foreignKey: "designationId",
+  as: "designation",
+});
+
+db.shift.hasMany(db.employeeList, {
+  foreignKey: "shiftId",
+  as: "employees",
+});
+db.employeeList.belongsTo(db.shift, {
+  foreignKey: "shiftId",
+  as: "shift",
+});
+
+db.employeeList.hasMany(db.employeeList, {
+  foreignKey: "reportingManagerId",
+  as: "directReports",
+});
+db.employeeList.belongsTo(db.employeeList, {
+  foreignKey: "reportingManagerId",
+  as: "reportingManager",
+});
+
+db.employeeList.hasMany(db.employee, {
+  foreignKey: "employeeListId",
+  as: "payrolls",
+});
+db.employee.belongsTo(db.employeeList, {
+  foreignKey: "employeeListId",
+  as: "employeeProfile",
+});
+
+db.employeeList.hasMany(db.attendanceEnrollment, {
+  foreignKey: "employeeId",
+  as: "attendanceEnrollments",
+});
+db.attendanceEnrollment.belongsTo(db.employeeList, {
+  foreignKey: "employeeId",
+  as: "employee",
+});
+
+db.attendanceDevice.hasMany(db.attendanceEnrollment, {
+  foreignKey: "attendanceDeviceId",
+  as: "enrollments",
+});
+db.attendanceEnrollment.belongsTo(db.attendanceDevice, {
+  foreignKey: "attendanceDeviceId",
+  as: "device",
+});
+
+db.employeeList.hasMany(db.attendanceLog, {
+  foreignKey: "employeeId",
+  as: "attendanceLogs",
+});
+db.attendanceLog.belongsTo(db.employeeList, {
+  foreignKey: "employeeId",
+  as: "employee",
+});
+
+db.attendanceDevice.hasMany(db.attendanceLog, {
+  foreignKey: "attendanceDeviceId",
+  as: "logs",
+});
+db.attendanceLog.belongsTo(db.attendanceDevice, {
+  foreignKey: "attendanceDeviceId",
+  as: "device",
+});
+
+db.employeeList.hasMany(db.attendanceSummary, {
+  foreignKey: "employeeId",
+  as: "attendanceSummaries",
+});
+db.attendanceSummary.belongsTo(db.employeeList, {
+  foreignKey: "employeeId",
+  as: "employee",
+});
+
+db.shift.hasMany(db.attendanceSummary, {
+  foreignKey: "shiftId",
+  as: "attendanceSummaries",
+});
+db.attendanceSummary.belongsTo(db.shift, {
+  foreignKey: "shiftId",
+  as: "shift",
+});
+
+db.employeeList.hasMany(db.attendanceRegularization, {
+  foreignKey: "employeeId",
+  as: "attendanceRegularizations",
+});
+db.attendanceRegularization.belongsTo(db.employeeList, {
+  foreignKey: "employeeId",
+  as: "employee",
+});
+
+db.user.hasMany(db.attendanceRegularization, {
+  foreignKey: "requestedByUserId",
+  as: "requestedAttendanceRegularizations",
+});
+db.attendanceRegularization.belongsTo(db.user, {
+  foreignKey: "requestedByUserId",
+  as: "requestedBy",
+});
+
+db.user.hasMany(db.attendanceRegularization, {
+  foreignKey: "approvedByUserId",
+  as: "approvedAttendanceRegularizations",
+});
+db.attendanceRegularization.belongsTo(db.user, {
+  foreignKey: "approvedByUserId",
+  as: "approvedBy",
+});
+
+db.leaveType.hasMany(db.leaveRequest, {
+  foreignKey: "leaveTypeId",
+  as: "leaveRequests",
+});
+db.leaveRequest.belongsTo(db.leaveType, {
+  foreignKey: "leaveTypeId",
+  as: "leaveType",
+});
+
+db.employeeList.hasMany(db.leaveRequest, {
+  foreignKey: "employeeId",
+  as: "leaveRequests",
+});
+db.leaveRequest.belongsTo(db.employeeList, {
+  foreignKey: "employeeId",
+  as: "employee",
+});
+
+db.user.hasMany(db.leaveRequest, {
+  foreignKey: "requestedByUserId",
+  as: "requestedLeaveRequests",
+});
+db.leaveRequest.belongsTo(db.user, {
+  foreignKey: "requestedByUserId",
+  as: "requestedBy",
+});
+
+db.user.hasMany(db.leaveRequest, {
+  foreignKey: "approvedByUserId",
+  as: "approvedLeaveRequests",
+});
+db.leaveRequest.belongsTo(db.user, {
+  foreignKey: "approvedByUserId",
+  as: "approvedBy",
+});
+
+db.payrollRun.hasMany(db.payrollItem, {
+  foreignKey: "payrollRunId",
+  as: "items",
+});
+db.payrollItem.belongsTo(db.payrollRun, {
+  foreignKey: "payrollRunId",
+  as: "payrollRun",
+});
+
+db.employeeList.hasMany(db.payrollItem, {
+  foreignKey: "employeeId",
+  as: "payrollItems",
+});
+db.payrollItem.belongsTo(db.employeeList, {
+  foreignKey: "employeeId",
+  as: "employee",
+});
 
 db.employeeList.hasMany(db.ledger, { foreignKey: "employeeId" });
 db.ledger.belongsTo(db.employeeList, {

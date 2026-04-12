@@ -48,6 +48,19 @@ const StockAdjustmentRoutes = require("../modules/stockAdjustment/stockAdjustmen
 const VariationRoutes = require("../modules/variation/variation.routes");
 const DamageReparingStockRoutes = require("../modules/damageReparingStock/damageReparingStock.routes");
 const EmployeeListRoutes = require("../modules/employeeList/employeeList.routes");
+const DepartmentRoutes = require("../modules/department/department.routes");
+const DesignationRoutes = require("../modules/designation/designation.routes");
+const ShiftRoutes = require("../modules/shift/shift.routes");
+const HolidayRoutes = require("../modules/holiday/holiday.routes");
+const AttendanceDeviceRoutes = require("../modules/attendanceDevice/attendanceDevice.routes");
+const AttendanceEnrollmentRoutes = require("../modules/attendanceEnrollment/attendanceEnrollment.routes");
+const AttendanceLogRoutes = require("../modules/attendanceLog/attendanceLog.routes");
+const AttendanceSummaryRoutes = require("../modules/attendanceSummary/attendanceSummary.routes");
+const AttendanceRegularizationRoutes = require("../modules/attendanceRegularization/attendanceRegularization.routes");
+const LeaveTypeRoutes = require("../modules/leaveType/leaveType.routes");
+const LeaveRequestRoutes = require("../modules/leaveRequest/leaveRequest.routes");
+const PayrollRunRoutes = require("../modules/payrollRun/payrollRun.routes");
+const PayrollItemRoutes = require("../modules/payrollItem/payrollItem.routes");
 const ProfileLossRoutes = require("../modules/profitLoss/profitLoss.routes");
 const RolePermissionRoutes = require("../modules/rolePermission/rolePermission.routes");
 
@@ -238,6 +251,58 @@ const moduleRoutes = [
   {
     path: "/employee-list",
     route: EmployeeListRoutes,
+  },
+  {
+    path: "/department",
+    route: DepartmentRoutes,
+  },
+  {
+    path: "/designation",
+    route: DesignationRoutes,
+  },
+  {
+    path: "/shift",
+    route: ShiftRoutes,
+  },
+  {
+    path: "/holiday",
+    route: HolidayRoutes,
+  },
+  {
+    path: "/attendance-device",
+    route: AttendanceDeviceRoutes,
+  },
+  {
+    path: "/attendance-enrollment",
+    route: AttendanceEnrollmentRoutes,
+  },
+  {
+    path: "/attendance-log",
+    route: AttendanceLogRoutes,
+  },
+  {
+    path: "/attendance-summary",
+    route: AttendanceSummaryRoutes,
+  },
+  {
+    path: "/attendance-regularization",
+    route: AttendanceRegularizationRoutes,
+  },
+  {
+    path: "/leave-type",
+    route: LeaveTypeRoutes,
+  },
+  {
+    path: "/leave-request",
+    route: LeaveRequestRoutes,
+  },
+  {
+    path: "/payroll-run",
+    route: PayrollRunRoutes,
+  },
+  {
+    path: "/payroll-item",
+    route: PayrollItemRoutes,
   },
   {
     path: "/salary",

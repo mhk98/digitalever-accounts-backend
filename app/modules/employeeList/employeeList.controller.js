@@ -40,6 +40,16 @@ const getDataById = catchAsync(async (req, res) => {
   });
 });
 
+const getMyProfile = catchAsync(async (req, res) => {
+  const result = await EmployeeListService.getProfileByUserId(req.user.Id);
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Employee profile fetched successfully!!",
+    data: result,
+  });
+});
+
 const updateOneFromDB = catchAsync(async (req, res) => {
   const { id } = req.params;
   const result = await EmployeeListService.updateOneFromDB(id, req.body);
@@ -75,6 +85,7 @@ const EmployeeListController = {
   getAllFromDB,
   insertIntoDB,
   getDataById,
+  getMyProfile,
   updateOneFromDB,
   deleteIdFromDB,
   getAllFromDBWithoutQuery,
