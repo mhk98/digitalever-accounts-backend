@@ -1,15 +1,16 @@
 const { ENUM_USER_ROLE } = require("../../enums/user");
 const auth = require("../../middlewares/auth");
+const {
+  applyApprovalWorkflow,
+  approvePendingWorkflow,
+} = require("../../middlewares/approvalRouteWorkflow");
 const MixerController = require("./mixer.controller");
 const router = require("express").Router();
 
 router.post(
   "/create",
-  auth(
-    ENUM_USER_ROLE.SUPER_ADMIN,
-    ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.INVENTOR,
-  ),
+  auth(),
+  applyApprovalWorkflow({ modelKey: "mixer", entityLabel: "Mixer" }),
   MixerController.insertIntoDB,
 );
 router.get("/", MixerController.getAllFromDB);
@@ -17,21 +18,20 @@ router.get("/all", MixerController.getAllFromDBWithoutQuery);
 router.get("/:id", MixerController.getDataById);
 router.delete(
   "/:id",
-  auth(
-    ENUM_USER_ROLE.SUPER_ADMIN,
-    ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.INVENTOR,
-  ),
+  auth(),
+  applyApprovalWorkflow({ modelKey: "mixer", entityLabel: "Mixer" }),
   MixerController.deleteIdFromDB,
 );
 router.put(
   "/:id",
-  auth(
-    ENUM_USER_ROLE.SUPER_ADMIN,
-    ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.INVENTOR,
-  ),
+  auth(),
+  applyApprovalWorkflow({ modelKey: "mixer", entityLabel: "Mixer" }),
   MixerController.updateOneFromDB,
+);
+router.post(
+  "/:id/approve",
+  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  approvePendingWorkflow({ modelKey: "mixer", entityLabel: "Mixer" }),
 );
 
 const MixerRoutes = router;

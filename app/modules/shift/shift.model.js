@@ -46,6 +46,18 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         defaultValue: "Active",
       },
+      pendingAction: {
+        type: DataTypes.STRING(32),
+        allowNull: true,
+      },
+      approvalNote: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      requestedByUserId: {
+        type: DataTypes.INTEGER(10),
+        allowNull: true,
+      },
       deletedAt: {
         type: DataTypes.DATE,
         allowNull: true,

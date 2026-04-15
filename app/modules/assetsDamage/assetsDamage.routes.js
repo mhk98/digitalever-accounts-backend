@@ -1,15 +1,16 @@
 const { ENUM_USER_ROLE } = require("../../enums/user");
 const auth = require("../../middlewares/auth");
+const {
+  applyApprovalWorkflow,
+  approvePendingWorkflow,
+} = require("../../middlewares/approvalRouteWorkflow");
 const AssetsDamageController = require("./assetsDamage.controller");
 const router = require("express").Router();
 
 router.post(
   "/create",
-  auth(
-    ENUM_USER_ROLE.SUPER_ADMIN,
-    ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.INVENTOR,
-  ),
+  auth(),
+  applyApprovalWorkflow({ modelKey: "assetsDamage", entityLabel: "Assets Damage" }),
   AssetsDamageController.insertIntoDB,
 );
 router.get("/", AssetsDamageController.getAllFromDB);
@@ -17,21 +18,20 @@ router.get("/all", AssetsDamageController.getAllFromDBWithoutQuery);
 router.get("/:id", AssetsDamageController.getDataById);
 router.delete(
   "/:id",
-  auth(
-    ENUM_USER_ROLE.SUPER_ADMIN,
-    ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.INVENTOR,
-  ),
+  auth(),
+  applyApprovalWorkflow({ modelKey: "assetsDamage", entityLabel: "Assets Damage" }),
   AssetsDamageController.deleteIdFromDB,
 );
 router.put(
   "/:id",
-  auth(
-    ENUM_USER_ROLE.SUPER_ADMIN,
-    ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.INVENTOR,
-  ),
+  auth(),
+  applyApprovalWorkflow({ modelKey: "assetsDamage", entityLabel: "Assets Damage" }),
   AssetsDamageController.updateOneFromDB,
+);
+router.post(
+  "/:id/approve",
+  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  approvePendingWorkflow({ modelKey: "assetsDamage", entityLabel: "Assets Damage" }),
 );
 
 const AssetsDamageRoutes = router;

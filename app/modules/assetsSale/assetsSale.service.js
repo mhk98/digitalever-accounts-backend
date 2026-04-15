@@ -4,9 +4,13 @@ const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { AssetsSaleSearchableFields } = require("./assetsSale.constants");
 const AssetsSale = db.assetsSale;
-const AssetsPurchase = db.assetsPurchase;
+const AssetsStock = db.assetsStock;
 const Notification = db.notification;
 const User = db.user;
+const {
+  rebuildAssetsStockBalances,
+  STOCK_STATUSES,
+} = require("../assetsStock/assetsStockSync");
 
 const insertIntoDB = async (data) => {
   const { productId, quantity, price, date, note, status } = data;
@@ -31,29 +35,24 @@ const insertIntoDB = async (data) => {
         : "Active";
 
   return await db.sequelize.transaction(async (t) => {
-    // ✅ PurchaseProduct (তোমার schema অনুযায়ী Id/productId adjust করো)
-    const purchase = await AssetsPurchase.findOne({
-      where: { Id: productId }, // যদি column থাকে productId, তাহলে where: { productId }
+    const stock = await AssetsStock.findOne({
+      where: { Id: productId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (!purchase) throw new ApiError(404, "Purchase asset product not found");
+    if (!stock) throw new ApiError(404, "Assets stock product not found");
 
-    // ✅ stock check
-    if (purchase.quantity < quantity) {
+    if (STOCK_STATUSES.includes(finalStatus) && Number(stock.quantity || 0) < Number(quantity)) {
       throw new ApiError(
         400,
-        `Not enough stock. Available: ${purchase.quantity}`,
+        `Not enough stock. Available: ${stock.quantity}`,
       );
     }
-
-    const oldQty = Number(purchase.quantity);
     const saleQty = Number(quantity);
 
-    // ✅ AssetsPurchase create (return amount)
     const payload = {
-      name: purchase.name,
+      name: stock.name,
       quantity: saleQty,
       price,
       total: price * quantity,
@@ -67,19 +66,7 @@ const insertIntoDB = async (data) => {
       transaction: t,
     });
 
-    // ✅ AssetsPurchase update (qty & prices reduce)
-    const newQty = oldQty - saleQty;
-
-    await AssetsPurchase.update(
-      {
-        quantity: newQty,
-        total: purchase.price * newQty,
-      },
-      {
-        where: { Id: purchase.Id }, // যদি productId হয়: where: { productId }
-        transaction: t,
-      },
-    );
+    await rebuildAssetsStockBalances(t);
 
     return result;
   });
@@ -180,31 +167,12 @@ const deleteIdFromDB = async (id) => {
     const saleQty = Number(sale.quantity || 0);
     if (saleQty <= 0) throw new ApiError(400, "Invalid sale quantity");
 
-    // 2) Purchase row বের করো (sale.productId = AssetsPurchase.Id)
-    const purchase = await AssetsPurchase.findOne({
-      where: { Id: sale.productId },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
-
-    if (!purchase) throw new ApiError(404, "AssetsPurchase not found");
-
-    // 3) Purchase এ quantity ফিরিয়ে দাও + total re-calc
-    const newQty = Number(purchase.quantity || 0) + saleQty;
-
-    await AssetsPurchase.update(
-      {
-        quantity: newQty,
-        total: Number(purchase.price || 0) * newQty,
-      },
-      { where: { Id: purchase.Id }, transaction: t },
-    );
-
-    // 4) Sale delete
     await AssetsSale.destroy({
       where: { Id: id },
       transaction: t,
     });
+
+    await rebuildAssetsStockBalances(t);
 
     return { deleted: true };
   });
@@ -225,9 +193,9 @@ const updateOneFromDB = async (id, data) => {
   const inputDateStr = String(date || "").slice(0, 10);
 
   // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
-  const existing = await AssetsPurchase.findOne({
+  const existing = await AssetsSale.findOne({
     where: { Id: id },
-    attributes: ["Id", "note", "status"],
+    attributes: ["Id", "note", "status", "productId", "quantity"],
   });
 
   if (!existing) return 0;
@@ -262,36 +230,46 @@ const updateOneFromDB = async (id, data) => {
   }
 
   return await db.sequelize.transaction(async (t) => {
-    // ✅ PurchaseProduct (তোমার schema অনুযায়ী Id/productId adjust করো)
-    const purchase = await AssetsPurchase.findOne({
-      where: { Id: productId }, // যদি column থাকে productId, তাহলে where: { productId }
+    const selectedProductId =
+      productId === "" || productId == null
+        ? existing.productId
+        : Number(productId);
+
+    const stock = await AssetsStock.findOne({
+      where: { Id: selectedProductId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (!purchase) throw new ApiError(404, "Assets sale product not found");
+    if (!stock) throw new ApiError(404, "Assets stock product not found");
 
-    // ✅ stock check
-    if (purchase.quantity < quantity) {
+    const reservedExisting =
+      STOCK_STATUSES.includes(String(existing.status || "").trim()) &&
+      Number(existing.productId) === Number(selectedProductId)
+        ? Number(existing.quantity || 0)
+        : 0;
+
+    if (
+      STOCK_STATUSES.includes(finalStatus) &&
+      Number(stock.quantity || 0) + reservedExisting < Number(quantity)
+    ) {
       throw new ApiError(
         400,
-        `Not enough stock. Available: ${purchase.quantity}`,
+        `Not enough stock. Available: ${Number(stock.quantity || 0) + reservedExisting}`,
       );
     }
 
-    const oldQty = Number(purchase.quantity);
     const saleQty = Number(quantity);
 
-    // ✅ AssetsPurchase create (return amount)
     const payload = {
-      name: purchase.name,
+      name: stock.name,
       quantity: saleQty,
       price,
       note: newNote || null,
       status: finalStatus,
       total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
       date: inputDateStr || undefined,
-      productId,
+      productId: selectedProductId,
     };
 
     const [updatedCount] = await AssetsSale.update(payload, {
@@ -300,21 +278,7 @@ const updateOneFromDB = async (id, data) => {
       transaction: t,
     });
 
-    // ✅ AssetsPurchase update (qty & prices reduce)
-    if (status === "Approved") {
-      const newQty = oldQty - saleQty;
-
-      await AssetsPurchase.update(
-        {
-          quantity: newQty,
-          total: purchase.price * newQty,
-        },
-        {
-          where: { Id: purchase.Id },
-          transaction: t,
-        },
-      );
-    }
+    await rebuildAssetsStockBalances(t);
 
     // ✅ শুধু admin/superAdmin/inventory রোলের ইউজার
     const users = await User.findAll({

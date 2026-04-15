@@ -24,6 +24,16 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 0,
         allowNull: true,
       },
+      purchase_price: {
+        type: DataTypes.INTEGER(10),
+        defaultValue: 0,
+        allowNull: true,
+      },
+      sale_price: {
+        type: DataTypes.INTEGER(10),
+        defaultValue: 0,
+        allowNull: true,
+      },
       date: {
         type: DataTypes.STRING,
         allowNull: true,

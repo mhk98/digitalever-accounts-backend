@@ -4,163 +4,303 @@ const { Op } = require("sequelize");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 
-// ✅ তোমার প্রকৃত model নাম অনুযায়ী নিচের নামগুলো ঠিক করে বসাবে
-const AssetsSale = db.assetsSale; // or db.sale
-const AssetsPurchase = db.assetsPurchase; // or db.purchase
-const AssetsDamage = db.assetsDamage; // or db.purchase
-const Marketing = db.meta; // or db.meta
 const Receiveable = db.receiveable;
 const Payable = db.payable;
-
-const ReceivedProduct = db.receivedProduct;
-const PurchaseReturnProduct = db.purchaseReturnProduct;
-const InTransitProduct = db.inTransitProduct;
-const ReturnProduct = db.returnProduct; // sales return
-const DamageProduct = db.damageProduct;
+const PurchaseRequisition = db.purchaseRequisition;
+const PettyCash = db.pettyCash;
+const AssetsRequisition = db.assetsRequisition;
+const DamageStock = db.damageStock;
+const DamageReparingStock = db.damageReparingStock;
+const AssetsStock = db.assetsStock;
 const CashInOut = db.cashInOut;
 const InventoryMaster = db.inventoryMaster;
+const ConfirmOrder = db.confirmOrder;
+const MarketingExpense = db.marketingExpense;
 
 // ✅ helper: safe number
 const n = (v) => Number(v || 0);
 
-// ✅ helper: date range where builder
-const buildDateWhere = (from, to) => {
-  if (!from && !to) return {};
+const formatDateOnly = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
 
-  // যদি একটাই পাঠায়, error দিবো (optional)
-  if (!from || !to) {
-    throw new ApiError(400, "from এবং to দুইটাই দিতে হবে (YYYY-MM-DD)");
+  return `${year}-${month}-${day}`;
+};
+
+const isTruthyFilterFlag = (value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value !== "string") return false;
+
+  return ["true", "1", "yes", "on"].includes(value.trim().toLowerCase());
+};
+
+const normalizeDateFilters = (filters = {}) => {
+  const filterType =
+    filters.filterType || filters.filter || filters.preset || null;
+  const normalizedFilterType = filterType
+    ? String(filterType).trim().toLowerCase()
+    : null;
+  const date = filters.date || null;
+  const customFrom = filters.from || filters.startDate || null;
+  const customTo = filters.to || filters.endDate || null;
+  const explicitFilterRequested =
+    normalizedFilterType === "today" ||
+    normalizedFilterType === "thismonth" ||
+    normalizedFilterType === "this_month" ||
+    normalizedFilterType === "custom" ||
+    isTruthyFilterFlag(filters.applyFilter) ||
+    isTruthyFilterFlag(filters.hasDateFilter) ||
+    isTruthyFilterFlag(filters.isFiltered);
+
+  let from = null;
+  let to = null;
+
+  if (normalizedFilterType === "today") {
+    const today = formatDateOnly(new Date());
+    from = today;
+    to = today;
   }
 
-  // server timezone based date boundary
-  const start = new Date(from);
-  start.setHours(0, 0, 0, 0);
+  if (
+    normalizedFilterType === "thismonth" ||
+    normalizedFilterType === "this_month"
+  ) {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
-  const end = new Date(to);
-  end.setHours(23, 59, 59, 999);
+    from = formatDateOnly(firstDay);
+    to = formatDateOnly(lastDay);
+  }
+
+  if (date && explicitFilterRequested) {
+    return {
+      from: date,
+      to: date,
+      filterType: normalizedFilterType || "custom",
+    };
+  }
+
+  if (
+    explicitFilterRequested &&
+    normalizedFilterType !== "today" &&
+    normalizedFilterType !== "thismonth" &&
+    normalizedFilterType !== "this_month"
+  ) {
+    from = customFrom;
+    to = customTo;
+  }
 
   return {
-    createdAt: { [Op.between]: [start, end] },
+    from,
+    to,
+    filterType: from || to ? normalizedFilterType || "custom" : null,
+  };
+};
+
+const normalizeDateValue = (value) => {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    throw new ApiError(400, "Invalid date format. Use YYYY-MM-DD");
+  }
+
+  return parsed.toISOString().slice(0, 10);
+};
+
+const parseBoundaryDateTime = (value, edge) => {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    throw new ApiError(400, "Invalid date format. Use YYYY-MM-DD");
+  }
+
+  if (edge === "start") {
+    parsed.setHours(0, 0, 0, 0);
+  } else {
+    parsed.setHours(23, 59, 59, 999);
+  }
+
+  return parsed;
+};
+
+// ✅ helper: date range where builder
+const buildDateWhere = (from, to, field = "createdAt") => {
+  if (!from && !to) return {};
+
+  const isDateOnlyField = field === "date";
+
+  if (from && to) {
+    return {
+      [field]: {
+        [Op.between]: isDateOnlyField
+          ? [normalizeDateValue(from), normalizeDateValue(to)]
+          : [
+              parseBoundaryDateTime(from, "start"),
+              parseBoundaryDateTime(to, "end"),
+            ],
+      },
+    };
+  }
+
+  if (from) {
+    return {
+      [field]: {
+        [Op.gte]: isDateOnlyField
+          ? normalizeDateValue(from)
+          : parseBoundaryDateTime(from, "start"),
+      },
+    };
+  }
+
+  return {
+    [field]: {
+      [Op.lte]: isDateOnlyField
+        ? normalizeDateValue(to)
+        : parseBoundaryDateTime(to, "end"),
+    },
   };
 };
 
 const sumField = async (Model, field, where = {}) => {
   if (!Model) return 0;
-  const total = await Model.sum(field, { where });
+  const total = await Model.sum(field, {
+    where,
+    paranoid: true,
+  });
   return n(total);
 };
 
-const getOverviewSummaryFromDB = async (filters) => {
-  const { from, to } = filters;
-  const dateWhere = buildDateWhere(from, to);
+const countWhere = async (Model, where = {}) => {
+  if (!Model) return 0;
+  return n(
+    await Model.count({
+      where,
+      paranoid: true,
+    }),
+  );
+};
 
-  // ✅ Parallel queries (fast)
+const sumQuantityValue = async (
+  Model,
+  where = {},
+  priceField = "purchase_price",
+) => {
+  if (!Model) return 0;
+
+  const result = await Model.findOne({
+    where,
+    paranoid: true,
+    attributes: [
+      [
+        db.Sequelize.fn(
+          "COALESCE",
+          db.Sequelize.fn(
+            "SUM",
+            db.Sequelize.literal(`quantity * ${priceField}`),
+          ),
+          0,
+        ),
+        "totalValue",
+      ],
+    ],
+    raw: true,
+  });
+
+  return n(result?.totalValue);
+};
+
+const getOverviewSummaryFromDB = async (filters) => {
+  const { from, to, filterType } = normalizeDateFilters(filters);
+  const transactionDateWhere = buildDateWhere(from, to, "date");
+  const snapshotWhere = buildDateWhere(from, to, "createdAt");
+
   const [
     totalMetaAmount,
+    totalAssetsBalance,
     totalReceiveableAmount,
     totalPayableAmount,
-
-    totalPurchaseAmount,
-    totalSaleAmount,
-    totalDamageAmount,
-
-    totalReceivedProductAmount,
-    totalPurchaseReturnProductAmount,
-    totalIntransitProductAmount,
-    totalSalesReturnProductAmount,
-    totalDamageProductProductAmount,
-
     totalInventoryOverview,
-
+    totalInventoryRetailValue,
+    totalDamageStockPrice,
+    totalRepairingStockPrice,
     totalCashInAmount,
     totalCashOutAmount,
+    grossSalesAmount,
+    lowStockCount,
+    pendingPurchaseRequisitionCount,
+    pendingPettyCashRequisitionCount,
+    pendingAssetsRequisitionCount,
   ] = await Promise.all([
-    // Marketing
-    sumField(Marketing, "amount", dateWhere),
-
-    // Receiveable / Payable
-    sumField(Receiveable, "amount", dateWhere),
-    sumField(Payable, "amount", dateWhere),
-
-    // Assets Purchase / Sale
-    sumField(AssetsPurchase, "quantity", dateWhere),
-    sumField(AssetsSale, "quantity", dateWhere),
-    sumField(AssetsDamage, "quantity", dateWhere),
-
-    // Inventory
-    sumField(ReceivedProduct, "purchase_price", dateWhere),
-    sumField(PurchaseReturnProduct, "purchase_price", dateWhere),
-    sumField(InTransitProduct, "purchase_price", dateWhere),
-    sumField(ReturnProduct, "purchase_price", dateWhere),
-    sumField(DamageProduct, "purchase_price", dateWhere),
-
-    // Inventory Overview
-    sumField(InventoryMaster, "purchase_price", dateWhere),
-
-    // Cash In/Out (same table, different status)
-    sumField(CashInOut, "amount", { ...dateWhere, paymentStatus: "CashIn" }),
-    sumField(CashInOut, "amount", { ...dateWhere, paymentStatus: "CashOut" }),
+    sumField(MarketingExpense, "amount", {
+      ...transactionDateWhere,
+      paymentStatus: "CashOut",
+    }),
+    sumQuantityValue(AssetsStock, snapshotWhere, "price"),
+    sumField(Receiveable, "amount", transactionDateWhere),
+    sumField(Payable, "amount", transactionDateWhere),
+    sumQuantityValue(InventoryMaster, snapshotWhere, "purchase_price"),
+    sumQuantityValue(InventoryMaster, snapshotWhere, "sale_price"),
+    sumField(DamageStock, "purchase_price", transactionDateWhere),
+    sumField(DamageReparingStock, "purchase_price", transactionDateWhere),
+    sumField(CashInOut, "amount", {
+      ...transactionDateWhere,
+      paymentStatus: "CashIn",
+    }),
+    sumField(CashInOut, "amount", {
+      ...transactionDateWhere,
+      paymentStatus: "CashOut",
+    }),
+    sumField(ConfirmOrder, "sale_price", transactionDateWhere),
+    countWhere(InventoryMaster, {
+      ...snapshotWhere,
+      quantity: { [Op.lt]: 10 },
+    }),
+    countWhere(PurchaseRequisition, {
+      ...transactionDateWhere,
+      status: "Pending",
+    }),
+    countWhere(PettyCash, {
+      ...transactionDateWhere,
+      status: "Pending",
+      paymentStatus: "CashIn",
+    }),
+    countWhere(AssetsRequisition, {
+      ...transactionDateWhere,
+      status: "Pending",
+    }),
   ]);
 
-  // ✅ তোমার UI logic অনুযায়ী হিসাব
-
-  // const remainingAmount = n(
-  //   totalPurchaseAmount - (totalSaleAmount + totalDamageAmount),
-  // );
-
-  // const totalInventoryExpense = n(
-  //   totalPurchaseReturnProductAmount +
-  //     totalIntransitProductAmount +
-  //     totalDamageProductProductAmount,
-  // );
-
-  const inventoryStock_AfterAdd_SalesReturnProduct = n(
-    totalReceivedProductAmount + totalSalesReturnProductAmount,
+  const netCashPosition = n(totalCashInAmount - totalCashOutAmount);
+  const totalPendingApprovalCount = n(
+    pendingPurchaseRequisitionCount +
+      pendingPettyCashRequisitionCount +
+      pendingAssetsRequisitionCount,
   );
 
-  // const remainingInventoryStock_AfterMinus_InventoryExpense = n(
-  //   inventoryStock_AfterAdd_SalesReturnProduct - totalInventoryExpense,
-  // );
-
-  // console.log("totalInventoryExpense", totalInventoryExpense);
-  // console.log(
-  //   "inventoryStock_AfterAdd_SalesReturnProduct",
-  //   inventoryStock_AfterAdd_SalesReturnProduct,
-  // );
-  // console.log(
-  //   "remainingInventoryStock_AfterMinus_InventoryExpense",
-  //   remainingInventoryStock_AfterMinus_InventoryExpense,
-  // );
-
   return {
-    // filters echo (optional)
+    filterType,
     from: from || null,
     to: to || null,
-
-    // Assets
-    totalPurchaseAmount,
-    // totalSaleAmount,
-    // remainingAmount,
-
-    // Inventory
-    totalReceivedProductAmount,
-    totalPurchaseReturnProductAmount,
-    totalIntransitProductAmount,
-    totalSalesReturnProductAmount,
-    totalDamageProductProductAmount,
-    inventoryStock_AfterAdd_SalesReturnProduct,
-
-    //Inventory Overview
-    totalInventoryOverview,
-
-    // Expenses & Accounts
     totalMetaAmount,
+    totalAssetsBalance,
     totalReceiveableAmount,
     totalPayableAmount,
-
-    // Cash
+    totalInventoryOverview,
+    totalInventoryRetailValue,
+    totalDamageStockPrice,
+    totalRepairingStockPrice,
+    grossSalesAmount,
     totalCashInAmount,
     totalCashOutAmount,
+    netCashPosition,
+    lowStockCount,
+    pendingPurchaseRequisitionCount,
+    pendingPettyCashRequisitionCount,
+    pendingAssetsRequisitionCount,
+    totalPendingApprovalCount,
   };
 };
 

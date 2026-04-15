@@ -154,6 +154,14 @@ const insertIntoDB = async (data) => {
     await DamageReparingStock.update(
       {
         quantity: repairingQty - returnQty,
+        purchase_price: Math.max(
+          0,
+          Number(damageRepairingStock.purchase_price || 0) - deductPurchase,
+        ),
+        sale_price: Math.max(
+          0,
+          Number(damageRepairingStock.sale_price || 0) - deductSale,
+        ),
         variants: subtractVariants(
           damageRepairingStock.variants,
           incomingVariants,

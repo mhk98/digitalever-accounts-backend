@@ -55,6 +55,15 @@ module.exports = (sequelize, DataTypes) => {
           notEmpty: true, // Ensure price is not empty
         },
       },
+      note: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      status: {
+        type: DataTypes.STRING(32),
+        allowNull: true,
+        defaultValue: "Active",
+      },
 
       deletedAt: {
         type: DataTypes.DATE,

@@ -18,6 +18,10 @@ module.exports = (sequelize, DataTypes) => {
           notEmpty: true, // Ensure name is not empty
         },
       },
+      productId: {
+        type: DataTypes.INTEGER(10),
+        allowNull: true,
+      },
       quantity: {
         type: DataTypes.INTEGER(10),
         defaultValue: 0,

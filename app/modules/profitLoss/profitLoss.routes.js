@@ -3,17 +3,18 @@ const auth = require("../../middlewares/auth");
 const {
   requireMenuPermission,
 } = require("../../middlewares/requireMenuPermission");
+const {
+  applyApprovalWorkflow,
+  approvePendingWorkflow,
+} = require("../../middlewares/approvalRouteWorkflow");
 const ProfitLossController = require("./profitLoss.controller");
 const router = require("express").Router();
 
 router.post(
   "/create",
-  auth(
-    ENUM_USER_ROLE.SUPER_ADMIN,
-    ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.INVENTOR,
-  ),
+  auth(),
   requireMenuPermission("profit_loss"),
+  applyApprovalWorkflow({ modelKey: "profitLoss", entityLabel: "Daily Profit & Loss" }),
   ProfitLossController.insertIntoDB,
 );
 router.post(
@@ -46,23 +47,23 @@ router.get(
 );
 router.delete(
   "/:id",
-  auth(
-    ENUM_USER_ROLE.SUPER_ADMIN,
-    ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.INVENTOR,
-  ),
+  auth(),
   requireMenuPermission("profit_loss"),
+  applyApprovalWorkflow({ modelKey: "profitLoss", entityLabel: "Daily Profit & Loss" }),
   ProfitLossController.deleteIdFromDB,
 );
 router.put(
   "/:id",
-  auth(
-    ENUM_USER_ROLE.SUPER_ADMIN,
-    ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.INVENTOR,
-  ),
+  auth(),
   requireMenuPermission("profit_loss"),
+  applyApprovalWorkflow({ modelKey: "profitLoss", entityLabel: "Daily Profit & Loss" }),
   ProfitLossController.updateOneFromDB,
+);
+router.post(
+  "/:id/approve",
+  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  requireMenuPermission("profit_loss"),
+  approvePendingWorkflow({ modelKey: "profitLoss", entityLabel: "Daily Profit & Loss" }),
 );
 
 const ProfitLossRoutes = router;

@@ -3,6 +3,12 @@ const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { EmployeeListSearchableFields } = require("./employeeList.constants");
+const {
+  applyCreateWorkflow,
+  applyUpdateWorkflow,
+  buildDeleteWorkflowPayload,
+  isPrivilegedRole,
+} = require("../../../shared/approvalWorkflow");
 
 const EmployeeList = db.employeeList;
 const User = db.user;
@@ -78,6 +84,12 @@ const buildEmployeeData = (payload = {}, currentStatus) => {
     joiningDate: payload.joiningDate || inputDateStr || null,
     salary: payload.salary,
     status: finalStatus,
+    pendingAction: payload.pendingAction || null,
+    approvalNote:
+      payload.approvalNote !== undefined
+        ? String(payload.approvalNote || "").trim() || null
+        : null,
+    requestedByUserId: payload.requestedByUserId || null,
     date: inputDateStr || null,
     note: note || null,
   };
@@ -96,8 +108,8 @@ const ensureLinkedUserExists = async (userId) => {
   }
 };
 
-const insertIntoDB = async (payload) => {
-  const data = buildEmployeeData(payload);
+const insertIntoDB = async (payload, user) => {
+  const data = buildEmployeeData(applyCreateWorkflow(payload, user));
 
   await ensureLinkedUserExists(data.userId);
 
@@ -195,13 +207,35 @@ const getProfileByUserId = async (userId) => {
   return result;
 };
 
-const deleteIdFromDB = async (id) => {
-  return EmployeeList.destroy({
+const deleteIdFromDB = async (id, user, note) => {
+  const existing = await EmployeeList.findOne({
+    where: { Id: id },
+    attributes: ["Id"],
+  });
+
+  if (!existing) {
+    throw new ApiError(404, "Employee record not found");
+  }
+
+  if (isPrivilegedRole(user.role)) {
+    await EmployeeList.destroy({
+      where: { Id: id },
+    });
+
+    return { deleted: true, workflowAction: "deleted" };
+  }
+
+  await EmployeeList.update(buildDeleteWorkflowPayload(note, user), {
     where: { Id: id },
   });
+
+  return {
+    ...(await getDataById(id))?.get({ plain: true }),
+    workflowAction: "delete_requested",
+  };
 };
 
-const updateOneFromDB = async (id, payload) => {
+const updateOneFromDB = async (id, payload, user) => {
   const existing = await EmployeeList.findOne({
     where: { Id: id },
     attributes: ["Id", "status"],
@@ -211,7 +245,10 @@ const updateOneFromDB = async (id, payload) => {
     throw new ApiError(404, "Employee record not found");
   }
 
-  const data = buildEmployeeData(payload, existing.status);
+  const data = buildEmployeeData(
+    applyUpdateWorkflow(payload, user),
+    existing.status,
+  );
 
   await ensureLinkedUserExists(data.userId);
 
@@ -220,6 +257,37 @@ const updateOneFromDB = async (id, payload) => {
   });
 
   return getDataById(id);
+};
+
+const approveOneFromDB = async (id) => {
+  const existing = await EmployeeList.findOne({
+    where: { Id: id },
+    attributes: ["Id", "pendingAction"],
+  });
+
+  if (!existing) {
+    throw new ApiError(404, "Employee record not found");
+  }
+
+  if (existing.pendingAction === "Delete") {
+    await EmployeeList.destroy({ where: { Id: id } });
+    return { deleted: true, workflowAction: "deleted" };
+  }
+
+  await EmployeeList.update(
+    {
+      status: "Active",
+      pendingAction: null,
+      approvalNote: null,
+      requestedByUserId: null,
+    },
+    { where: { Id: id } },
+  );
+
+  return {
+    ...(await getDataById(id))?.get({ plain: true }),
+    workflowAction: "approved",
+  };
 };
 
 const getAllFromDBWithoutQuery = async () => {
@@ -235,6 +303,7 @@ const EmployeeListService = {
   insertIntoDB,
   deleteIdFromDB,
   updateOneFromDB,
+  approveOneFromDB,
   getDataById,
   getProfileByUserId,
   getAllFromDBWithoutQuery,

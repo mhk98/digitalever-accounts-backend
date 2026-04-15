@@ -28,6 +28,15 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 0,
         allowNull: true,
       },
+      amount: {
+        type: DataTypes.INTEGER(10),
+        defaultValue: 0,
+        allowNull: true,
+      },
+      procurement: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
       remarks: {
         type: DataTypes.STRING,
         allowNull: true,

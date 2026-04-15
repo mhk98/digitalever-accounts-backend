@@ -38,7 +38,15 @@ const findDamageReparingStockByProductId = async (productId, transaction) =>
   });
 
 const syncDamageReparingStock = async (
-  { productId, name, quantityDelta, variants, date },
+  {
+    productId,
+    name,
+    quantityDelta,
+    purchasePriceDelta = 0,
+    salePriceDelta = 0,
+    variants,
+    date,
+  },
   transaction,
 ) => {
   if (!productId || !quantityDelta) return;
@@ -58,6 +66,8 @@ const syncDamageReparingStock = async (
         name,
         productId,
         quantity: quantityDelta,
+        purchase_price: Number(purchasePriceDelta || 0),
+        sale_price: Number(salePriceDelta || 0),
         variants: variants || [],
         date,
       },
@@ -84,6 +94,16 @@ const syncDamageReparingStock = async (
       name: name || repairingStock.name,
       date: date || repairingStock.date,
       quantity: nextQty,
+      purchase_price: Math.max(
+        0,
+        Number(repairingStock.purchase_price || 0) +
+          Number(purchasePriceDelta || 0),
+      ),
+      sale_price: Math.max(
+        0,
+        Number(repairingStock.sale_price || 0) +
+          Number(salePriceDelta || 0),
+      ),
       variants: nextVariants,
     },
     { transaction },
@@ -184,14 +204,8 @@ const insertIntoDB = async (data) => {
       {
         quantity: finalQuantity,
         variants: finalVariants,
-        purchase_price: Math.max(
-          0,
-          Number(received.purchase_price * finalQuantity || 0),
-        ),
-        sale_price: Math.max(
-          0,
-          Number(received.sale_price * finalQuantity || 0),
-        ),
+        purchase_price: Math.max(0, Number(received.purchase_price || 0) - deductPurchase),
+        sale_price: Math.max(0, Number(received.sale_price || 0) - deductSale),
       },
       { where: { Id: received.Id }, transaction: t },
     );
@@ -201,6 +215,8 @@ const insertIntoDB = async (data) => {
         productId: catalogProductId,
         name: received.name,
         quantityDelta: returnQty,
+        purchasePriceDelta: deductPurchase,
+        salePriceDelta: deductSale,
         variants: incomingVariants,
         date,
       },
@@ -361,8 +377,8 @@ const deleteIdFromDB = async (id) => {
       {
         quantity: finalQuantity,
         variants: finalVariants,
-        purchase_price: Number(received.purchase_price * finalQuantity || 0),
-        sale_price: Number(received.sale_price * finalQuantity || 0),
+        purchase_price: Number(received.purchase_price || 0) + Number(ret.purchase_price || 0),
+        sale_price: Number(received.sale_price || 0) + Number(ret.sale_price || 0),
       },
       { where: { Id: received.Id }, transaction: t },
     );
@@ -372,6 +388,8 @@ const deleteIdFromDB = async (id) => {
         productId: Number(received.productId),
         name: ret.name,
         quantityDelta: -qty,
+        purchasePriceDelta: -Number(ret.purchase_price || 0),
+        salePriceDelta: -Number(ret.sale_price || 0),
         variants: parseVariants(ret.variants),
         date: ret.date,
       },

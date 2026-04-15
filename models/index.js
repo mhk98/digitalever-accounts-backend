@@ -3,7 +3,7 @@
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const db = require("../db/db");
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { DataTypes } = require("sequelize");
+const { DataTypes, Op } = require("sequelize");
 
 // =====================
 // Define models
@@ -110,6 +110,11 @@ db.assetsPurchase =
     db.sequelize,
     DataTypes,
   );
+
+db.assetsStock = require("../app/modules/assetsStock/assetsStock.model")(
+  db.sequelize,
+  DataTypes,
+);
 
 db.assetsSale = require("../app/modules/assetsSale/assetsSale.model")(
   db.sequelize,
@@ -776,11 +781,23 @@ db.damageRepaired.belongsTo(db.supplier, {
 // =====================
 // Assets relations
 // =====================
-db.assetsPurchase.hasMany(db.assetsSale, { foreignKey: "productId" });
-db.assetsSale.belongsTo(db.assetsPurchase, { foreignKey: "productId" });
+db.assetsStock.hasMany(db.assetsPurchase, { foreignKey: "productId" });
+db.assetsPurchase.belongsTo(db.assetsStock, {
+  foreignKey: "productId",
+  as: "assetStock",
+});
 
-db.assetsPurchase.hasMany(db.assetsDamage, { foreignKey: "productId" });
-db.assetsDamage.belongsTo(db.assetsPurchase, { foreignKey: "productId" });
+db.assetsStock.hasMany(db.assetsSale, { foreignKey: "productId" });
+db.assetsSale.belongsTo(db.assetsStock, {
+  foreignKey: "productId",
+  as: "assetStock",
+});
+
+db.assetsStock.hasMany(db.assetsDamage, { foreignKey: "productId" });
+db.assetsDamage.belongsTo(db.assetsStock, {
+  foreignKey: "productId",
+  as: "assetStock",
+});
 
 // Payable relations
 db.supplier.hasMany(db.payable, { foreignKey: "supplierId" });
@@ -790,9 +807,388 @@ db.payable.belongsTo(db.supplier, { foreignKey: "supplierId", as: "supplier" });
 // Sync
 // NOTE: production এ force:true দিবেন না
 // =====================
+
+const ensureHolidayRangeColumns = async () => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db.holiday.getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!tableDefinition.startDate) {
+    await queryInterface.addColumn(tableName, "startDate", {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    });
+  }
+
+  if (!tableDefinition.endDate) {
+    await queryInterface.addColumn(tableName, "endDate", {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    });
+  }
+
+  await db.sequelize.query(
+    `UPDATE \`${tableName}\`
+     SET startDate = COALESCE(startDate, holidayDate),
+         endDate = COALESCE(endDate, holidayDate)
+     WHERE holidayDate IS NOT NULL`,
+  );
+};
+
+const ensureAttendanceDeviceApiKeyColumn = async () => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db.attendanceDevice.getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!tableDefinition.apiKey) {
+    await queryInterface.addColumn(tableName, "apiKey", {
+      type: DataTypes.STRING(191),
+      allowNull: true,
+    });
+  }
+
+  if (!tableDefinition.pendingAction) {
+    await queryInterface.addColumn(tableName, "pendingAction", {
+      type: DataTypes.STRING(32),
+      allowNull: true,
+    });
+  }
+
+  if (!tableDefinition.approvalNote) {
+    await queryInterface.addColumn(tableName, "approvalNote", {
+      type: DataTypes.STRING,
+      allowNull: true,
+    });
+  }
+
+  if (!tableDefinition.requestedByUserId) {
+    await queryInterface.addColumn(tableName, "requestedByUserId", {
+      type: DataTypes.INTEGER(10),
+      allowNull: true,
+    });
+  }
+};
+
+const ensureEmployeeListColumns = async () => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db.employeeList.getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  const maybeAddColumn = async (columnName, definition) => {
+    if (!tableDefinition[columnName]) {
+      await queryInterface.addColumn(tableName, columnName, definition);
+    }
+  };
+
+  await maybeAddColumn("employeeCode", {
+    type: DataTypes.STRING(64),
+    allowNull: true,
+  });
+  await maybeAddColumn("userId", {
+    type: DataTypes.INTEGER(10),
+    allowNull: true,
+  });
+  await maybeAddColumn("email", {
+    type: DataTypes.STRING,
+    allowNull: true,
+  });
+  await maybeAddColumn("phone", {
+    type: DataTypes.STRING(32),
+    allowNull: true,
+  });
+  await maybeAddColumn("departmentId", {
+    type: DataTypes.INTEGER(10),
+    allowNull: true,
+  });
+  await maybeAddColumn("designationId", {
+    type: DataTypes.INTEGER(10),
+    allowNull: true,
+  });
+  await maybeAddColumn("shiftId", {
+    type: DataTypes.INTEGER(10),
+    allowNull: true,
+  });
+  await maybeAddColumn("reportingManagerId", {
+    type: DataTypes.INTEGER(10),
+    allowNull: true,
+  });
+  await maybeAddColumn("employmentType", {
+    type: DataTypes.STRING(64),
+    allowNull: true,
+  });
+  await maybeAddColumn("joiningDate", {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+  });
+  await maybeAddColumn("pendingAction", {
+    type: DataTypes.STRING(32),
+    allowNull: true,
+  });
+  await maybeAddColumn("approvalNote", {
+    type: DataTypes.STRING,
+    allowNull: true,
+  });
+  await maybeAddColumn("requestedByUserId", {
+    type: DataTypes.INTEGER(10),
+    allowNull: true,
+  });
+};
+
+const ensureEmployeeColumns = async () => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db.employee.getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  const maybeAddColumn = async (columnName, definition) => {
+    if (!tableDefinition[columnName]) {
+      await queryInterface.addColumn(tableName, columnName, definition);
+    }
+  };
+
+  await maybeAddColumn("userId", {
+    type: DataTypes.INTEGER(10),
+    allowNull: true,
+  });
+  await maybeAddColumn("employeeListId", {
+    type: DataTypes.INTEGER(10),
+    allowNull: true,
+  });
+};
+
+const ensureStatusAndNoteColumns = async (modelKey) => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db[modelKey].getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!tableDefinition.note) {
+    await queryInterface.addColumn(tableName, "note", {
+      type: DataTypes.STRING,
+      allowNull: true,
+    });
+  }
+
+  if (!tableDefinition.status) {
+    await queryInterface.addColumn(tableName, "status", {
+      type: DataTypes.STRING(32),
+      allowNull: true,
+      defaultValue: "Active",
+    });
+  }
+};
+
+const ensureApprovalColumns = async (modelKey) => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db[modelKey].getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!tableDefinition.pendingAction) {
+    await queryInterface.addColumn(tableName, "pendingAction", {
+      type: DataTypes.STRING(32),
+      allowNull: true,
+    });
+  }
+
+  if (!tableDefinition.approvalNote) {
+    await queryInterface.addColumn(tableName, "approvalNote", {
+      type: DataTypes.STRING,
+      allowNull: true,
+    });
+  }
+
+  if (!tableDefinition.requestedByUserId) {
+    await queryInterface.addColumn(tableName, "requestedByUserId", {
+      type: DataTypes.INTEGER(10),
+      allowNull: true,
+    });
+  }
+};
+
+const ensureAssetMovementColumns = async (modelKey) => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db[modelKey].getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!tableDefinition.productId) {
+    await queryInterface.addColumn(tableName, "productId", {
+      type: DataTypes.INTEGER(10),
+      allowNull: true,
+    });
+  }
+};
+
+const ensureAssetsStockColumns = async () => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db.assetsStock.getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!tableDefinition.price) {
+    await queryInterface.addColumn(tableName, "price", {
+      type: DataTypes.INTEGER(10),
+      allowNull: false,
+      defaultValue: 0,
+    });
+  }
+};
+
+const ensureDamageStockPriceColumns = async (modelKey) => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db[modelKey].getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!tableDefinition.purchase_price) {
+    await queryInterface.addColumn(tableName, "purchase_price", {
+      type: DataTypes.INTEGER(10),
+      allowNull: true,
+      defaultValue: 0,
+    });
+  }
+
+  if (!tableDefinition.sale_price) {
+    await queryInterface.addColumn(tableName, "sale_price", {
+      type: DataTypes.INTEGER(10),
+      allowNull: true,
+      defaultValue: 0,
+    });
+  }
+};
+
+const syncAssetsStockSeedData = async () => {
+  const { ensureSeedAssetsStocks, rebuildAssetsStockBalances } = require("../app/modules/assetsStock/assetsStockSync");
+
+  await db.sequelize.transaction(async (transaction) => {
+    await ensureSeedAssetsStocks(transaction);
+    await rebuildAssetsStockBalances(transaction);
+  });
+};
+
+const syncDamageStockPriceData = async () => {
+  const DamageStock = db.damageStock;
+  const DamageReparingStock = db.damageReparingStock;
+  const DamageProduct = db.damageProduct;
+  const DamageRepair = db.damageRepair;
+  const InventoryMaster = db.inventoryMaster;
+
+  const [damageStocks, repairingStocks] = await Promise.all([
+    DamageStock.findAll(),
+    DamageReparingStock.findAll(),
+  ]);
+
+  for (const stock of damageStocks) {
+    const qty = Number(stock.quantity || 0);
+    if (qty <= 0) {
+      await stock.update({ purchase_price: 0, sale_price: 0 });
+      continue;
+    }
+
+    if (Number(stock.purchase_price || 0) > 0 || Number(stock.sale_price || 0) > 0) {
+      continue;
+    }
+
+    const inventoryRows = await InventoryMaster.findAll({
+      attributes: ["Id"],
+      where: { productId: stock.productId },
+      raw: true,
+    });
+
+    const inventoryIds = inventoryRows.map((row) => row.Id).filter(Boolean);
+    if (!inventoryIds.length) continue;
+
+    const latestMovement = await DamageProduct.findOne({
+      where: { productId: { [Op.in]: inventoryIds } },
+      order: [["createdAt", "DESC"], ["Id", "DESC"]],
+      raw: true,
+    });
+
+    if (!latestMovement) continue;
+
+    const sourceQty = Number(latestMovement.quantity || 0);
+    if (sourceQty <= 0) continue;
+
+    const unitPurchase = Number(latestMovement.purchase_price || 0) / sourceQty;
+    const unitSale = Number(latestMovement.sale_price || 0) / sourceQty;
+
+    await stock.update({
+      purchase_price: unitPurchase * qty,
+      sale_price: unitSale * qty,
+    });
+  }
+
+  for (const stock of repairingStocks) {
+    const qty = Number(stock.quantity || 0);
+    if (qty <= 0) {
+      await stock.update({ purchase_price: 0, sale_price: 0 });
+      continue;
+    }
+
+    if (Number(stock.purchase_price || 0) > 0 || Number(stock.sale_price || 0) > 0) {
+      continue;
+    }
+
+    const damageStockRows = await DamageStock.findAll({
+      attributes: ["Id"],
+      where: { productId: stock.productId },
+      raw: true,
+    });
+
+    const damageStockIds = damageStockRows.map((row) => row.Id).filter(Boolean);
+    if (!damageStockIds.length) continue;
+
+    const latestMovement = await DamageRepair.findOne({
+      where: { productId: { [Op.in]: damageStockIds } },
+      order: [["createdAt", "DESC"], ["Id", "DESC"]],
+      raw: true,
+    });
+
+    if (!latestMovement) continue;
+
+    const sourceQty = Number(latestMovement.quantity || 0);
+    if (sourceQty <= 0) continue;
+
+    const unitPurchase = Number(latestMovement.purchase_price || 0) / sourceQty;
+    const unitSale = Number(latestMovement.sale_price || 0) / sourceQty;
+
+    await stock.update({
+      purchase_price: unitPurchase * qty,
+      sale_price: unitSale * qty,
+    });
+  }
+};
+
 db.sequelize
   .sync({ force: false })
   .then(async () => {
+    await ensureHolidayRangeColumns();
+    await ensureAttendanceDeviceApiKeyColumn();
+    await ensureEmployeeListColumns();
+    await ensureEmployeeColumns();
+    await ensureApprovalColumns("department");
+    await ensureApprovalColumns("designation");
+    await ensureApprovalColumns("shift");
+    await ensureApprovalColumns("holiday");
+    await Promise.all(
+      [
+        "item",
+        "product",
+        "supplier",
+        "warehouse",
+        "profitLoss",
+        "salary",
+      ].map((modelKey) => ensureStatusAndNoteColumns(modelKey)),
+    );
+    await Promise.all(
+      ["assetsPurchase", "assetsSale", "assetsDamage"].map((modelKey) =>
+        ensureAssetMovementColumns(modelKey),
+      ),
+    );
+    await ensureAssetsStockColumns();
+    await Promise.all(
+      ["damageStock", "damageReparingStock"].map((modelKey) =>
+        ensureDamageStockPriceColumns(modelKey),
+      ),
+    );
+    await syncAssetsStockSeedData();
+    await syncDamageStockPriceData();
+
     const {
       DEFAULT_ROLE_MENU_PERMISSIONS,
     } = require("../app/config/roleMenuPermissions");

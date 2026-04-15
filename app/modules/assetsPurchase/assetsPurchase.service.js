@@ -6,11 +6,13 @@ const {
   AssetsPurchaseSearchableFields,
 } = require("./assetsPurchase.constants");
 const AssetsPurchase = db.assetsPurchase;
+const AssetsStock = db.assetsStock;
 const Notification = db.notification;
 const User = db.user;
+const { rebuildAssetsStockBalances } = require("../assetsStock/assetsStockSync");
 
 const insertIntoDB = async (payload) => {
-  const { name, quantity, price, date, note, status } = payload;
+  const { productId, quantity, price, date, note, status } = payload;
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
 
@@ -26,18 +28,32 @@ const insertIntoDB = async (payload) => {
         ? "Pending"
         : "Active";
 
-  const data = {
-    name,
-    quantity,
-    price,
-    date,
-    total: Number(price * quantity),
-    status: finalStatus || "---",
-    note: note || null,
-    date: date,
-  };
-  const result = await AssetsPurchase.create(data);
-  return result;
+  return db.sequelize.transaction(async (t) => {
+    const stock = await AssetsStock.findOne({
+      where: { Id: productId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!stock) {
+      throw new ApiError(404, "Assets stock product not found");
+    }
+
+    const data = {
+      name: stock.name,
+      productId: stock.Id,
+      quantity: Number(quantity),
+      price: Number(price),
+      date,
+      total: Number(price) * Number(quantity),
+      status: finalStatus || "---",
+      note: note || null,
+    };
+
+    const result = await AssetsPurchase.create(data, { transaction: t });
+    await rebuildAssetsStockBalances(t);
+    return result;
+  });
 };
 
 const getAllFromDB = async (filters, options) => {
@@ -140,13 +156,17 @@ const getDataById = async (id) => {
 // };
 
 const deleteIdFromDB = async (id) => {
-  const result = await AssetsPurchase.destroy({
-    where: {
-      Id: id,
-    },
-  });
+  return db.sequelize.transaction(async (t) => {
+    const result = await AssetsPurchase.destroy({
+      where: {
+        Id: id,
+      },
+      transaction: t,
+    });
 
-  return result;
+    await rebuildAssetsStockBalances(t);
+    return result;
+  });
 };
 
 // const updateOneFromDB = async (id, payload) => {
@@ -213,7 +233,7 @@ const deleteIdFromDB = async (id) => {
 // };
 
 const updateOneFromDB = async (id, payload) => {
-  const { name, quantity, price, note, date, status, userId, actorRole } =
+  const { productId, quantity, price, note, date, status, userId, actorRole } =
     payload;
 
   const q = quantity === "" || quantity == null ? undefined : Number(quantity);
@@ -225,7 +245,7 @@ const updateOneFromDB = async (id, payload) => {
   // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
   const existing = await AssetsPurchase.findOne({
     where: { Id: id },
-    attributes: ["Id", "note", "status"],
+    attributes: ["Id", "note", "status", "productId"],
   });
 
   if (!existing) return 0;
@@ -260,18 +280,43 @@ const updateOneFromDB = async (id, payload) => {
   }
 
   // ---------- update payload ----------
-  const data = {
-    name: name === "" || name == null ? undefined : name,
-    quantity: q,
-    price: p,
-    note: newNote || null,
-    status: finalStatus,
-    date: inputDateStr || undefined,
-    total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
-  };
+  const updatedCount = await db.sequelize.transaction(async (t) => {
+    const selectedProductId =
+      productId === "" || productId == null
+        ? existing.productId
+        : Number(productId);
 
-  const [updatedCount] = await AssetsPurchase.update(data, {
-    where: { Id: id },
+    const stock = await AssetsStock.findOne({
+      where: { Id: selectedProductId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!stock) {
+      throw new ApiError(404, "Assets stock product not found");
+    }
+
+    const data = {
+      name: stock.name,
+      productId: stock.Id,
+      quantity: q,
+      price: p,
+      note: newNote || null,
+      status: finalStatus,
+      date: inputDateStr || undefined,
+      total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
+    };
+
+    const [count] = await AssetsPurchase.update(data, {
+      where: { Id: id },
+      transaction: t,
+    });
+
+    if (count > 0) {
+      await rebuildAssetsStockBalances(t);
+    }
+
+    return count;
   });
 
   if (updatedCount <= 0) return updatedCount;

@@ -1,12 +1,20 @@
 const { Op } = require("sequelize");
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
+const ApiError = require("../../../error/ApiError");
 const { ShiftSearchableFields } = require("./shift.constants");
+const {
+  applyCreateWorkflow,
+  applyUpdateWorkflow,
+  buildDeleteWorkflowPayload,
+  isPrivilegedRole,
+} = require("../../../shared/approvalWorkflow");
 
 const Shift = db.shift;
 
-const insertIntoDB = async (data) => {
-  return Shift.create(data);
+const insertIntoDB = async (data, user) => {
+  const result = await Shift.create(applyCreateWorkflow(data, user));
+  return getDataById(result.Id);
 };
 
 const getAllFromDB = async (filters, options) => {
@@ -70,18 +78,68 @@ const getDataById = async (id) => {
   });
 };
 
-const updateOneFromDB = async (id, payload) => {
-  await Shift.update(payload, {
+const updateOneFromDB = async (id, payload, user) => {
+  const existing = await getDataById(id);
+  if (!existing) {
+    throw new ApiError(404, "Shift not found");
+  }
+
+  await Shift.update(applyUpdateWorkflow(payload, user), {
     where: { Id: id },
   });
 
   return getDataById(id);
 };
 
-const deleteIdFromDB = async (id) => {
-  return Shift.destroy({
+const deleteIdFromDB = async (id, user, note) => {
+  const existing = await getDataById(id);
+  if (!existing) {
+    throw new ApiError(404, "Shift not found");
+  }
+
+  if (isPrivilegedRole(user.role)) {
+    await Shift.destroy({
+      where: { Id: id },
+    });
+
+    return { deleted: true, workflowAction: "deleted" };
+  }
+
+  await Shift.update(buildDeleteWorkflowPayload(note, user), {
     where: { Id: id },
   });
+
+  return {
+    ...(await getDataById(id))?.get({ plain: true }),
+    workflowAction: "delete_requested",
+  };
+};
+
+const approveOneFromDB = async (id) => {
+  const existing = await getDataById(id);
+  if (!existing) {
+    throw new ApiError(404, "Shift not found");
+  }
+
+  if (existing.pendingAction === "Delete") {
+    await Shift.destroy({ where: { Id: id } });
+    return { deleted: true, workflowAction: "deleted" };
+  }
+
+  await Shift.update(
+    {
+      status: "Active",
+      pendingAction: null,
+      approvalNote: null,
+      requestedByUserId: null,
+    },
+    { where: { Id: id } },
+  );
+
+  return {
+    ...(await getDataById(id))?.get({ plain: true }),
+    workflowAction: "approved",
+  };
 };
 
 module.exports = {
@@ -91,4 +149,5 @@ module.exports = {
   getDataById,
   updateOneFromDB,
   deleteIdFromDB,
+  approveOneFromDB,
 };

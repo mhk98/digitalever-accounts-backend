@@ -44,6 +44,12 @@ const endOfDay = (date) => {
   return d;
 };
 
+const hoursAgo = (hours) => {
+  const date = new Date();
+  date.setHours(date.getHours() - hours);
+  return date;
+};
+
 const parseTimeToDate = (dateString, timeString) => {
   if (!timeString) return null;
   const base = new Date(`${dateString}T00:00:00`);
@@ -56,6 +62,12 @@ const parseTimeToDate = (dateString, timeString) => {
 const minutesDiff = (later, earlier) => {
   if (!later || !earlier) return 0;
   return Math.max(0, Math.round((later.getTime() - earlier.getTime()) / 60000));
+};
+
+const toDateString = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
 };
 
 const resolveEmployeeId = async ({ employeeId, deviceUserId, attendanceDeviceId }) => {
@@ -107,6 +119,123 @@ const sanitizeLogPayload = async (payload = {}) => {
     processingStatus: payload.processingStatus || "Pending",
     processedAt: payload.processedAt || null,
     note: payload.note || null,
+  };
+};
+
+const resolveRealtimeDevice = async ({
+  attendanceDeviceId,
+  deviceIdentifier,
+  deviceCode,
+}) => {
+  const normalizedDeviceId = normalizeOptionalNumber(attendanceDeviceId);
+
+  if (normalizedDeviceId) {
+    return AttendanceDevice.findOne({
+      where: { Id: normalizedDeviceId },
+      attributes: ["Id", "name", "deviceIdentifier", "code", "apiKey"],
+    });
+  }
+
+  if (deviceIdentifier) {
+    return AttendanceDevice.findOne({
+      where: { deviceIdentifier: String(deviceIdentifier).trim() },
+      attributes: ["Id", "name", "deviceIdentifier", "code", "apiKey"],
+    });
+  }
+
+  if (deviceCode) {
+    return AttendanceDevice.findOne({
+      where: { code: String(deviceCode).trim() },
+      attributes: ["Id", "name", "deviceIdentifier", "code", "apiKey"],
+    });
+  }
+
+  return null;
+};
+
+const receiveRealtimeLog = async (payload = {}, options = {}) => {
+  const device = await resolveRealtimeDevice(payload);
+  if (!device) {
+    throw new ApiError(
+      404,
+      "Attendance device was not found. Provide attendanceDeviceId, deviceIdentifier or code.",
+    );
+  }
+
+  const requestApiKey = String(options.requestApiKey || "").trim();
+  const hasAuthenticatedUser = Boolean(options.authenticatedUserId);
+
+  if (!hasAuthenticatedUser) {
+    if (!device.apiKey) {
+      throw new ApiError(
+        403,
+        "This attendance device does not have an API key configured yet.",
+      );
+    }
+
+    if (!requestApiKey || requestApiKey !== device.apiKey) {
+      throw new ApiError(401, "Invalid device API key");
+    }
+  }
+
+  const normalizedPayload = {
+    ...payload,
+    attendanceDeviceId: device.Id,
+    sourcePayload: payload.sourcePayload || payload,
+    syncBatchId:
+      payload.syncBatchId ||
+      `rt-${device.Id}-${Date.now()}`,
+  };
+
+  const data = await sanitizeLogPayload(normalizedPayload);
+
+  const existing = await AttendanceLog.findOne({
+    where: {
+      attendanceDeviceId: data.attendanceDeviceId,
+      deviceUserId: data.deviceUserId,
+      punchTime: data.punchTime,
+      punchType: data.punchType,
+      deletedAt: { [Op.is]: null },
+    },
+    include: logIncludes,
+    paranoid: true,
+  });
+
+  if (existing) {
+    return {
+      duplicate: true,
+      processedRealtime: false,
+      log: existing,
+    };
+  }
+
+  const created = await AttendanceLog.create({
+    ...data,
+    processingStatus: "Pending",
+  });
+
+  await AttendanceDevice.update(
+    { lastSyncAt: new Date() },
+    { where: { Id: data.attendanceDeviceId } },
+  );
+
+  const attendanceDate = toDateString(data.punchTime);
+  let processingResult = null;
+
+  if (attendanceDate && payload.autoProcess !== false) {
+    processingResult = await processDailyAttendance(attendanceDate);
+  }
+
+  const log = await AttendanceLog.findOne({
+    where: { Id: created.Id },
+    include: logIncludes,
+  });
+
+  return {
+    duplicate: false,
+    processedRealtime: Boolean(processingResult),
+    processingResult,
+    log,
   };
 };
 
@@ -246,7 +375,12 @@ const processDailyAttendance = async (date) => {
     }),
     Holiday.findAll({
       where: {
-        holidayDate: date,
+        startDate: {
+          [Op.lte]: date,
+        },
+        endDate: {
+          [Op.gte]: date,
+        },
         deletedAt: { [Op.is]: null },
       },
       paranoid: true,
@@ -355,8 +489,86 @@ const processDailyAttendance = async (date) => {
   };
 };
 
+const getRealtimeMonitor = async (date) => {
+  const targetDate = date || new Date().toISOString().slice(0, 10);
+  const dateStart = startOfDay(targetDate);
+  const dateEnd = endOfDay(targetDate);
+
+  const [
+    totalLogs,
+    pendingLogs,
+    unmatchedLogs,
+    processedSummaries,
+    activeDevices,
+    staleDevices,
+    lastLog,
+  ] = await Promise.all([
+    AttendanceLog.count({
+      where: {
+        punchTime: { [Op.between]: [dateStart, dateEnd] },
+        deletedAt: { [Op.is]: null },
+      },
+    }),
+    AttendanceLog.count({
+      where: {
+        punchTime: { [Op.between]: [dateStart, dateEnd] },
+        processingStatus: "Pending",
+        deletedAt: { [Op.is]: null },
+      },
+    }),
+    AttendanceLog.count({
+      where: {
+        punchTime: { [Op.between]: [dateStart, dateEnd] },
+        employeeId: { [Op.is]: null },
+        deletedAt: { [Op.is]: null },
+      },
+    }),
+    AttendanceSummary.count({
+      where: {
+        attendanceDate: targetDate,
+        deletedAt: { [Op.is]: null },
+      },
+    }),
+    AttendanceDevice.count({
+      where: {
+        status: "Active",
+        deletedAt: { [Op.is]: null },
+      },
+    }),
+    AttendanceDevice.count({
+      where: {
+        status: "Active",
+        deletedAt: { [Op.is]: null },
+        [Op.or]: [
+          { lastSyncAt: { [Op.is]: null } },
+          { lastSyncAt: { [Op.lt]: hoursAgo(24) } },
+        ],
+      },
+    }),
+    AttendanceLog.findOne({
+      where: { deletedAt: { [Op.is]: null } },
+      include: logIncludes,
+      paranoid: true,
+      order: [["punchTime", "DESC"]],
+    }),
+  ]);
+
+  return {
+    date: targetDate,
+    totalLogs,
+    pendingLogs,
+    unmatchedLogs,
+    processedSummaries,
+    activeDevices,
+    staleDevices,
+    lastLog,
+  };
+};
+
 module.exports = {
   insertIntoDB,
+  receiveRealtimeLog,
+  getRealtimeMonitor,
   getAllFromDB,
   getAllFromDBWithoutQuery,
   getDataById,

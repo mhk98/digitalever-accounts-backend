@@ -13,18 +13,20 @@ const Notification = db.notification;
 const User = db.user;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
+const CashInOut = db.cashInOut;
 
 const insertIntoDB = async (data) => {
   const {
     quantity,
-    purchase_price,
-    sale_price,
+    amount,
     variants,
     productId,
     userId,
+    bookId,
     note,
     date,
     status,
+    procurement,
     supplierId,
     warehouseId,
   } = data;
@@ -39,64 +41,75 @@ const insertIntoDB = async (data) => {
     throw new ApiError(404, "Product not found");
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
+  // const todayStr = new Date().toISOString().slice(0, 10);
+  // const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
 
-  // ✅ Approved হলে পুরোনো date-ও allow + save
-  const isApproved = String(status || "").trim() === "Approved";
+  // // ✅ Approved হলে পুরোনো date-ও allow + save
+  // const isApproved = String(status || "").trim() === "Approved";
+  // const isCompleted = String(status || "").trim() === "Completed";
 
-  // ✅ current date না হলে auto Pending
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
-      ? "Pending"
-      : note
-        ? "Pending"
-        : "Active";
+  // // ✅ current date না হলে auto Pending
+  // const finalStatus = isApproved
+  //   ? "Approved"
+  //   : isCompleted
+  //     ? "Completed"
+  //     : inputDateStr !== todayStr
+  //       ? "Pending"
+  //       : note
+  //         ? "Pending"
+  //         : "Active";
 
-  const payload = {
-    name: productData.name,
-    quantity: Number(quantity),
-    status: finalStatus || "---",
-    note: note || null,
-    date: date,
-    variants: incomingVariants,
-    purchase_price: Number(purchase_price || 0) * Number(quantity || 0),
-    sale_price: Number(sale_price || 0) * Number(quantity || 0),
-    supplierId,
-    warehouseId,
-    productId,
-  };
+  return db.sequelize.transaction(async (t) => {
+    const payload = {
+      name: productData.name,
+      procurement: procurement || null,
+      quantity: Number(quantity),
+      amount: Number(amount || 0),
+      bookId: bookId || null,
+      status: "Pending", // সব নতুন রিকুয়েস্ট হবে Pending, পরে update route থেকে Approved/Completed করা যাবে
+      note: note || null,
+      date: date,
+      variants: incomingVariants,
+      supplierId,
+      warehouseId,
+      productId,
+    };
 
-  // ✅ create returns instance (not array)
-  const result = await PurchaseRequisition.create(payload);
+    const result = await PurchaseRequisition.create(payload, {
+      transaction: t,
+    });
 
-  const users = await User.findAll({
-    attributes: ["Id", "role"],
-    where: {
-      Id: { [Op.ne]: userId },
-      role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
-    },
+    const users = await User.findAll({
+      attributes: ["Id", "role"],
+      where: {
+        Id: { [Op.ne]: userId },
+        role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+      },
+      transaction: t,
+    });
+
+    if (users.length) {
+      const message =
+        status === "Approved"
+          ? "Product purchase requision request approved"
+          : note || "Product purchase requisition request";
+
+      await Promise.all(
+        users.map((u) =>
+          Notification.create(
+            {
+              userId: u.Id,
+              message,
+              url: `/kafelamart.digitalever.com.bd/purchase-requisition`,
+            },
+            { transaction: t },
+          ),
+        ),
+      );
+    }
+
+    return result;
   });
-
-  if (users.length) {
-    const message =
-      status === "Approved"
-        ? "Product purchase requision request approved"
-        : note || "Product purchase requisition request";
-
-    await Promise.all(
-      users.map((u) =>
-        Notification.create({
-          userId: u.Id,
-          message,
-          url: `/kafelamart.digitalever.com.bd/purchase-requisition`,
-        }),
-      ),
-    );
-  }
-
-  return result;
 };
 
 const getAllFromDB = async (filters, options) => {
@@ -218,8 +231,8 @@ const updateOneFromDB = async (id, payload) => {
     userId,
     supplierId,
     warehouseId,
-    purchase_price,
-    sale_price,
+    amount,
+    bookId,
     actorRole,
   } = payload;
 
@@ -278,9 +291,9 @@ const updateOneFromDB = async (id, payload) => {
   const data = {
     name: productData.name,
     quantity,
+    amount: Number(amount || 0),
+    bookId: bookId || null,
     variants: incomingVariants,
-    purchase_price: purchase_price * quantity,
-    sale_price: sale_price * quantity,
     note: newNote || null,
     status: finalStatus,
     date: inputDateStr || undefined,
@@ -289,39 +302,55 @@ const updateOneFromDB = async (id, payload) => {
     productId,
   };
 
-  const [updatedCount] = await PurchaseRequisition.update(data, {
-    where: {
-      Id: id,
-    },
+  return db.sequelize.transaction(async (t) => {
+    if (status === "Completed") {
+      // Handle completed status logic if needed
+
+      await CashInOut.create(
+        {
+          amount: amount,
+          bookId: bookId || null,
+          paymentStatus: "CashInOut",
+          date: new Date(),
+        },
+        { transaction: t },
+      );
+    }
+
+    const [updatedCount] = await PurchaseRequisition.update(data, {
+      where: {
+        Id: id,
+      },
+    });
+
+    const users = await User.findAll({
+      attributes: ["Id", "role"],
+      where: {
+        Id: { [Op.ne]: userId }, // sender বাদ
+        role: { [Op.in]: ["superAdmin", "admin"] }, // তোমার DB অনুযায়ী ঠিক করো
+      },
+    });
+
+    console.log("users", users.length);
+    if (!users.length) return updatedCount;
+
+    const message =
+      status === "Approved"
+        ? "Product purchase requision request approved"
+        : note || "Product purchase requisition request";
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create({
+          userId: u.Id,
+          message,
+          url: `/kafelamart.digitalever.com.bd/purchase-product`,
+        }),
+      ),
+    );
+
+    return updatedCount;
   });
-
-  const users = await User.findAll({
-    attributes: ["Id", "role"],
-    where: {
-      Id: { [Op.ne]: userId }, // sender বাদ
-      role: { [Op.in]: ["superAdmin", "admin"] }, // তোমার DB অনুযায়ী ঠিক করো
-    },
-  });
-
-  console.log("users", users.length);
-  if (!users.length) return updatedCount;
-
-  const message =
-    status === "Approved"
-      ? "Product purchase requision request approved"
-      : note || "Product purchase requisition request";
-
-  await Promise.all(
-    users.map((u) =>
-      Notification.create({
-        userId: u.Id,
-        message,
-        url: `/kafelamart.digitalever.com.bd/purchase-product`,
-      }),
-    ),
-  );
-
-  return updatedCount;
 };
 
 const getAllFromDBWithoutQuery = async () => {

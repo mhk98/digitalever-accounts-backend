@@ -9,6 +9,30 @@ const User = db.user;
 const Notification = db.notification;
 const PettyCash = db.pettyCash;
 
+const notifyPettyCashUsers = async ({ userId, roles, message, url }) => {
+  if (!roles?.length || !message || !url) return;
+
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId },
+      role: { [Op.in]: roles },
+    },
+  });
+
+  if (!users.length) return;
+
+  await Promise.all(
+    users.map((u) =>
+      Notification.create({
+        userId: u.Id,
+        message,
+        url,
+      }),
+    ),
+  );
+};
+
 const insertIntoDB = catchAsync(async (req, res) => {
   const {
     name,
@@ -29,17 +53,19 @@ const insertIntoDB = catchAsync(async (req, res) => {
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
 
-  // ✅ Approved হলে পুরোনো date-ও allow + save
-  const isApproved = String(status || "").trim() === "Approved";
+  const inputStatus = String(status || "").trim();
+  const isApproved = inputStatus === "Approved";
+  const isPending = inputStatus === "Pending";
 
-  // ✅ current date না হলে auto Pending
   const finalStatus = isApproved
     ? "Approved"
-    : inputDateStr !== todayStr
+    : isPending
       ? "Pending"
-      : note
+      : inputDateStr !== todayStr
         ? "Pending"
-        : "Active";
+        : note
+          ? "Pending"
+          : "Active";
 
   const data = {
     name,
@@ -55,32 +81,23 @@ const insertIntoDB = catchAsync(async (req, res) => {
     category,
   };
 
-  const users = await User.findAll({
-    attributes: ["Id", "role"],
-    where: {
-      Id: { [Op.ne]: userId },
-      role: { [Op.in]: ["superAdmin", "admin", "accountant"] },
-    },
-  });
-
-  if (users.length) {
-    const message =
-      status === "Approved"
-        ? "Petty cash request approved"
-        : note || "Please approved my request";
-
-    await Promise.all(
-      users.map((u) =>
-        Notification.create({
-          userId: u.Id,
-          message,
-          url: "/apikafela.digitalever.com.bd/purchase-requisition",
-        }),
-      ),
-    );
-  }
-
   const result = await PettyCashService.insertIntoDB(data);
+
+  if (finalStatus === "Pending") {
+    await notifyPettyCashUsers({
+      userId,
+      roles: ["superAdmin", "admin"],
+      message: note || "Petty cash requisition request",
+      url: `/kafelamart.digitalever.com.bd/petty-cash-requisition`,
+    });
+  } else if (finalStatus === "Approved") {
+    await notifyPettyCashUsers({
+      userId,
+      roles: ["accountant"],
+      message: "Petty cash requisition request approved",
+      url: `/kafelamart.digitalever.com.bd/petty-cash`,
+    });
+  }
 
   sendResponse(res, {
     statusCode: 200,
@@ -188,29 +205,20 @@ const updateOneFromDB = catchAsync(async (req, res) => {
   };
   const result = await PettyCashService.updateOneFromDB(id, data);
 
-  const users = await User.findAll({
-    attributes: ["Id", "role"],
-    where: {
-      Id: { [Op.ne]: userId },
-      role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
-    },
-  });
-
-  if (users.length) {
-    const message =
-      status === "Approved"
-        ? "Petty cash request approved"
-        : note || "Please approved my request";
-
-    await Promise.all(
-      users.map((u) =>
-        Notification.create({
-          userId: u.Id,
-          message,
-          url: "/apikafela.digitalever.com.bd/petty-cash",
-        }),
-      ),
-    );
+  if (finalStatus === "Pending") {
+    await notifyPettyCashUsers({
+      userId,
+      roles: ["superAdmin", "admin"],
+      message: newNote || "Petty cash requisition request",
+      url: `/kafelamart.digitalever.com.bd/petty-cash-requisition`,
+    });
+  } else if (finalStatus === "Approved") {
+    await notifyPettyCashUsers({
+      userId,
+      roles: ["accountant"],
+      message: "Petty cash requisition request approved",
+      url: `/kafelamart.digitalever.com.bd/petty-cash`,
+    });
   }
 
   sendResponse(res, {

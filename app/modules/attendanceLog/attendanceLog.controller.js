@@ -1,6 +1,7 @@
 const catchAsync = require("../../../shared/catchAsync");
 const sendResponse = require("../../../shared/sendResponse");
 const pick = require("../../../shared/pick");
+const jwt = require("jsonwebtoken");
 const { AttendanceLogFilterAbleFields } = require("./attendanceLog.constants");
 const AttendanceLogService = require("./attendanceLog.service");
 
@@ -10,6 +11,34 @@ const insertIntoDB = catchAsync(async (req, res) => {
     statusCode: 200,
     success: true,
     message: "Attendance log created successfully",
+    data: result,
+  });
+});
+
+const receiveRealtimeLog = catchAsync(async (req, res) => {
+  let authenticatedUserId = null;
+  const token = req.headers.authorization?.split(" ")[1];
+
+  if (token) {
+    try {
+      const verifiedUser = jwt.verify(token, process.env.TOKEN_SECRET);
+      authenticatedUserId = verifiedUser?.Id || null;
+    } catch (error) {
+      authenticatedUserId = null;
+    }
+  }
+
+  const result = await AttendanceLogService.receiveRealtimeLog(req.body, {
+    authenticatedUserId,
+    requestApiKey: req.headers["x-device-key"],
+  });
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: result.duplicate
+      ? "Duplicate realtime attendance log ignored"
+      : "Realtime attendance log received successfully",
     data: result,
   });
 });
@@ -25,6 +54,19 @@ const getAllFromDB = catchAsync(async (req, res) => {
     message: "Attendance logs fetched successfully",
     meta: result.meta,
     data: result.data,
+  });
+});
+
+const getRealtimeMonitor = catchAsync(async (req, res) => {
+  const result = await AttendanceLogService.getRealtimeMonitor(
+    req.query.date || req.body.date,
+  );
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Realtime attendance monitor fetched successfully",
+    data: result,
   });
 });
 
@@ -83,6 +125,8 @@ const processDailyAttendance = catchAsync(async (req, res) => {
 
 module.exports = {
   insertIntoDB,
+  receiveRealtimeLog,
+  getRealtimeMonitor,
   getAllFromDB,
   getAllFromDBWithoutQuery,
   getDataById,

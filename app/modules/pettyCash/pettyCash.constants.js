@@ -2,6 +2,7 @@ const pettyCashFilterAbleFields = [
   "searchTerm",
   "paymentMode",
   "paymentStatus",
+  "status",
   "startDate",
   "endDate",
   "category",

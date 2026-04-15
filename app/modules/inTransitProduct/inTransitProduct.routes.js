@@ -1,15 +1,16 @@
 const { ENUM_USER_ROLE } = require("../../enums/user");
 const auth = require("../../middlewares/auth");
+const {
+  applyApprovalWorkflow,
+  approvePendingWorkflow,
+} = require("../../middlewares/approvalRouteWorkflow");
 const InTransitProductController = require("./inTransitProduct.controller");
 const router = require("express").Router();
 
 router.post(
   "/create",
-  auth(
-    ENUM_USER_ROLE.SUPER_ADMIN,
-    ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.INVENTOR,
-  ),
+  auth(),
+  applyApprovalWorkflow({ modelKey: "inTransitProduct", entityLabel: "Intransit Product" }),
   InTransitProductController.insertIntoDB,
 );
 router.get("/", InTransitProductController.getAllFromDB);
@@ -17,17 +18,20 @@ router.get("/all", InTransitProductController.getAllFromDBWithoutQuery);
 router.get("/", InTransitProductController.getDataById);
 router.delete(
   "/:id",
-  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  auth(),
+  applyApprovalWorkflow({ modelKey: "inTransitProduct", entityLabel: "Intransit Product" }),
   InTransitProductController.deleteIdFromDB,
 );
 router.put(
   "/:id",
-  auth(
-    ENUM_USER_ROLE.SUPER_ADMIN,
-    ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.INVENTOR,
-  ),
+  auth(),
+  applyApprovalWorkflow({ modelKey: "inTransitProduct", entityLabel: "Intransit Product" }),
   InTransitProductController.updateOneFromDB,
+);
+router.post(
+  "/:id/approve",
+  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  approvePendingWorkflow({ modelKey: "inTransitProduct", entityLabel: "Intransit Product" }),
 );
 
 const InTransitProductRoutes = router;

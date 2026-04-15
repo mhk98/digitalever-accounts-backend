@@ -1,15 +1,16 @@
 const { ENUM_USER_ROLE } = require("../../enums/user");
 const auth = require("../../middlewares/auth");
+const {
+  applyApprovalWorkflow,
+  approvePendingWorkflow,
+} = require("../../middlewares/approvalRouteWorkflow");
 const PosReportController = require("./posReport.controller");
 const router = require("express").Router();
 
 router.post(
   "/create",
-  auth(
-    ENUM_USER_ROLE.SUPER_ADMIN,
-    ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.INVENTOR,
-  ),
+  auth(),
+  applyApprovalWorkflow({ modelKey: "posReport", entityLabel: "POS Report" }),
   PosReportController.insertIntoDB,
 );
 router.get("/", PosReportController.getAllFromDB);
@@ -17,17 +18,20 @@ router.get("/all", PosReportController.getAllFromDBWithoutQuery);
 router.get("/", PosReportController.getDataById);
 router.delete(
   "/:id",
-  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  auth(),
+  applyApprovalWorkflow({ modelKey: "posReport", entityLabel: "POS Report" }),
   PosReportController.deleteIdFromDB,
 );
 router.put(
   "/:id",
-  auth(
-    ENUM_USER_ROLE.SUPER_ADMIN,
-    ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.INVENTOR,
-  ),
+  auth(),
+  applyApprovalWorkflow({ modelKey: "posReport", entityLabel: "POS Report" }),
   PosReportController.updateOneFromDB,
+);
+router.post(
+  "/:id/approve",
+  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  approvePendingWorkflow({ modelKey: "posReport", entityLabel: "POS Report" }),
 );
 
 const PosReportRoutes = router;

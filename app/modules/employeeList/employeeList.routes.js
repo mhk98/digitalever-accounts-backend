@@ -9,11 +9,7 @@ const router = require("express").Router();
 
 router.post(
   "/create",
-  auth(
-    ENUM_USER_ROLE.SUPER_ADMIN,
-    ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.ACCOUNTANT,
-  ),
+  auth(),
   requireAnyPermission(["employee_management", "employee_list"]),
   EmployeeListController.insertIntoDB,
 );
@@ -32,7 +28,11 @@ router.get(
 router.get(
   "/me",
   auth(),
-  requireAnyPermission(["employee_profile", "employee_management", "employee_list"]),
+  requireAnyPermission([
+    "employee_profile",
+    "employee_management",
+    "employee_list",
+  ]),
   EmployeeListController.getMyProfile,
 );
 router.get(
@@ -43,15 +43,21 @@ router.get(
 );
 router.delete(
   "/:id",
-  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  auth(),
   requireAnyPermission(["employee_management", "employee_list"]),
   EmployeeListController.deleteIdFromDB,
 );
 router.put(
   "/:id",
-  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  auth(),
   requireAnyPermission(["employee_management", "employee_list"]),
   EmployeeListController.updateOneFromDB,
+);
+router.post(
+  "/:id/approve",
+  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  requireAnyPermission(["employee_management", "employee_list"]),
+  EmployeeListController.approveOneFromDB,
 );
 
 const EmployeeListRoutes = router;

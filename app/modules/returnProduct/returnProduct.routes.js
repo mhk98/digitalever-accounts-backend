@@ -1,15 +1,16 @@
 const { ENUM_USER_ROLE } = require("../../enums/user");
 const auth = require("../../middlewares/auth");
+const {
+  applyApprovalWorkflow,
+  approvePendingWorkflow,
+} = require("../../middlewares/approvalRouteWorkflow");
 const ReturnProductController = require("./returnProduct.controller");
 const router = require("express").Router();
 
 router.post(
   "/create",
-  auth(
-    ENUM_USER_ROLE.SUPER_ADMIN,
-    ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.INVENTOR,
-  ),
+  auth(),
+  applyApprovalWorkflow({ modelKey: "returnProduct", entityLabel: "Sales Return" }),
   ReturnProductController.insertIntoDB,
 );
 router.get("/", ReturnProductController.getAllFromDB);
@@ -17,17 +18,20 @@ router.get("/", ReturnProductController.getAllFromDB);
 // router.get("/", ReturnProductController.getDataById);
 router.delete(
   "/:id",
-  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  auth(),
+  applyApprovalWorkflow({ modelKey: "returnProduct", entityLabel: "Sales Return" }),
   ReturnProductController.deleteIdFromDB,
 );
 router.put(
   "/:id",
-  auth(
-    ENUM_USER_ROLE.SUPER_ADMIN,
-    ENUM_USER_ROLE.ADMIN,
-    ENUM_USER_ROLE.INVENTOR,
-  ),
+  auth(),
+  applyApprovalWorkflow({ modelKey: "returnProduct", entityLabel: "Sales Return" }),
   ReturnProductController.updateOneFromDB,
+);
+router.post(
+  "/:id/approve",
+  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  approvePendingWorkflow({ modelKey: "returnProduct", entityLabel: "Sales Return" }),
 );
 
 const ReturnProductRoutes = router;

@@ -5,6 +5,10 @@ const { requireMenuPermission } = require("../../middlewares/requireMenuPermissi
 const AttendanceLogController = require("./attendanceLog.controller");
 
 router.post(
+  "/realtime-ingest",
+  AttendanceLogController.receiveRealtimeLog,
+);
+router.post(
   "/create",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN, ENUM_USER_ROLE.ACCOUNTANT),
   requireMenuPermission("attendance"),
@@ -15,6 +19,12 @@ router.post(
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN, ENUM_USER_ROLE.ACCOUNTANT),
   requireMenuPermission("attendance"),
   AttendanceLogController.processDailyAttendance,
+);
+router.get(
+  "/monitor",
+  auth(),
+  requireMenuPermission("attendance"),
+  AttendanceLogController.getRealtimeMonitor,
 );
 router.get(
   "/",

@@ -33,6 +33,8 @@ const insertIntoDB = async (payload) => {
     date,
   } = payload;
 
+  console.log("employeeData", payload);
+
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
 

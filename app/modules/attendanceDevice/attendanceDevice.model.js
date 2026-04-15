@@ -34,6 +34,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING(128),
         allowNull: true,
       },
+      apiKey: {
+        type: DataTypes.STRING(191),
+        allowNull: true,
+      },
       ipAddress: {
         type: DataTypes.STRING(64),
         allowNull: true,
@@ -63,6 +67,18 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING(32),
         allowNull: true,
         defaultValue: "Planned",
+      },
+      pendingAction: {
+        type: DataTypes.STRING(32),
+        allowNull: true,
+      },
+      approvalNote: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      requestedByUserId: {
+        type: DataTypes.INTEGER(10),
+        allowNull: true,
       },
       deletedAt: {
         type: DataTypes.DATE,

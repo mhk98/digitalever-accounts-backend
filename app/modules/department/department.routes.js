@@ -6,7 +6,7 @@ const DepartmentController = require("./department.controller");
 
 router.post(
   "/create",
-  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN, ENUM_USER_ROLE.ACCOUNTANT),
+  auth(),
   requireMenuPermission("department_designation"),
   DepartmentController.insertIntoDB,
 );
@@ -30,15 +30,21 @@ router.get(
 );
 router.put(
   "/:id",
-  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN, ENUM_USER_ROLE.ACCOUNTANT),
+  auth(),
   requireMenuPermission("department_designation"),
   DepartmentController.updateOneFromDB,
 );
 router.delete(
   "/:id",
-  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  auth(),
   requireMenuPermission("department_designation"),
   DepartmentController.deleteIdFromDB,
+);
+router.post(
+  "/:id/approve",
+  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  requireMenuPermission("department_designation"),
+  DepartmentController.approveOneFromDB,
 );
 
 module.exports = router;

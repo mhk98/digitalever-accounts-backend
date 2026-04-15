@@ -1,12 +1,26 @@
 const { Op } = require("sequelize");
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
+const ApiError = require("../../../error/ApiError");
 const { DepartmentSearchableFields } = require("./department.constants");
+const {
+  applyCreateWorkflow,
+  applyUpdateWorkflow,
+  buildDeleteWorkflowPayload,
+  isPrivilegedRole,
+} = require("../../../shared/approvalWorkflow");
 
 const Department = db.department;
 
-const insertIntoDB = async (data) => {
-  return Department.create(data);
+const getDataById = async (id) => {
+  return Department.findOne({
+    where: { Id: id },
+  });
+};
+
+const insertIntoDB = async (data, user) => {
+  const result = await Department.create(applyCreateWorkflow(data, user));
+  return getDataById(result.Id);
 };
 
 const getAllFromDB = async (filters, options) => {
@@ -64,24 +78,68 @@ const getAllFromDBWithoutQuery = async () => {
   });
 };
 
-const getDataById = async (id) => {
-  return Department.findOne({
-    where: { Id: id },
-  });
-};
+const updateOneFromDB = async (id, payload, user) => {
+  const existing = await getDataById(id);
+  if (!existing) {
+    throw new ApiError(404, "Department not found");
+  }
 
-const updateOneFromDB = async (id, payload) => {
-  await Department.update(payload, {
+  await Department.update(applyUpdateWorkflow(payload, user), {
     where: { Id: id },
   });
 
   return getDataById(id);
 };
 
-const deleteIdFromDB = async (id) => {
-  return Department.destroy({
+const deleteIdFromDB = async (id, user, note) => {
+  const existing = await getDataById(id);
+  if (!existing) {
+    throw new ApiError(404, "Department not found");
+  }
+
+  if (isPrivilegedRole(user.role)) {
+    await Department.destroy({
+      where: { Id: id },
+    });
+
+    return { deleted: true, workflowAction: "deleted" };
+  }
+
+  await Department.update(buildDeleteWorkflowPayload(note, user), {
     where: { Id: id },
   });
+
+  return {
+    ...(await getDataById(id))?.get({ plain: true }),
+    workflowAction: "delete_requested",
+  };
+};
+
+const approveOneFromDB = async (id) => {
+  const existing = await getDataById(id);
+  if (!existing) {
+    throw new ApiError(404, "Department not found");
+  }
+
+  if (existing.pendingAction === "Delete") {
+    await Department.destroy({ where: { Id: id } });
+    return { deleted: true, workflowAction: "deleted" };
+  }
+
+  await Department.update(
+    {
+      status: "Active",
+      pendingAction: null,
+      approvalNote: null,
+      requestedByUserId: null,
+    },
+    { where: { Id: id } },
+  );
+
+  return {
+    ...(await getDataById(id))?.get({ plain: true }),
+    workflowAction: "approved",
+  };
 };
 
 module.exports = {
@@ -91,4 +149,5 @@ module.exports = {
   getDataById,
   updateOneFromDB,
   deleteIdFromDB,
+  approveOneFromDB,
 };

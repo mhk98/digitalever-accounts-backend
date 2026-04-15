@@ -2,6 +2,7 @@ const express = require("express");
 const UserRoutes = require("../modules/user/user.routes");
 const ProductRoutes = require("../modules/product/product.routes");
 const AssetsPurchaseRoutes = require("../modules/assetsPurchase/assetsPurchase.routes");
+const AssetsStockRoutes = require("../modules/assetsStock/assetsStock.routes");
 const ReceivedProductRoutes = require("../modules/receivedProduct/receivedProduct.routes");
 const ReturnProductRoutes = require("../modules/returnProduct/returnProduct.routes");
 const InTransitProductRoutes = require("../modules/inTransitProduct/inTransitProduct.routes");
@@ -167,6 +168,10 @@ const moduleRoutes = [
   {
     path: "/assets-purchase",
     route: AssetsPurchaseRoutes,
+  },
+  {
+    path: "/assets-stock",
+    route: AssetsStockRoutes,
   },
   {
     path: "/assets-sale",

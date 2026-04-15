@@ -15,17 +15,7 @@ const insertIntoDB = async (payload) => {
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
 
-  // ✅ Approved হলে পুরোনো date-ও allow + save
-  const isApproved = String(status || "").trim() === "Approved";
-
-  // ✅ current date না হলে auto Pending
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
-      ? "Pending"
-      : note
-        ? "Pending"
-        : "Active";
+  const finalStatus = "Pending";
 
   const data = {
     name,
@@ -43,15 +33,12 @@ const insertIntoDB = async (payload) => {
     attributes: ["Id", "role"],
     where: {
       Id: { [Op.ne]: userId },
-      role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+      role: { [Op.in]: ["superAdmin", "admin"] },
     },
   });
 
   if (users.length) {
-    const message =
-      status === "Approved"
-        ? "Assets requisition request approved"
-        : note || "Please accpet my assets requisition request";
+    const message = note || "Assets requisition request";
 
     await Promise.all(
       users.map((u) =>
@@ -317,7 +304,10 @@ const updateOneFromDB = async (id, payload) => {
     attributes: ["Id", "role"],
     where: {
       Id: { [Op.ne]: userId },
-      role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+      role: {
+        [Op.in]:
+          finalStatus === "Approved" ? ["inventor"] : ["superAdmin", "admin"],
+      },
     },
   });
 
@@ -326,7 +316,7 @@ const updateOneFromDB = async (id, payload) => {
   const message =
     finalStatus === "Approved"
       ? "Assets requisition request approved"
-      : newNote || "Assets requisition updated";
+      : newNote || "Assets requisition request";
 
   await Promise.all(
     users.map((u) =>

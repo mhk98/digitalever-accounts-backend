@@ -378,6 +378,7 @@ const getAllFromDB = async (filters, options) => {
     data,
   };
 };
+
 const getDataById = async (id) => {
   const result = await CashInOut.findAll({
     where: {

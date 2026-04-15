@@ -5,12 +5,15 @@ const { DesignationFilterAbleFields } = require("./designation.constants");
 const DesignationService = require("./designation.service");
 
 const insertIntoDB = catchAsync(async (req, res) => {
-  const result = await DesignationService.insertIntoDB(req.body);
+  const result = await DesignationService.insertIntoDB(req.body, req.user);
 
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "Designation created successfully",
+    message:
+      result?.status === "Pending"
+        ? "Designation submitted for approval"
+        : "Designation created successfully",
     data: result,
   });
 });
@@ -52,23 +55,51 @@ const getDataById = catchAsync(async (req, res) => {
 });
 
 const updateOneFromDB = catchAsync(async (req, res) => {
-  const result = await DesignationService.updateOneFromDB(req.params.id, req.body);
+  const result = await DesignationService.updateOneFromDB(
+    req.params.id,
+    req.body,
+    req.user,
+  );
 
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "Designation updated successfully",
+    message:
+      result?.status === "Pending"
+        ? "Designation update submitted for approval"
+        : "Designation updated successfully",
     data: result,
   });
 });
 
 const deleteIdFromDB = catchAsync(async (req, res) => {
-  const result = await DesignationService.deleteIdFromDB(req.params.id);
+  const result = await DesignationService.deleteIdFromDB(
+    req.params.id,
+    req.user,
+    req.body?.note,
+  );
 
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "Designation deleted successfully",
+    message:
+      result?.workflowAction === "delete_requested"
+        ? "Designation delete request submitted for approval"
+        : "Designation deleted successfully",
+    data: result,
+  });
+});
+
+const approveOneFromDB = catchAsync(async (req, res) => {
+  const result = await DesignationService.approveOneFromDB(req.params.id);
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message:
+      result?.workflowAction === "deleted"
+        ? "Pending delete request completed successfully"
+        : "Designation approved successfully",
     data: result,
   });
 });
@@ -80,4 +111,5 @@ module.exports = {
   getDataById,
   updateOneFromDB,
   deleteIdFromDB,
+  approveOneFromDB,
 };

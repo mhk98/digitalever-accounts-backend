@@ -6,12 +6,15 @@ const { EmployeeListFilterAbleFileds } = require("./employeeList.constants");
 const EmployeeListService = require("./employeeList.service");
 
 const insertIntoDB = catchAsync(async (req, res) => {
-  const result = await EmployeeListService.insertIntoDB(req.body);
+  const result = await EmployeeListService.insertIntoDB(req.body, req.user);
 
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "EmployeeList data created!!",
+    message:
+      result?.status === "Pending"
+        ? "Employee record submitted for approval"
+        : "EmployeeList data created!!",
     data: result,
   });
 });
@@ -52,21 +55,44 @@ const getMyProfile = catchAsync(async (req, res) => {
 
 const updateOneFromDB = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const result = await EmployeeListService.updateOneFromDB(id, req.body);
+  const result = await EmployeeListService.updateOneFromDB(id, req.body, req.user);
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "EmployeeList update successfully!!",
+    message:
+      result?.status === "Pending"
+        ? "Employee update submitted for approval"
+        : "EmployeeList update successfully!!",
     data: result,
   });
 });
 
 const deleteIdFromDB = catchAsync(async (req, res) => {
-  const result = await EmployeeListService.deleteIdFromDB(req.params.id);
+  const result = await EmployeeListService.deleteIdFromDB(
+    req.params.id,
+    req.user,
+    req.body?.note,
+  );
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "EmployeeList delete successfully!!",
+    message:
+      result?.workflowAction === "delete_requested"
+        ? "Employee delete request submitted for approval"
+        : "EmployeeList delete successfully!!",
+    data: result,
+  });
+});
+
+const approveOneFromDB = catchAsync(async (req, res) => {
+  const result = await EmployeeListService.approveOneFromDB(req.params.id);
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message:
+      result?.workflowAction === "deleted"
+        ? "Pending delete request completed successfully"
+        : "Employee approved successfully!!",
     data: result,
   });
 });
@@ -88,6 +114,7 @@ const EmployeeListController = {
   getMyProfile,
   updateOneFromDB,
   deleteIdFromDB,
+  approveOneFromDB,
   getAllFromDBWithoutQuery,
 };
 

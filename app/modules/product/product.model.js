@@ -31,6 +31,15 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATEONLY,
         allowNull: true,
       },
+      note: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      status: {
+        type: DataTypes.STRING(32),
+        allowNull: true,
+        defaultValue: "Active",
+      },
       deletedAt: {
         type: DataTypes.DATE,
         allowNull: true, // This will be used for soft delete

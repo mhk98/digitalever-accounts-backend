@@ -4,6 +4,8 @@ const HolidayFilterAbleFields = [
   "holidayType",
   "status",
   "holidayDate",
+  "startDate",
+  "endDate",
 ];
 
 const HolidaySearchableFields = ["name", "holidayType", "note"];

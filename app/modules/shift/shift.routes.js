@@ -6,7 +6,7 @@ const ShiftController = require("./shift.controller");
 
 router.post(
   "/create",
-  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN, ENUM_USER_ROLE.ACCOUNTANT),
+  auth(),
   requireMenuPermission("shift_management"),
   ShiftController.insertIntoDB,
 );
@@ -30,15 +30,21 @@ router.get(
 );
 router.put(
   "/:id",
-  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN, ENUM_USER_ROLE.ACCOUNTANT),
+  auth(),
   requireMenuPermission("shift_management"),
   ShiftController.updateOneFromDB,
 );
 router.delete(
   "/:id",
-  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  auth(),
   requireMenuPermission("shift_management"),
   ShiftController.deleteIdFromDB,
+);
+router.post(
+  "/:id/approve",
+  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  requireMenuPermission("shift_management"),
+  ShiftController.approveOneFromDB,
 );
 
 module.exports = router;

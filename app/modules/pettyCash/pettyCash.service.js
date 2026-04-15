@@ -4,8 +4,6 @@ const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { pettyCashSearchableFields } = require("./pettyCash.constants");
 const PettyCash = db.pettyCash;
-const Notification = db.notification;
-const User = db.user;
 
 const insertIntoDB = async (data) => {
   const result = await PettyCash.create(data);
@@ -61,9 +59,26 @@ const getAllFromDB = async (filters, options) => {
   // ✅ Exact filters (e.g. name)
   if (Object.keys(otherFilters).length) {
     andConditions.push(
-      ...Object.entries(otherFilters).map(([key, value]) => ({
-        [key]: { [Op.eq]: value },
-      })),
+      ...Object.entries(otherFilters).map(([key, value]) => {
+        if (
+          key === "status" &&
+          typeof value === "string" &&
+          value.includes(",")
+        ) {
+          return {
+            [key]: {
+              [Op.in]: value
+                .split(",")
+                .map((item) => item.trim())
+                .filter(Boolean),
+            },
+          };
+        }
+
+        return {
+          [key]: { [Op.eq]: value },
+        };
+      }),
     );
   }
 
@@ -152,38 +167,11 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const { status, note, userId } = payload;
   const [updatedCount] = await PettyCash.update(payload, {
     where: {
       Id: id,
     },
   });
-
-  const users = await User.findAll({
-    attributes: ["Id", "role"],
-    where: {
-      Id: { [Op.ne]: userId }, // sender বাদ
-      role: { [Op.in]: ["superAdmin", "admin", "accountant"] }, // তোমার DB অনুযায়ী ঠিক করো
-    },
-  });
-
-  console.log("users", users.length);
-  if (!users.length) return updatedCount;
-
-  const message =
-    status === "Approved"
-      ? "Petty cash request approved"
-      : note || "Petty cash updated";
-
-  await Promise.all(
-    users.map((u) =>
-      Notification.create({
-        userId: u.Id,
-        message,
-        url: `/kafelamart.digitalever.com.bd/petty-cash`,
-      }),
-    ),
-  );
 
   return updatedCount;
 };

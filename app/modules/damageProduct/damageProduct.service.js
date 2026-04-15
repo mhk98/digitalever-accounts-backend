@@ -219,6 +219,12 @@ const insertIntoDB = async (data) => {
           {
             quantity: Number(dStock.quantity || 0) + Number(quantity || 0),
             variants: mergeVariants(dStock.variants, incomingVariants),
+            purchase_price:
+              Number(dStock.purchase_price || 0) +
+              Number(inventory.purchase_price || 0) * Number(quantity || 0),
+            sale_price:
+              Number(dStock.sale_price || 0) +
+              Number(inventory.sale_price || 0) * Number(quantity || 0),
           },
           { transaction: t },
         );
@@ -229,6 +235,10 @@ const insertIntoDB = async (data) => {
             name: inventory.name,
             quantity: Number(quantity || 0),
             variants: incomingVariants,
+            purchase_price:
+              Number(inventory.purchase_price || 0) * Number(quantity || 0),
+            sale_price:
+              Number(inventory.sale_price || 0) * Number(quantity || 0),
           },
           { transaction: t },
         );
@@ -413,6 +423,15 @@ const deleteIdFromDB = async (id) => {
         {
           quantity: nextDamageQty,
           variants: subtractVariants(damageStock.variants, ret.variants),
+          purchase_price: Math.max(
+            0,
+            Number(damageStock.purchase_price || 0) -
+              Number(ret.purchase_price || 0),
+          ),
+          sale_price: Math.max(
+            0,
+            Number(damageStock.sale_price || 0) - Number(ret.sale_price || 0),
+          ),
         },
         { transaction: t },
       );
@@ -619,7 +638,16 @@ const updateOneFromDB = async (id, payload) => {
     // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
     const existing = await DamageProduct.findOne({
       where: { Id: id },
-      attributes: ["Id", "note", "status", "quantity", "variants", "productId"],
+      attributes: [
+        "Id",
+        "note",
+        "status",
+        "quantity",
+        "variants",
+        "productId",
+        "purchase_price",
+        "sale_price",
+      ],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -728,6 +756,16 @@ const updateOneFromDB = async (id, payload) => {
         {
           quantity: rolledBackDamageQty,
           variants: subtractVariants(oldDamageStock.variants, existingVariants),
+          purchase_price: Math.max(
+            0,
+            Number(oldDamageStock.purchase_price || 0) -
+              Number(existing.purchase_price || 0),
+          ),
+          sale_price: Math.max(
+            0,
+            Number(oldDamageStock.sale_price || 0) -
+              Number(existing.sale_price || 0),
+          ),
         },
         { transaction: t },
       );
@@ -747,6 +785,12 @@ const updateOneFromDB = async (id, payload) => {
         {
           quantity: Number(targetDamageStock.quantity || 0) + nextQty,
           variants: mergeVariants(targetDamageStock.variants, incomingVariants),
+          purchase_price:
+            Number(targetDamageStock.purchase_price || 0) +
+            Number(data.purchase_price || 0),
+          sale_price:
+            Number(targetDamageStock.sale_price || 0) +
+            Number(data.sale_price || 0),
         },
         { transaction: t },
       );
@@ -757,6 +801,8 @@ const updateOneFromDB = async (id, payload) => {
           name: targetInv.name,
           quantity: nextQty,
           variants: incomingVariants,
+          purchase_price: Number(data.purchase_price || 0),
+          sale_price: Number(data.sale_price || 0),
         },
         { transaction: t },
       );

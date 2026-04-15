@@ -10,6 +10,7 @@ const { UserSearchableFields } = require("./user.constants");
 const sendEmail = require("../../middlewares/sendEmail");
 const welcomeCredentialsTemplate = require("../../utils/emailTemplates/welcomeCredentials");
 const RolePermissionService = require("../rolePermission/rolePermission.service");
+const { ENUM_USER_ROLE } = require("../../enums/user");
 const DEFAULT_REGISTER_PASSWORD = "123456";
 
 const login = async (buyerData) => {
@@ -141,6 +142,10 @@ const getAllUserFromDB = async (filters, options) => {
   }
 
   // ✅ Exclude soft deleted records
+  andConditions.push({
+    role: { [Op.ne]: ENUM_USER_ROLE.EMPLOYEE },
+  });
+
   andConditions.push({
     deletedAt: { [Op.is]: null }, // Only include records with deletedAt as null (not deleted)
   });

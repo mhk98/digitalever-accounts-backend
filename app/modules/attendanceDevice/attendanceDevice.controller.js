@@ -7,12 +7,15 @@ const {
 const AttendanceDeviceService = require("./attendanceDevice.service");
 
 const insertIntoDB = catchAsync(async (req, res) => {
-  const result = await AttendanceDeviceService.insertIntoDB(req.body);
+  const result = await AttendanceDeviceService.insertIntoDB(req.body, req.user);
 
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "Attendance device created successfully",
+    message:
+      result?.status === "Pending"
+        ? "Attendance device submitted for approval"
+        : "Attendance device created successfully",
     data: result,
   });
 });
@@ -57,23 +60,48 @@ const updateOneFromDB = catchAsync(async (req, res) => {
   const result = await AttendanceDeviceService.updateOneFromDB(
     req.params.id,
     req.body,
+    req.user,
   );
 
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "Attendance device updated successfully",
+    message:
+      result?.status === "Pending"
+        ? "Attendance device update submitted for approval"
+        : "Attendance device updated successfully",
     data: result,
   });
 });
 
 const deleteIdFromDB = catchAsync(async (req, res) => {
-  const result = await AttendanceDeviceService.deleteIdFromDB(req.params.id);
+  const result = await AttendanceDeviceService.deleteIdFromDB(
+    req.params.id,
+    req.user,
+    req.body?.note,
+  );
 
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "Attendance device deleted successfully",
+    message:
+      result?.workflowAction === "delete_requested"
+        ? "Attendance device delete request submitted for approval"
+        : "Attendance device deleted successfully",
+    data: result,
+  });
+});
+
+const approveOneFromDB = catchAsync(async (req, res) => {
+  const result = await AttendanceDeviceService.approveOneFromDB(req.params.id);
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message:
+      result?.workflowAction === "deleted"
+        ? "Pending delete request completed successfully"
+        : "Attendance device approved successfully",
     data: result,
   });
 });
@@ -85,4 +113,5 @@ module.exports = {
   getDataById,
   updateOneFromDB,
   deleteIdFromDB,
+  approveOneFromDB,
 };
