@@ -101,8 +101,7 @@ const syncDamageReparingStock = async (
       ),
       sale_price: Math.max(
         0,
-        Number(repairingStock.sale_price || 0) +
-          Number(salePriceDelta || 0),
+        Number(repairingStock.sale_price || 0) + Number(salePriceDelta || 0),
       ),
       variants: nextVariants,
     },
@@ -204,7 +203,10 @@ const insertIntoDB = async (data) => {
       {
         quantity: finalQuantity,
         variants: finalVariants,
-        purchase_price: Math.max(0, Number(received.purchase_price || 0) - deductPurchase),
+        purchase_price: Math.max(
+          0,
+          Number(received.purchase_price || 0) - deductPurchase,
+        ),
         sale_price: Math.max(0, Number(received.sale_price || 0) - deductSale),
       },
       { where: { Id: received.Id }, transaction: t },
@@ -377,8 +379,11 @@ const deleteIdFromDB = async (id) => {
       {
         quantity: finalQuantity,
         variants: finalVariants,
-        purchase_price: Number(received.purchase_price || 0) + Number(ret.purchase_price || 0),
-        sale_price: Number(received.sale_price || 0) + Number(ret.sale_price || 0),
+        purchase_price:
+          Number(received.purchase_price || 0) +
+          Number(ret.purchase_price || 0),
+        sale_price:
+          Number(received.sale_price || 0) + Number(ret.sale_price || 0),
       },
       { where: { Id: received.Id }, transaction: t },
     );

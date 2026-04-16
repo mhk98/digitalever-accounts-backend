@@ -15,9 +15,9 @@ router.post(
   applyApprovalWorkflow({ modelKey: "cashInOut", entityLabel: "Cash In Out" }),
   CashInOutController.insertIntoDB,
 );
-router.get("/", CashInOutController.getAllFromDB);
-router.get("/all", CashInOutController.getAllFromDBWithoutQuery);
-router.get("/:id", CashInOutController.getDataById);
+router.get("/", auth(), CashInOutController.getAllFromDB);
+router.get("/all", auth(), CashInOutController.getAllFromDBWithoutQuery);
+router.get("/:id", auth(), CashInOutController.getDataById);
 router.delete(
   "/:id",
   auth(),

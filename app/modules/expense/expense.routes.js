@@ -8,9 +8,9 @@ router.post(
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
   ExpenseController.insertIntoDB,
 );
-router.get("/", ExpenseController.getAllFromDB);
-router.get("/all", ExpenseController.getAllFromDBWithoutQuery);
-router.get("/:id", ExpenseController.getDataById);
+router.get("/", auth(), ExpenseController.getAllFromDB);
+router.get("/all", auth(), ExpenseController.getAllFromDBWithoutQuery);
+router.get("/:id", auth(), ExpenseController.getDataById);
 router.delete(
   "/:id",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),

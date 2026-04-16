@@ -12,9 +12,9 @@ router.post(
   ),
   ItemMasterController.insertIntoDB,
 );
-router.get("/", ItemMasterController.getAllFromDB);
-router.get("/all", ItemMasterController.getAllFromDBWithoutQuery);
-router.get("/:id", ItemMasterController.getDataById);
+router.get("/", auth(), ItemMasterController.getAllFromDB);
+router.get("/all", auth(), ItemMasterController.getAllFromDBWithoutQuery);
+router.get("/:id", auth(), ItemMasterController.getDataById);
 router.delete(
   "/:id",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),

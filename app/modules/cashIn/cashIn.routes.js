@@ -8,9 +8,9 @@ router.post(
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
   CashInController.insertIntoDB,
 );
-router.get("/", CashInController.getAllFromDB);
-router.get("/all", CashInController.getAllFromDBWithoutQuery);
-router.get("/:id", CashInController.getDataById);
+router.get("/", auth(), CashInController.getAllFromDB);
+router.get("/all", auth(), CashInController.getAllFromDBWithoutQuery);
+router.get("/:id", auth(), CashInController.getDataById);
 router.delete(
   "/:id",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),

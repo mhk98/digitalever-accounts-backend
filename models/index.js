@@ -13,6 +13,11 @@ db.rolePermission = require("../app/modules/rolePermission/rolePermission.model"
   db.sequelize,
   DataTypes,
 );
+db.userLogHistory =
+  require("../app/modules/userLogHistory/userLogHistory.model")(
+    db.sequelize,
+    DataTypes,
+  );
 
 db.product = require("../app/modules/product/product.model")(
   db.sequelize,
@@ -437,6 +442,15 @@ db.ledger.belongsTo(db.supplier, { foreignKey: "supplierId", as: "supplier" });
 
 db.user.hasOne(db.employeeList, { foreignKey: "userId", as: "employeeProfile" });
 db.employeeList.belongsTo(db.user, {
+  foreignKey: "userId",
+  as: "user",
+});
+
+db.user.hasMany(db.userLogHistory, {
+  foreignKey: "userId",
+  as: "activityLogs",
+});
+db.userLogHistory.belongsTo(db.user, {
   foreignKey: "userId",
   as: "user",
 });

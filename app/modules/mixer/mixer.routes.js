@@ -13,9 +13,9 @@ router.post(
   applyApprovalWorkflow({ modelKey: "mixer", entityLabel: "Mixer" }),
   MixerController.insertIntoDB,
 );
-router.get("/", MixerController.getAllFromDB);
-router.get("/all", MixerController.getAllFromDBWithoutQuery);
-router.get("/:id", MixerController.getDataById);
+router.get("/", auth(), MixerController.getAllFromDB);
+router.get("/all", auth(), MixerController.getAllFromDBWithoutQuery);
+router.get("/:id", auth(), MixerController.getDataById);
 router.delete(
   "/:id",
   auth(),

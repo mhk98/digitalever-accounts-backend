@@ -46,6 +46,7 @@ const MENU_PERMISSIONS = {
   SETTINGS: "settings",
   LOGO: "logo",
   ROLE_PERMISSIONS: "role_permissions",
+  LOG_HISTORY: "log_history",
   HRM: "hrm",
   EMPLOYEE_MANAGEMENT: "employee_management",
   DEPARTMENT_DESIGNATION: "department_designation",

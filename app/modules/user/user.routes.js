@@ -9,6 +9,7 @@ const router = require("express").Router();
 
 // Define routes
 router.post("/login", UserController.login);
+router.post("/logout", auth(), UserController.logout);
 router.post("/register", uploadSingle, UserController.register);
 router.get(
   "/",
@@ -18,19 +19,19 @@ router.get(
 ); // This gets all users
 router.get(
   "/:id",
-  // auth(),
+  auth(),
   // requireMenuPermission("user_management"),
   UserController.getUserById,
 ); // Use :id to get a user by ID
 router.delete(
   "/:id",
-  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  auth(),
   requireMenuPermission("user_management"),
   UserController.deleteUserFromDB,
 );
 router.put(
   "/:id",
-  // auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  auth(),
   // requireMenuPermission("user_management"),
   uploadSingle,
   UserController.updateUserFromDB,

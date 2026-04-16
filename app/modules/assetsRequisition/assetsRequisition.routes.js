@@ -13,9 +13,9 @@ router.post(
   applyApprovalWorkflow({ modelKey: "assetsRequisition", entityLabel: "Assets Requisition" }),
   AssetsRequisitionController.insertIntoDB,
 );
-router.get("/", AssetsRequisitionController.getAllFromDB);
-router.get("/all", AssetsRequisitionController.getAllFromDBWithoutQuery);
-router.get("/:id", AssetsRequisitionController.getDataById);
+router.get("/", auth(), AssetsRequisitionController.getAllFromDB);
+router.get("/all", auth(), AssetsRequisitionController.getAllFromDBWithoutQuery);
+router.get("/:id", auth(), AssetsRequisitionController.getDataById);
 router.delete(
   "/:id",
   auth(),

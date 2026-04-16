@@ -12,9 +12,9 @@ router.post(
   ),
   EmployeeController.insertIntoDB,
 );
-router.get("/", EmployeeController.getAllFromDB);
-router.get("/all", EmployeeController.getAllFromDBWithoutQuery);
-router.get("/", EmployeeController.getDataById);
+router.get("/", auth(), EmployeeController.getAllFromDB);
+router.get("/all", auth(), EmployeeController.getAllFromDBWithoutQuery);
+router.get("/", auth(), EmployeeController.getDataById);
 router.delete(
   "/:id",
   auth(

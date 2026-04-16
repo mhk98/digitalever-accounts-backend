@@ -14,8 +14,8 @@ router.post(
   ),
   PayableController.insertIntoDB,
 );
-router.get("/", PayableController.getAllFromDB);
-router.get("/all", PayableController.getAllFromDBWithoutQuery);
+router.get("/", auth(), PayableController.getAllFromDB);
+router.get("/all", auth(), PayableController.getAllFromDBWithoutQuery);
 // router.get("/:id", PayableController.getDataById);
 router.delete(
   "/:id",

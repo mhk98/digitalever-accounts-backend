@@ -13,9 +13,9 @@ router.post(
   applyApprovalWorkflow({ modelKey: "stockAdjustment", entityLabel: "Stock Adjustment" }),
   StockAdjustmentController.insertIntoDB,
 );
-router.get("/", StockAdjustmentController.getAllFromDB);
-router.get("/all", StockAdjustmentController.getAllFromDBWithoutQuery);
-router.get("/:id", StockAdjustmentController.getDataById);
+router.get("/", auth(), StockAdjustmentController.getAllFromDB);
+router.get("/all", auth(), StockAdjustmentController.getAllFromDBWithoutQuery);
+router.get("/:id", auth(), StockAdjustmentController.getDataById);
 router.delete(
   "/:id",
   auth(),

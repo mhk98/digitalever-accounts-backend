@@ -13,9 +13,9 @@ router.post(
   applyApprovalWorkflow({ modelKey: "posReport", entityLabel: "POS Report" }),
   PosReportController.insertIntoDB,
 );
-router.get("/", PosReportController.getAllFromDB);
-router.get("/all", PosReportController.getAllFromDBWithoutQuery);
-router.get("/", PosReportController.getDataById);
+router.get("/", auth(), PosReportController.getAllFromDB);
+router.get("/all", auth(), PosReportController.getAllFromDBWithoutQuery);
+router.get("/", auth(), PosReportController.getDataById);
 router.delete(
   "/:id",
   auth(),

@@ -29,8 +29,8 @@ router.get(
 );
 router.get(
   "/all",
-  // auth(),
-  // requireMenuPermission("book"),
+  auth(),
+  requireMenuPermission("book"),
   BookController.getAllFromDBWithoutQuery,
 );
 router.get(

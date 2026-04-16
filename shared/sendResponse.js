@@ -6,6 +6,8 @@ const sendResponse = (res, data) => {
       meta: data.meta || null || undefined,
       data: data.data || null || undefined,
     };
+
+    res.locals.responseMessage = responseData.message;
   
     res.status(data.statusCode).json(responseData);
   };

@@ -15,9 +15,9 @@ router.post(
   applyApprovalWorkflow({ modelKey: "receivedProduct", entityLabel: "Received Product" }),
   ReceivedProductController.insertIntoDB,
 );
-router.get("/", ReceivedProductController.getAllFromDB);
-router.get("/all", ReceivedProductController.getAllFromDBWithoutQuery);
-router.get("/:id", ReceivedProductController.getDataById);
+router.get("/", auth(), ReceivedProductController.getAllFromDB);
+router.get("/all", auth(), ReceivedProductController.getAllFromDBWithoutQuery);
+router.get("/:id", auth(), ReceivedProductController.getDataById);
 router.delete(
   "/:id",
   auth(),

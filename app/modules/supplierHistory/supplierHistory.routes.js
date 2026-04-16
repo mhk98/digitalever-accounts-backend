@@ -12,9 +12,9 @@ router.post(
   ),
   SupplierHistoryController.insertIntoDB,
 );
-router.get("/", SupplierHistoryController.getAllFromDB);
-router.get("/all", SupplierHistoryController.getAllFromDBWithoutQuery);
-router.get("/:id", SupplierHistoryController.getDataById);
+router.get("/", auth(), SupplierHistoryController.getAllFromDB);
+router.get("/all", auth(), SupplierHistoryController.getAllFromDBWithoutQuery);
+router.get("/:id", auth(), SupplierHistoryController.getDataById);
 router.delete(
   "/:id",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),

@@ -12,12 +12,12 @@ router.post(
   ),
   PurchaseReturnProductController.insertIntoDB,
 );
-router.get("/", PurchaseReturnProductController.getAllFromDB);
-router.get("/all", PurchaseReturnProductController.getAllFromDBWithoutQuery);
-router.get("/", PurchaseReturnProductController.getDataById);
+router.get("/", auth(), PurchaseReturnProductController.getAllFromDB);
+router.get("/all", auth(), PurchaseReturnProductController.getAllFromDBWithoutQuery);
+router.get("/", auth(), PurchaseReturnProductController.getDataById);
 router.delete(
   "/:id",
-  // auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
   PurchaseReturnProductController.deleteIdFromDB,
 );
 router.put(

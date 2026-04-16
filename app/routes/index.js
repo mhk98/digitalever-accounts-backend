@@ -64,6 +64,7 @@ const PayrollRunRoutes = require("../modules/payrollRun/payrollRun.routes");
 const PayrollItemRoutes = require("../modules/payrollItem/payrollItem.routes");
 const ProfileLossRoutes = require("../modules/profitLoss/profitLoss.routes");
 const RolePermissionRoutes = require("../modules/rolePermission/rolePermission.routes");
+const UserLogHistoryRoutes = require("../modules/userLogHistory/userLogHistory.routes");
 
 const router = express.Router();
 
@@ -75,6 +76,10 @@ const moduleRoutes = [
   {
     path: "/role-permissions",
     route: RolePermissionRoutes,
+  },
+  {
+    path: "/user-log-history",
+    route: UserLogHistoryRoutes,
   },
 
   {

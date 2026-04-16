@@ -12,9 +12,9 @@ router.post(
   ),
   DamageStockController.insertIntoDB,
 );
-router.get("/", DamageStockController.getAllFromDB);
-router.get("/all", DamageStockController.getAllFromDBWithoutQuery);
-router.get("/", DamageStockController.getDataById);
+router.get("/", auth(), DamageStockController.getAllFromDB);
+router.get("/all", auth(), DamageStockController.getAllFromDBWithoutQuery);
+router.get("/", auth(), DamageStockController.getDataById);
 router.delete(
   "/:id",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),

@@ -13,7 +13,7 @@ router.post(
   applyApprovalWorkflow({ modelKey: "returnProduct", entityLabel: "Sales Return" }),
   ReturnProductController.insertIntoDB,
 );
-router.get("/", ReturnProductController.getAllFromDB);
+router.get("/", auth(), ReturnProductController.getAllFromDB);
 // router.get("/all", ReturnProductController.getAllFromDBWithoutQuery);
 // router.get("/", ReturnProductController.getDataById);
 router.delete(

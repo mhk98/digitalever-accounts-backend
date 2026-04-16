@@ -12,9 +12,9 @@ router.post(
   ),
   WarrantyProductController.insertIntoDB,
 );
-router.get("/", WarrantyProductController.getAllFromDB);
-router.get("/all", WarrantyProductController.getAllFromDBWithoutQuery);
-router.get("/", WarrantyProductController.getDataById);
+router.get("/", auth(), WarrantyProductController.getAllFromDB);
+router.get("/all", auth(), WarrantyProductController.getAllFromDBWithoutQuery);
+router.get("/", auth(), WarrantyProductController.getDataById);
 router.delete(
   "/:id",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),

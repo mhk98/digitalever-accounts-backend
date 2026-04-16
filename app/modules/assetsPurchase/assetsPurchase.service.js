@@ -9,7 +9,9 @@ const AssetsPurchase = db.assetsPurchase;
 const AssetsStock = db.assetsStock;
 const Notification = db.notification;
 const User = db.user;
-const { rebuildAssetsStockBalances } = require("../assetsStock/assetsStockSync");
+const {
+  rebuildAssetsStockBalances,
+} = require("../assetsStock/assetsStockSync");
 
 const insertIntoDB = async (payload) => {
   const { productId, quantity, price, date, note, status } = payload;

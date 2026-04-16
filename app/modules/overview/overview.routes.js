@@ -10,8 +10,8 @@ const OverviewController = require("./overview.controller");
 // GET /api/v1/overview/summary?from=2026-01-01&to=2026-01-13
 router.get(
   "/summary",
-  // auth(),
-  // requireMenuPermission("overview"),
+  auth(),
+  requireMenuPermission("overview"),
   OverviewController.getOverviewSummaryFromDB,
 );
 

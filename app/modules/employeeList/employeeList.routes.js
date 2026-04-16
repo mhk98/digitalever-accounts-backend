@@ -21,8 +21,8 @@ router.get(
 );
 router.get(
   "/all",
-  // auth(),
-  // requireMenuPermission("employee_list"),
+  auth(),
+  requireAnyPermission(["employee_management", "employee_list"]),
   EmployeeListController.getAllFromDBWithoutQuery,
 );
 router.get(

@@ -43,11 +43,11 @@ const insertIntoDB = async (data) => {
 
     if (!stock) throw new ApiError(404, "Assets stock product not found");
 
-    if (STOCK_STATUSES.includes(finalStatus) && Number(stock.quantity || 0) < Number(quantity)) {
-      throw new ApiError(
-        400,
-        `Not enough stock. Available: ${stock.quantity}`,
-      );
+    if (
+      STOCK_STATUSES.includes(finalStatus) &&
+      Number(stock.quantity || 0) < Number(quantity)
+    ) {
+      throw new ApiError(400, `Not enough stock. Available: ${stock.quantity}`);
     }
     const saleQty = Number(quantity);
 

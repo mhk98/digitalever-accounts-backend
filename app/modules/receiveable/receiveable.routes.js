@@ -14,8 +14,8 @@ router.post(
   ),
   ReceiveableController.insertIntoDB,
 );
-router.get("/", ReceiveableController.getAllFromDB);
-router.get("/all", ReceiveableController.getAllFromDBWithoutQuery);
+router.get("/", auth(), ReceiveableController.getAllFromDB);
+router.get("/all", auth(), ReceiveableController.getAllFromDBWithoutQuery);
 // router.get("/:id", ReceiveableController.getDataById);
 router.delete(
   "/:id",

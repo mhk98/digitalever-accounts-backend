@@ -12,9 +12,9 @@ router.post(
   ),
   MetaController.insertIntoDB,
 );
-router.get("/", MetaController.getAllFromDB);
-router.get("/all", MetaController.getAllFromDBWithoutQuery);
-router.get("/:id", MetaController.getDataById);
+router.get("/", auth(), MetaController.getAllFromDB);
+router.get("/all", auth(), MetaController.getAllFromDBWithoutQuery);
+router.get("/:id", auth(), MetaController.getDataById);
 router.delete(
   "/:id",
   auth(

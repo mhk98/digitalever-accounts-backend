@@ -77,6 +77,7 @@ const http = require("http");
 const db = require("./models"); // Sequelize instance
 const routes = require("./app/routes");
 const ApiError = require("./error/ApiError");
+const userLogHistory = require("./app/middlewares/userLogHistory");
 
 const app = express();
 const server = http.createServer(app);
@@ -97,6 +98,7 @@ app.use(
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cookieParser());
+app.use(userLogHistory);
 
 /* ========================
    STATIC FILES

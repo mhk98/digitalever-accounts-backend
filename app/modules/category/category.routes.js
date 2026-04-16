@@ -12,9 +12,9 @@ router.post(
   ),
   CategoryController.insertIntoDB,
 );
-router.get("/", CategoryController.getAllFromDB);
-router.get("/all", CategoryController.getAllFromDBWithoutQuery);
-router.get("/:id", CategoryController.getDataById);
+router.get("/", auth(), CategoryController.getAllFromDB);
+router.get("/all", auth(), CategoryController.getAllFromDBWithoutQuery);
+router.get("/:id", auth(), CategoryController.getDataById);
 router.delete(
   "/:id",
   auth(

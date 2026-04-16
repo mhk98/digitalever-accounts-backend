@@ -5,15 +5,40 @@ const { UserFilterAbleFileds } = require("./user.constants");
 const UserService = require("./user.service");
 // const { UserService } = require("./user.service");
 const bcrypt = require("bcryptjs");
+const { createUserLogHistory } = require("../../utils/userLogHistory");
 
 const login = catchAsync(async (req, res) => {
-  const result = await UserService.login(req.body);
-  sendResponse(res, {
-    statusCode: 200,
-    success: true,
-    message: "User login successfully!!",
-    data: result,
-  });
+  try {
+    const result = await UserService.login(req.body);
+    await createUserLogHistory({
+      req,
+      user: result.user,
+      action: "login",
+      statusCode: 200,
+      responseMessage: "User login successfully!!",
+    });
+
+    sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "User login successfully!!",
+      data: result,
+    });
+  } catch (error) {
+    await createUserLogHistory({
+      req,
+      user: null,
+      action: "failed_login",
+      statusCode: error.statusCode || 401,
+      status: "failed",
+      responseMessage: error.message || "Login failed",
+      metadata: {
+        email: req.body?.Email || null,
+      },
+    });
+
+    throw error;
+  }
 });
 
 const register = catchAsync(async (req, res) => {
@@ -49,6 +74,23 @@ const register = catchAsync(async (req, res) => {
     success: true,
     message: "User register successfully!!",
     data: result,
+  });
+});
+
+const logout = catchAsync(async (req, res) => {
+  await createUserLogHistory({
+    req,
+    user: req.user,
+    action: "logout",
+    statusCode: 200,
+    responseMessage: "User logout successfully!!",
+  });
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "User logout successfully!!",
+    data: null,
   });
 });
 
@@ -141,6 +183,7 @@ const deleteUserFromDB = catchAsync(async (req, res) => {
 const UserController = {
   getAllUserFromDB,
   login,
+  logout,
   register,
   getUserById,
   updateUserFromDB,

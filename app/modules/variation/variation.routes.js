@@ -8,9 +8,9 @@ router.post(
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
   VariationController.insertIntoDB,
 );
-router.get("/", VariationController.getAllFromDB);
-router.get("/all", VariationController.getAllFromDBWithoutQuery);
-router.get("/", VariationController.getDataById);
+router.get("/", auth(), VariationController.getAllFromDB);
+router.get("/all", auth(), VariationController.getAllFromDBWithoutQuery);
+router.get("/", auth(), VariationController.getDataById);
 router.delete(
   "/:id",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),

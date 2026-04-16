@@ -25,7 +25,7 @@ const getAllFromDB = catchAsync(async (req, res) => {
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "Academic Semster data fetched!!",
+    message: "In-transit product data fetched!!",
     meta: result.meta,
     data: result.data,
   });

@@ -8,7 +8,9 @@ const {
   buildDeleteWorkflowPayload,
   isPrivilegedRole,
 } = require("../../shared/approvalWorkflow");
-const { rebuildAssetsStockBalances } = require("../modules/assetsStock/assetsStockSync");
+const {
+  rebuildAssetsStockBalances,
+} = require("../modules/assetsStock/assetsStockSync");
 
 const Notification = db.notification;
 const User = db.user;
@@ -71,7 +73,10 @@ const applyApprovalWorkflow =
     try {
       const Model = db[modelKey];
       if (!Model) {
-        throw new ApiError(500, `${entityLabel || modelKey} workflow model not found`);
+        throw new ApiError(
+          500,
+          `${entityLabel || modelKey} workflow model not found`,
+        );
       }
 
       if (req.method === "POST") {
@@ -135,7 +140,10 @@ const applyApprovalWorkflow =
         throw new ApiError(404, `${entityLabel || "Record"} not found`);
       }
 
-      const workflowPayload = buildDeleteWorkflowPayload(readDeleteNote(req), req.user);
+      const workflowPayload = buildDeleteWorkflowPayload(
+        readDeleteNote(req),
+        req.user,
+      );
       const updatePayload = {};
 
       if (hasAttribute(Model, "status")) {
@@ -180,7 +188,10 @@ const approvePendingWorkflow =
     try {
       const Model = db[modelKey];
       if (!Model) {
-        throw new ApiError(500, `${entityLabel || modelKey} workflow model not found`);
+        throw new ApiError(
+          500,
+          `${entityLabel || modelKey} workflow model not found`,
+        );
       }
 
       const existing = await Model.findOne({ where: { Id: req.params.id } });
@@ -188,9 +199,14 @@ const approvePendingWorkflow =
         throw new ApiError(404, `${entityLabel || "Record"} not found`);
       }
 
-      if (existing.pendingAction === "Delete" || existing.status === "Pending Delete") {
+      if (
+        existing.pendingAction === "Delete" ||
+        existing.status === "Pending Delete"
+      ) {
         await Model.destroy({ where: { Id: req.params.id } });
-        if (["assetsPurchase", "assetsSale", "assetsDamage"].includes(modelKey)) {
+        if (
+          ["assetsPurchase", "assetsSale", "assetsDamage"].includes(modelKey)
+        ) {
           await db.sequelize.transaction(async (t) => {
             await rebuildAssetsStockBalances(t);
           });

@@ -14,9 +14,9 @@ router.post(
   applyApprovalWorkflow({ modelKey: "damageRepaired", entityLabel: "Damage Repaired" }),
   DamageRepairedController.insertIntoDB,
 );
-router.get("/", DamageRepairedController.getAllFromDB);
-router.get("/all", DamageRepairedController.getAllFromDBWithoutQuery);
-router.get("/", DamageRepairedController.getDataById);
+router.get("/", auth(), DamageRepairedController.getAllFromDB);
+router.get("/all", auth(), DamageRepairedController.getAllFromDBWithoutQuery);
+router.get("/", auth(), DamageRepairedController.getDataById);
 router.delete(
   "/:id",
   auth(),

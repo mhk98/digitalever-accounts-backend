@@ -12,9 +12,9 @@ router.post(
   ),
   LedgerHistoryController.insertIntoDB,
 );
-router.get("/", LedgerHistoryController.getAllFromDB);
-router.get("/all", LedgerHistoryController.getAllFromDBWithoutQuery);
-router.get("/:id", LedgerHistoryController.getDataById);
+router.get("/", auth(), LedgerHistoryController.getAllFromDB);
+router.get("/all", auth(), LedgerHistoryController.getAllFromDBWithoutQuery);
+router.get("/:id", auth(), LedgerHistoryController.getDataById);
 router.delete(
   "/:id",
   auth(
