@@ -52,6 +52,22 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      idCard: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      cv: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      guardianPhoto: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      guardianIdCard: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
 
       role: {
         type: DataTypes.ENUM(
@@ -67,6 +83,11 @@ module.exports = (sequelize, DataTypes) => {
         ),
         allowNull: true,
         defaultValue: "user",
+      },
+      status: {
+        type: DataTypes.STRING(32),
+        allowNull: false,
+        defaultValue: "Active",
       },
       deletedAt: {
         type: DataTypes.DATE,

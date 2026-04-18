@@ -7,6 +7,9 @@ const UserService = require("./user.service");
 const bcrypt = require("bcryptjs");
 const { createUserLogHistory } = require("../../utils/userLogHistory");
 
+const getUploadedDocumentPath = (files, fieldName) =>
+  files?.[fieldName]?.[0]?.path;
+
 const login = catchAsync(async (req, res) => {
   try {
     const result = await UserService.login(req.body);
@@ -66,7 +69,11 @@ const register = catchAsync(async (req, res) => {
     PostalCode,
     Country,
     role,
-    image: req.file === undefined ? undefined : req.file.path,
+    image: getUploadedDocumentPath(req.files, "image"),
+    idCard: getUploadedDocumentPath(req.files, "idCard"),
+    cv: getUploadedDocumentPath(req.files, "cv"),
+    guardianPhoto: getUploadedDocumentPath(req.files, "guardianPhoto"),
+    guardianIdCard: getUploadedDocumentPath(req.files, "guardianIdCard"),
   };
   const result = await UserService.register(data);
   sendResponse(res, {
@@ -155,7 +162,11 @@ const updateUserFromDB = catchAsync(async (req, res) => {
     PostalCode,
     Country,
     role,
-    image: req.file === undefined ? undefined : req.file.path,
+    image: getUploadedDocumentPath(req.files, "image"),
+    idCard: getUploadedDocumentPath(req.files, "idCard"),
+    cv: getUploadedDocumentPath(req.files, "cv"),
+    guardianPhoto: getUploadedDocumentPath(req.files, "guardianPhoto"),
+    guardianIdCard: getUploadedDocumentPath(req.files, "guardianIdCard"),
   };
 
   // console.log('userData', data);
@@ -180,6 +191,35 @@ const deleteUserFromDB = catchAsync(async (req, res) => {
   });
 });
 
+const updateUserStatusFromDB = catchAsync(async (req, res) => {
+  const result = await UserService.updateUserStatusFromDB(
+    req.user,
+    req.params.id,
+    req.body.status,
+  );
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "User status updated successfully!!",
+    data: result,
+  });
+});
+
+const impersonateUser = catchAsync(async (req, res) => {
+  const result = await UserService.impersonateUserSession(
+    req.user,
+    req.params.id,
+  );
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "User impersonation successful!!",
+    data: result,
+  });
+});
+
 const UserController = {
   getAllUserFromDB,
   login,
@@ -188,6 +228,8 @@ const UserController = {
   getUserById,
   updateUserFromDB,
   deleteUserFromDB,
+  updateUserStatusFromDB,
+  impersonateUser,
 };
 
 module.exports = UserController;

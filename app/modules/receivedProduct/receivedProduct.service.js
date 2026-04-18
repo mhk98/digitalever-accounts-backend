@@ -627,7 +627,7 @@ const updateOneFromDB = async (id, payload) => {
           {
             userId: u.Id,
             message,
-            url: `/kafelamart.digitalever.com.bd/purchase-product`,
+            url: `/holygift.digitalever.com.bd/purchase-product`,
           },
           { transaction: t },
         ),

@@ -46,6 +46,18 @@ const uploadSingle = multer({
   fileFilter: fileFilter,
 }).single("image");
 
+const uploadUserDocuments = multer({
+  storage,
+  limits: { fileSize: 5000000 },
+  fileFilter,
+}).fields([
+  { name: "image", maxCount: 1 },
+  { name: "idCard", maxCount: 1 },
+  { name: "cv", maxCount: 1 },
+  { name: "guardianPhoto", maxCount: 1 },
+  { name: "guardianIdCard", maxCount: 1 },
+]);
+
 const uploadMultiple = multer({
   storage: storage,
   limits: { fileSize: 5000000 }, // 5 MB limit per file
@@ -55,5 +67,6 @@ const uploadMultiple = multer({
 module.exports = {
   uploadFile,
   uploadSingle,
+  uploadUserDocuments,
   uploadMultiple,
 };

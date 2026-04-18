@@ -216,6 +216,10 @@ db.employeeList = require("../app/modules/employeeList/employeeList.model")(
   db.sequelize,
   DataTypes,
 );
+db.dailyWorkReport = require("../app/modules/dailyWorkReport/dailyWorkReport.model")(
+  db.sequelize,
+  DataTypes,
+);
 
 db.department = require("../app/modules/department/department.model")(
   db.sequelize,
@@ -444,6 +448,33 @@ db.user.hasOne(db.employeeList, { foreignKey: "userId", as: "employeeProfile" })
 db.employeeList.belongsTo(db.user, {
   foreignKey: "userId",
   as: "user",
+});
+
+db.user.hasMany(db.dailyWorkReport, {
+  foreignKey: "userId",
+  as: "dailyWorkReports",
+});
+db.dailyWorkReport.belongsTo(db.user, {
+  foreignKey: "userId",
+  as: "user",
+});
+
+db.employeeList.hasMany(db.dailyWorkReport, {
+  foreignKey: "employeeId",
+  as: "dailyWorkReports",
+});
+db.dailyWorkReport.belongsTo(db.employeeList, {
+  foreignKey: "employeeId",
+  as: "employee",
+});
+
+db.user.hasMany(db.dailyWorkReport, {
+  foreignKey: "reviewedByUserId",
+  as: "reviewedDailyWorkReports",
+});
+db.dailyWorkReport.belongsTo(db.user, {
+  foreignKey: "reviewedByUserId",
+  as: "reviewedBy",
 });
 
 db.user.hasMany(db.userLogHistory, {
@@ -1044,6 +1075,46 @@ const ensureAssetsStockColumns = async () => {
   }
 };
 
+const ensureUserStatusColumn = async () => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db.user.getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!tableDefinition.status) {
+    await queryInterface.addColumn(tableName, "status", {
+      type: DataTypes.STRING(32),
+      allowNull: false,
+      defaultValue: "Active",
+    });
+  }
+
+  await db.sequelize.query(
+    `UPDATE \`${tableName}\`
+     SET status = 'Active'
+     WHERE status IS NULL OR TRIM(status) = ''`,
+  );
+};
+
+const ensureUserDocumentColumns = async () => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db.user.getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  const maybeAddColumn = async (columnName) => {
+    if (!tableDefinition[columnName]) {
+      await queryInterface.addColumn(tableName, columnName, {
+        type: DataTypes.STRING,
+        allowNull: true,
+      });
+    }
+  };
+
+  await maybeAddColumn("idCard");
+  await maybeAddColumn("cv");
+  await maybeAddColumn("guardianPhoto");
+  await maybeAddColumn("guardianIdCard");
+};
+
 const ensureDamageStockPriceColumns = async (modelKey) => {
   const queryInterface = db.sequelize.getQueryInterface();
   const tableName = db[modelKey].getTableName();
@@ -1175,6 +1246,8 @@ db.sequelize
     await ensureAttendanceDeviceApiKeyColumn();
     await ensureEmployeeListColumns();
     await ensureEmployeeColumns();
+    await ensureUserStatusColumn();
+    await ensureUserDocumentColumns();
     await ensureApprovalColumns("department");
     await ensureApprovalColumns("designation");
     await ensureApprovalColumns("shift");

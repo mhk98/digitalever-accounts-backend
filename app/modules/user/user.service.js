@@ -12,6 +12,40 @@ const welcomeCredentialsTemplate = require("../../utils/emailTemplates/welcomeCr
 const RolePermissionService = require("../rolePermission/rolePermission.service");
 const { ENUM_USER_ROLE } = require("../../enums/user");
 const DEFAULT_REGISTER_PASSWORD = "123456";
+const REQUIRED_DOCUMENT_FIELDS = [
+  "image",
+  "idCard",
+  "cv",
+  "guardianPhoto",
+  "guardianIdCard",
+];
+
+const sanitizeUser = (user) => {
+  if (!user) return null;
+
+  const plainUser = typeof user.get === "function" ? user.get({ plain: true }) : user;
+  delete plainUser.Password;
+  return plainUser;
+};
+
+const validateRequiredDocuments = (payload = {}, existingUser = null) => {
+  const missingFields = REQUIRED_DOCUMENT_FIELDS.filter((field) => {
+    const nextValue = payload[field];
+    if (typeof nextValue === "string" && nextValue.trim()) {
+      return false;
+    }
+
+    const existingValue = existingUser?.[field];
+    return !(typeof existingValue === "string" && existingValue.trim());
+  });
+
+  if (missingFields.length) {
+    throw new ApiError(
+      400,
+      `Required document(s) missing: ${missingFields.join(", ")}`,
+    );
+  }
+};
 
 const login = async (buyerData) => {
   const { Email, Password } = buyerData;
@@ -31,6 +65,10 @@ const login = async (buyerData) => {
     );
   }
 
+  if (user.status === "Inactive") {
+    throw new ApiError(403, "This account is deactivated. Please contact super admin.");
+  }
+
   // Validate password
   const isPasswordValid = bcrypt.compareSync(Password, user.Password);
   if (!isPasswordValid) {
@@ -47,8 +85,7 @@ const login = async (buyerData) => {
   };
   // res.cookie("accessToken", accessToken, cookieOptions);
 
-  const plainUser = user.get({ plain: true });
-  delete plainUser.Password;
+  const plainUser = sanitizeUser(user);
 
   const menuPermissions =
     await RolePermissionService.getEffectiveMenuPermissions(user.role);
@@ -87,6 +124,7 @@ const register = async (userData) => {
 
   const isUserExist = await User.findOne({ where: { Email } });
   if (isUserExist) throw new ApiError(409, "User already exist");
+  validateRequiredDocuments(userData);
 
   // ✅ user create
   const result = await User.create({
@@ -178,6 +216,7 @@ const getUserById = async (id) => {
     where: {
       Id: id,
     },
+    attributes: { exclude: ["Password"] },
   });
 
   return result;
@@ -194,13 +233,77 @@ const deleteUserFromDB = async (id) => {
 };
 
 const updateUserFromDB = async (id, payload) => {
-  const result = await User.update(payload, {
+  const existing = await User.findOne({
+    where: { Id: id },
+  });
+
+  if (!existing) {
+    throw new ApiError(404, "User not found");
+  }
+
+  await User.update(payload, {
     where: {
       Id: id,
     },
   });
 
-  return result;
+  return getUserById(id);
+};
+
+const updateUserStatusFromDB = async (actor, id, status) => {
+  const allowedStatuses = ["Active", "Inactive"];
+  if (!allowedStatuses.includes(status)) {
+    throw new ApiError(400, "Invalid status value");
+  }
+
+  if (actor?.Id === Number(id) && status === "Inactive") {
+    throw new ApiError(400, "You cannot deactivate your own account");
+  }
+
+  const user = await User.findOne({
+    where: { Id: id },
+  });
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  await user.update({ status });
+  return sanitizeUser(user);
+};
+
+const impersonateUserSession = async (actor, id) => {
+  if (actor?.role !== ENUM_USER_ROLE.SUPER_ADMIN) {
+    throw new ApiError(403, "Only super admin can use login as user");
+  }
+
+  const user = await User.findOne({
+    where: { Id: id },
+  });
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  const accessToken = generateToken(user, {
+    isImpersonation: true,
+    impersonatedById: actor.Id,
+    impersonatedByRole: actor.role,
+  });
+
+  const plainUser = sanitizeUser(user);
+  const menuPermissions =
+    await RolePermissionService.getEffectiveMenuPermissions(user.role);
+
+  return {
+    accessToken,
+    user: plainUser,
+    menuPermissions,
+    impersonation: {
+      actorId: actor.Id,
+      actorRole: actor.role,
+    },
+  };
 };
 
 const UserService = {
@@ -210,6 +313,8 @@ const UserService = {
   deleteUserFromDB,
   updateUserFromDB,
   getUserById,
+  updateUserStatusFromDB,
+  impersonateUserSession,
 };
 
 module.exports = UserService;

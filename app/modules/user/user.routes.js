@@ -3,14 +3,14 @@ const auth = require("../../middlewares/auth");
 const {
   requireMenuPermission,
 } = require("../../middlewares/requireMenuPermission");
-const { uploadSingle } = require("../../middlewares/upload");
+const { uploadSingle, uploadUserDocuments } = require("../../middlewares/upload");
 const UserController = require("./user.controller");
 const router = require("express").Router();
 
 // Define routes
 router.post("/login", UserController.login);
 router.post("/logout", auth(), UserController.logout);
-router.post("/register", uploadSingle, UserController.register);
+router.post("/register", uploadUserDocuments, UserController.register);
 router.get(
   "/",
   auth(),
@@ -23,6 +23,18 @@ router.get(
   // requireMenuPermission("user_management"),
   UserController.getUserById,
 ); // Use :id to get a user by ID
+router.put(
+  "/:id/status",
+  auth(ENUM_USER_ROLE.SUPER_ADMIN),
+  requireMenuPermission("user_management"),
+  UserController.updateUserStatusFromDB,
+);
+router.post(
+  "/:id/impersonate",
+  auth(ENUM_USER_ROLE.SUPER_ADMIN),
+  requireMenuPermission("user_management"),
+  UserController.impersonateUser,
+);
 router.delete(
   "/:id",
   auth(),
@@ -33,7 +45,7 @@ router.put(
   "/:id",
   auth(),
   // requireMenuPermission("user_management"),
-  uploadSingle,
+  uploadUserDocuments,
   UserController.updateUserFromDB,
 );
 

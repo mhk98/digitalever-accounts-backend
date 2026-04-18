@@ -39,7 +39,7 @@ const notifyApprovedPettyCash = async (req) => {
       Notification.create({
         userId: user.Id,
         message: "Petty cash requisition request approved",
-        url: `/kafelamart.digitalever.com.bd/petty-cash`,
+        url: `/holygift.digitalever.com.bd/petty-cash`,
       }),
     ),
   );
@@ -61,7 +61,7 @@ const notifyApprovedAssetsRequisition = async (req) => {
       Notification.create({
         userId: user.Id,
         message: "Assets requisition request approved",
-        url: `/kafelamart.digitalever.com.bd/assets-requisition`,
+        url: `/holygift.digitalever.com.bd/assets-requisition`,
       }),
     ),
   );

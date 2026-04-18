@@ -49,6 +49,7 @@ const StockAdjustmentRoutes = require("../modules/stockAdjustment/stockAdjustmen
 const VariationRoutes = require("../modules/variation/variation.routes");
 const DamageReparingStockRoutes = require("../modules/damageReparingStock/damageReparingStock.routes");
 const EmployeeListRoutes = require("../modules/employeeList/employeeList.routes");
+const DailyWorkReportRoutes = require("../modules/dailyWorkReport/dailyWorkReport.routes");
 const DepartmentRoutes = require("../modules/department/department.routes");
 const DesignationRoutes = require("../modules/designation/designation.routes");
 const ShiftRoutes = require("../modules/shift/shift.routes");
@@ -72,6 +73,10 @@ const moduleRoutes = [
   {
     path: "/user",
     route: UserRoutes,
+  },
+  {
+    path: "/daily-work-reports",
+    route: DailyWorkReportRoutes,
   },
   {
     path: "/role-permissions",

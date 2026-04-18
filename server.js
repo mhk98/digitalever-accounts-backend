@@ -218,7 +218,7 @@ process.on("SIGINT", async () => {
 // /* -------------------- CORS -------------------- */
 // const allowedOrigins = [
 //   "http://localhost:5173",
-//   "https://kafelamart.digitalever.com.bd",
+//   "https://holygift.digitalever.com.bd",
 // ];
 
 // const corsOptions = {

@@ -1,6 +1,9 @@
 const jwt = require("jsonwebtoken");
 const ApiError = require("../../error/ApiError");
 const RolePermissionService = require("../modules/rolePermission/rolePermission.service");
+const db = require("../../models");
+
+const User = db.user;
 
 const auth =
   (...requiredRoles) =>
@@ -12,12 +15,33 @@ const auth =
 
       // Verify token
       const verifiedUser = jwt.verify(token, process.env.TOKEN_SECRET);
-      req.user = verifiedUser; // Add user info to request object
+      const currentUser = await User.findOne({
+        where: { Id: verifiedUser.Id },
+        attributes: { exclude: ["Password"] },
+      });
+
+      if (!currentUser) {
+        return next(new ApiError(401, "User account was not found"));
+      }
+
+      const plainUser = currentUser.get({ plain: true });
+      const canUseInactiveSession =
+        verifiedUser.isImpersonation &&
+        verifiedUser.impersonatedByRole === "superAdmin";
+
+      if (plainUser.status === "Inactive" && !canUseInactiveSession) {
+        return next(new ApiError(403, "This account is deactivated"));
+      }
+
+      req.user = {
+        ...verifiedUser,
+        ...plainUser,
+      }; // Add current user info to request object
       req.menuPermissions =
-        await RolePermissionService.getEffectiveMenuPermissions(verifiedUser.role);
+        await RolePermissionService.getEffectiveMenuPermissions(plainUser.role);
 
       // Check if the user's role is one of the required roles
-      if (requiredRoles.length && !requiredRoles.includes(verifiedUser.role)) {
+      if (requiredRoles.length && !requiredRoles.includes(plainUser.role)) {
         return next(new ApiError(403, "Forbidden"));
       }
 

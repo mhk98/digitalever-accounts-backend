@@ -2,12 +2,13 @@ const jwt = require("jsonwebtoken");
 const ApiError = require("../error/ApiError");
 require("dotenv").config();
 
-exports.generateToken = (userInfo) => {
+exports.generateToken = (userInfo, extraClaims = {}) => {
   try {
     const payload = {
       Id: userInfo.Id,
       Email: userInfo.Email,
       role: userInfo.role,
+      ...extraClaims,
     };
 
     // Token generation with 24 hours expiration
