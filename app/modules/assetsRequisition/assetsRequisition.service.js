@@ -6,28 +6,80 @@ const {
   AssetsRequisitionSearchableFields,
 } = require("./assetsRequisition.constants");
 const AssetsRequisition = db.assetsRequisition;
+const Asset = db.asset;
 const Notification = db.notification;
 const User = db.user;
 
+const normalizeOptionalText = (value) => {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  if (!text || ["undefined", "null"].includes(text.toLowerCase())) return null;
+  return text;
+};
+
+const normalizeOptionalId = (value) => {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return null;
+  }
+  const id = Number(value);
+  return Number.isNaN(id) ? null : id;
+};
+
+const resolveAsset = async (
+  payload = {},
+  existing = null,
+  transaction = null,
+) => {
+  const assetId = normalizeOptionalId(payload.assetId);
+  const assetName = normalizeOptionalText(
+    payload.assetName || payload.newAssetName || payload.name,
+  );
+
+  if (assetId) {
+    const asset = await Asset.findOne({ where: { Id: assetId }, transaction });
+    if (!asset) throw new ApiError(404, "Asset not found");
+    return { name: asset.name, assetId: asset.Id };
+  }
+
+  if (assetName) {
+    const [asset] = await Asset.findOrCreate({
+      where: { name: assetName },
+      defaults: { name: assetName },
+      transaction,
+    });
+    return { name: asset.name, assetId: asset.Id };
+  }
+
+  if (existing) {
+    return { name: existing.name, assetId: existing.assetId || null };
+  }
+
+  throw new ApiError(400, "Asset is required");
+};
+
 const insertIntoDB = async (payload) => {
-  const { name, quantity, price, date, note, status, userId } = payload;
+  const { quantity, price, date, note, status, userId } = payload;
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
 
   const finalStatus = "Pending";
 
-  const data = {
-    name,
-    quantity,
-    price,
-    date,
-    total: Number(price * quantity),
-    status: finalStatus || "---",
-    note: note || null,
-    date: date,
-  };
-  const result = await AssetsRequisition.create(data);
+  const result = await db.sequelize.transaction(async (transaction) => {
+    const asset = await resolveAsset(payload, null, transaction);
+    const data = {
+      name: asset.name,
+      assetId: asset.assetId,
+      quantity,
+      price,
+      date,
+      total: Number(price * quantity),
+      status: finalStatus || "---",
+      note: note || null,
+    };
+
+    return AssetsRequisition.create(data, { transaction });
+  });
 
   const users = await User.findAll({
     attributes: ["Id", "role"],
@@ -45,7 +97,7 @@ const insertIntoDB = async (payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/holygift.digitalever.com.bd/assets-requisition`,
+          url: `/shifa.digitalever.com.bd/assets-requisition`,
         }),
       ),
     );
@@ -224,7 +276,7 @@ const deleteIdFromDB = async (id) => {
 //         {
 //           userId: u.Id,
 //           message,
-//           url: `/holygift.digitalever.com.bd/assets-purchase`,
+//           url: `/shifa.digitalever.com.bd/assets-purchase`,
 //         },
 //         {
 //           transaction: t,
@@ -237,8 +289,7 @@ const deleteIdFromDB = async (id) => {
 // };
 
 const updateOneFromDB = async (id, payload) => {
-  const { name, quantity, price, note, date, status, userId, actorRole } =
-    payload;
+  const { quantity, price, note, date, status, userId, actorRole } = payload;
 
   const q = quantity === "" || quantity == null ? undefined : Number(quantity);
   const p = price === "" || price == null ? undefined : Number(price);
@@ -249,7 +300,7 @@ const updateOneFromDB = async (id, payload) => {
   // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
   const existing = await AssetsRequisition.findOne({
     where: { Id: id },
-    attributes: ["Id", "note", "status"],
+    attributes: ["Id", "note", "status", "name", "assetId"],
   });
 
   if (!existing) return 0;
@@ -284,8 +335,10 @@ const updateOneFromDB = async (id, payload) => {
   }
 
   // ---------- update payload ----------
+  const asset = await resolveAsset(payload, existing);
   const data = {
-    name: name === "" || name == null ? undefined : name,
+    name: asset.name,
+    assetId: asset.assetId,
     quantity: q,
     price: p,
     total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
@@ -323,7 +376,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/holygift.digitalever.com.bd/assets-requisition`,
+        url: `/shifa.digitalever.com.bd/assets-requisition`,
       }),
     ),
   );

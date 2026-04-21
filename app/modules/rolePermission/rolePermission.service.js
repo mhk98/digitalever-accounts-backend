@@ -91,13 +91,10 @@ const getEffectiveMenuPermissions = async (role) => {
   });
 
   if (!record) {
-    return getDefaultPermissionsForRole(role);
+    return [];
   }
 
-  const storedPermissions = validateMenuPermissions(record.menuPermissions || []);
-  const defaultPermissions = getDefaultPermissionsForRole(role);
-
-  return uniq([...defaultPermissions, ...storedPermissions]);
+  return validateMenuPermissions(record.menuPermissions || []);
 };
 
 const getAllRolePermissions = async () => {

@@ -1,6 +1,7 @@
 const catchAsync = require("../../../shared/catchAsync");
 const sendResponse = require("../../../shared/sendResponse");
 const pick = require("../../../shared/pick");
+const ApiError = require("../../../error/ApiError");
 const db = require("../../../models");
 const CashInOutService = require("./cashInOut.service");
 const { CashInOutFilterAbleFields } = require("./cashInOut.constants");
@@ -8,6 +9,17 @@ const { Op } = require("sequelize");
 const User = db.user;
 const CashInOut = db.cashInOut;
 const Notification = db.notification;
+
+const normalizeOptionalText = (value) => {
+  if (value === undefined || value === null) return null;
+
+  const text = String(value).trim();
+  if (!text || ["undefined", "null"].includes(text.toLowerCase())) {
+    return null;
+  }
+
+  return text;
+};
 
 // const insertIntoDB = catchAsync(async (req, res) => {
 //   const {
@@ -187,11 +199,13 @@ const insertIntoDB = catchAsync(async (req, res) => {
 
   const isApproved = String(status || "").trim() === "Approved";
 
+  const normalizedNote = normalizeOptionalText(note);
+
   const finalStatus = isApproved
     ? "Approved"
     : inputDateStr !== todayStr
       ? "Pending"
-      : note
+      : normalizedNote
         ? "Pending"
         : "Active";
 
@@ -204,7 +218,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
     amount: amountNumber,
     remarks: remarks || "",
     status: finalStatus || "---",
-    note: note || null,
+    note: normalizedNote,
     date,
     lender,
     file,
@@ -225,7 +239,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
     const message =
       status === "Approved"
         ? "Cash in/out request approved"
-        : note || "Please approved my request";
+        : normalizedNote || "Please approved my request";
 
     await Promise.all(
       users.map((u) =>
@@ -370,8 +384,8 @@ const updateOneFromDB = catchAsync(async (req, res) => {
 
   if (!existing) return 0;
 
-  const oldNote = String(existing.note || "").trim();
-  const newNote = String(note || "").trim();
+  const oldNote = normalizeOptionalText(existing.note) || "";
+  const newNote = normalizeOptionalText(note);
 
   // ✅ newNote খালি না হলে + oldNote থেকে আলাদা হলে => pending trigger
   const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
@@ -406,7 +420,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     bankName: isBank ? bankName || "" : "", // ✅ Bank না হলে blank
     bankAccount: isBank ? bankAccountNumber : null, // ✅ Bank না হলে NULL
     remarks: remarks ?? undefined,
-    note: newNote || null,
+    note: newNote,
     status: finalStatus,
     date: inputDateStr || undefined,
     category,
@@ -433,7 +447,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     const message =
       status === "Approved"
         ? "Cash book request approved"
-        : note || "Please approved my request";
+        : newNote || "Please approved my request";
 
     await Promise.all(
       users.map((u) =>

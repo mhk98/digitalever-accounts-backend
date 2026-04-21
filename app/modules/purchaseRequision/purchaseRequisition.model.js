@@ -23,6 +23,14 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: [],
         allowNull: true,
       },
+      productId: {
+        type: DataTypes.INTEGER(10),
+        allowNull: true,
+      },
+      assetId: {
+        type: DataTypes.INTEGER(10),
+        allowNull: true,
+      },
       quantity: {
         type: DataTypes.INTEGER(10),
         defaultValue: 0,

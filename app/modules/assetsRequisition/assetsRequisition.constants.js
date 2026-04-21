@@ -3,6 +3,7 @@ const AssetsRequisitionFilterAbleFileds = [
   "startDate",
   "endDate",
   "name",
+  "assetId",
 ];
 
 const AssetsRequisitionSearchableFields = ["searchTerm", "name"];

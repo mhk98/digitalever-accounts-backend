@@ -681,7 +681,7 @@ const updateOneFromDB = async (id, data) => {
             {
               userId: u.Id,
               message: msg,
-              url: `/holygift.digitalever.com.bd/damage-product`,
+              url: `/shifa.digitalever.com.bd/damage-product`,
             },
             { transaction: t },
           ),
@@ -897,7 +897,7 @@ const updateOneFromDB = async (id, data) => {
 //         Notification.create({
 //           userId: u.Id,
 //           message,
-//           url: `/holygift.digitalever.com.bd/damage-product`,
+//           url: `/shifa.digitalever.com.bd/damage-product`,
 //         }),
 //       ),
 //     );

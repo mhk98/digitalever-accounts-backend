@@ -10,15 +10,19 @@ module.exports = (sequelize, DataTypes) => {
       },
 
       paidAmount: {
-        type: DataTypes.FLOAT,
-        allowNull: true,
+        type: DataTypes.DECIMAL(15, 2),
+        allowNull: false,
+        validate: {
+          notEmpty: true,
+        },
       },
-
       unpaidAmount: {
-        type: DataTypes.FLOAT,
-        allowNull: true,
+        type: DataTypes.DECIMAL(15, 2),
+        allowNull: false,
+        validate: {
+          notEmpty: true,
+        },
       },
-
       status: {
         type: DataTypes.STRING,
         allowNull: true,

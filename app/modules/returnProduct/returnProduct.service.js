@@ -6,6 +6,10 @@ const { ReturnProductSearchableFields } = require("./returnProduct.constants");
 const mergeVariants = require("../../../shared/mergeVariants");
 const parseVariants = require("../../../shared/parseVariants");
 const subtractVariants = require("../../../shared/subtractVariants");
+const {
+  addInTransitStock,
+  subtractInTransitStock,
+} = require("../inTransitStock/inTransitStock.helpers");
 const ReturnProduct = db.returnProduct;
 const Notification = db.notification;
 const User = db.user;
@@ -103,6 +107,10 @@ const insertIntoDB = async (data) => {
       throw new ApiError(400, "InventoryMaster.Id missing");
     }
 
+    const returnPurchasePrice =
+      Number(inventory.purchase_price || 0) * returnQty;
+    const returnSalePrice = Number(inventory.sale_price || 0) * returnQty;
+
     const result = await ReturnProduct.create(
       {
         name: inventory.name,
@@ -111,14 +119,23 @@ const insertIntoDB = async (data) => {
         quantity: returnQty,
         variants: incomingVariants,
         source: "Sales Return Product",
-        purchase_price: inventory.purchase_price * returnQty,
-        sale_price: inventory.sale_price * returnQty,
+        purchase_price: returnPurchasePrice,
+        sale_price: returnSalePrice,
         productId: inventoryId,
         status: finalStatus || "---",
         note: note || null,
         date: date,
       },
       { transaction: t },
+    );
+
+    await subtractInTransitStock(
+      inventory,
+      returnQty,
+      incomingVariants,
+      returnPurchasePrice,
+      returnSalePrice,
+      t,
     );
 
     const finalQuantity = oldQty + returnQty;
@@ -259,7 +276,14 @@ const deleteIdFromDB = async (id) => {
     // 1) Return row খুঁজে বের করো
     const ret = await ReturnProduct.findOne({
       where: { Id: id },
-      attributes: ["Id", "productId", "quantity", "variants"],
+      attributes: [
+        "Id",
+        "productId",
+        "quantity",
+        "variants",
+        "purchase_price",
+        "sale_price",
+      ],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -283,6 +307,15 @@ const deleteIdFromDB = async (id) => {
     }
 
     const nextVariants = subtractVariants(received.variants, ret.variants);
+
+    await addInTransitStock(
+      received,
+      qty,
+      ret.variants,
+      ret.purchase_price,
+      ret.sale_price,
+      t,
+    );
 
     // 3) stock ফিরিয়ে দাও
     await InventoryMaster.update(
@@ -485,7 +518,7 @@ const deleteIdFromDB = async (id) => {
 //           {
 //             userId: u.Id,
 //             message,
-//             url: `/holygift.digitalever.com.bd/purchase-return`,
+//             url: `/shifa.digitalever.com.bd/purchase-return`,
 //           },
 //           { transaction: t },
 //         ),
@@ -519,7 +552,16 @@ const updateOneFromDB = async (id, payload) => {
     // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
     const existing = await ReturnProduct.findOne({
       where: { Id: id },
-      attributes: ["Id", "note", "status", "quantity", "variants", "productId"],
+      attributes: [
+        "Id",
+        "note",
+        "status",
+        "quantity",
+        "variants",
+        "productId",
+        "purchase_price",
+        "sale_price",
+      ],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -584,6 +626,15 @@ const updateOneFromDB = async (id, payload) => {
       { transaction: t },
     );
 
+    await addInTransitStock(
+      oldInv,
+      qty,
+      existingVariants,
+      existing.purchase_price,
+      existing.sale_price,
+      t,
+    );
+
     let targetInv = oldInv;
     if (Number(receivedId) !== oldProductId) {
       targetInv = await findInventoryByRequestReference(Number(receivedId), t);
@@ -607,6 +658,15 @@ const updateOneFromDB = async (id, payload) => {
       status: finalStatus,
       date: inputDateStr || undefined,
     };
+
+    await subtractInTransitStock(
+      targetInv,
+      nextQty,
+      incomingVariants,
+      data.purchase_price,
+      data.sale_price,
+      t,
+    );
 
     await targetInv.update(
       {
@@ -639,7 +699,7 @@ const updateOneFromDB = async (id, payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/holygift.digitalever.com.bd/purchase-product`,
+          url: `/shifa.digitalever.com.bd/purchase-product`,
         }),
       ),
     );

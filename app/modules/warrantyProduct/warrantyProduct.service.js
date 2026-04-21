@@ -299,7 +299,7 @@ const updateOneFromDB = async (id, data) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/holygift.digitalever.com.bd/confirm-order`,
+        url: `/shifa.digitalever.com.bd/confirm-order`,
       }),
     ),
   );

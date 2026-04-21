@@ -1,7 +1,9 @@
 const router = require("express").Router();
 const { ENUM_USER_ROLE } = require("../../enums/user");
 const auth = require("../../middlewares/auth");
-const { requireMenuPermission } = require("../../middlewares/requireMenuPermission");
+const {
+  requireMenuPermission,
+} = require("../../middlewares/requireMenuPermission");
 const ShiftController = require("./shift.controller");
 
 router.post(

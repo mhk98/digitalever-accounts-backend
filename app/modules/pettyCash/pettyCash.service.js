@@ -4,16 +4,46 @@ const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { pettyCashSearchableFields } = require("./pettyCash.constants");
 const PettyCash = db.pettyCash;
+const PettyCashRequisition = db.pettyCashRequisition;
 
-const insertIntoDB = async (data) => {
-  const result = await PettyCash.create(data);
+const isRequisitionMode = (mode) => String(mode || "").trim() === "requisition";
+
+const getModelByMode = (mode) =>
+  isRequisitionMode(mode) ? PettyCashRequisition : PettyCash;
+
+const stripWorkflowNote = (value) =>
+  String(value || "")
+    .replace(/\[Approval pending for update\]/g, "")
+    .replace(/\[Update request approved\]/g, "")
+    .replace(/\[Petty cash requisition approved\]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const buildApprovedRequisitionNote = (value) => {
+  const note = stripWorkflowNote(value);
+  return note
+    ? `${note} [Petty cash requisition approved]`
+    : "[Petty cash requisition approved]";
+};
+
+const insertIntoDB = async (data, options = {}) => {
+  const Model = getModelByMode(options.mode);
+  const payload = isRequisitionMode(options.mode)
+    ? {
+        ...data,
+        paymentStatus: "CashIn",
+        status: "Pending",
+      }
+    : data;
+  const result = await Model.create(payload);
   return result;
 };
 
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
 
-  const { searchTerm, startDate, endDate, ...otherFilters } = filters;
+  const { searchTerm, startDate, endDate, mode, ...otherFilters } = filters;
+  const Model = getModelByMode(mode);
 
   const andConditions = [];
 
@@ -104,7 +134,7 @@ const getAllFromDB = async (filters, options) => {
     ? { [Op.and]: andConditions }
     : {};
 
-  const result = await PettyCash.findAll({
+  const result = await Model.findAll({
     where: whereConditions,
     offset: skip,
     limit,
@@ -120,11 +150,11 @@ const getAllFromDB = async (filters, options) => {
   // ✅ total count + total quantity (same filters)
 
   const [count, totalCashIn, totalCashOut] = await Promise.all([
-    PettyCash.count({ where: whereConditions }),
-    PettyCash.sum("amount", {
+    Model.count({ where: whereConditions }),
+    Model.sum("amount", {
       where: { ...whereConditions, paymentStatus: "CashIn" },
     }),
-    PettyCash.sum("amount", {
+    Model.sum("amount", {
       where: { ...whereConditions, paymentStatus: "CashOut" },
     }),
   ]);
@@ -156,8 +186,9 @@ const getDataById = async (id) => {
   return result;
 };
 
-const deleteIdFromDB = async (id) => {
-  const result = await PettyCash.destroy({
+const deleteIdFromDB = async (id, options = {}) => {
+  const Model = getModelByMode(options.mode);
+  const result = await Model.destroy({
     where: {
       Id: id,
     },
@@ -166,8 +197,9 @@ const deleteIdFromDB = async (id) => {
   return result;
 };
 
-const updateOneFromDB = async (id, payload) => {
-  const [updatedCount] = await PettyCash.update(payload, {
+const updateOneFromDB = async (id, payload, options = {}) => {
+  const Model = getModelByMode(options.mode);
+  const [updatedCount] = await Model.update(payload, {
     where: {
       Id: id,
     },
@@ -185,6 +217,77 @@ const getAllFromDBWithoutQuery = async () => {
   return result;
 };
 
+const approveRequisition = async (id, actor = {}, updates = {}) => {
+  return db.sequelize.transaction(async (transaction) => {
+    const requisition = await PettyCashRequisition.findOne({
+      where: { Id: id },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!requisition) {
+      throw new ApiError(404, "Petty cash requisition not found");
+    }
+
+    if (requisition.status === "Approved" && requisition.pettyCashId) {
+      return requisition;
+    }
+
+    const allowedUpdateFields = [
+      "paymentMode",
+      "bankName",
+      "paymentStatus",
+      "amount",
+      "note",
+      "remarks",
+      "file",
+      "category",
+      "date",
+    ];
+    const requisitionUpdates = allowedUpdateFields.reduce((acc, field) => {
+      if (updates[field] !== undefined) {
+        acc[field] = updates[field];
+      }
+      return acc;
+    }, {});
+
+    if (Object.keys(requisitionUpdates).length) {
+      await requisition.update(requisitionUpdates, { transaction });
+    }
+
+    const approvedNote = buildApprovedRequisitionNote(requisition.note);
+
+    const pettyCash = await PettyCash.create(
+      {
+        paymentMode: requisition.paymentMode,
+        bankName: requisition.bankName,
+        paymentStatus: "CashIn",
+        amount: requisition.amount,
+        note: approvedNote,
+        status: "Active",
+        remarks: requisition.remarks,
+        file: requisition.file,
+        category: requisition.category,
+        date: requisition.date,
+      },
+      { transaction },
+    );
+
+    await requisition.update(
+      {
+        status: "Approved",
+        note: approvedNote,
+        pettyCashId: pettyCash.Id,
+        approvedByUserId: actor.Id || null,
+        approvedAt: new Date(),
+      },
+      { transaction },
+    );
+
+    return requisition;
+  });
+};
+
 const PettyCashService = {
   getAllFromDB,
   insertIntoDB,
@@ -192,6 +295,7 @@ const PettyCashService = {
   updateOneFromDB,
   getDataById,
   getAllFromDBWithoutQuery,
+  approveRequisition,
 };
 
 module.exports = PettyCashService;

@@ -484,7 +484,7 @@ const deleteIdFromDB = async (id) => {
 //         Notification.create({
 //           userId: u.Id,
 //           message,
-//           url: `/holygift.digitalever.com.bd/intransit-product`,
+//           url: `/shifa.digitalever.com.bd/intransit-product`,
 //         }),
 //       ),
 //     );

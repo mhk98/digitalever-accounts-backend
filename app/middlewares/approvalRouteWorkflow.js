@@ -14,6 +14,8 @@ const {
 
 const Notification = db.notification;
 const User = db.user;
+const PENDING_UPDATE_NOTE = "[Approval pending for update]";
+const UPDATE_APPROVED_NOTE = "[Update request approved]";
 
 const readDeleteNote = (req) =>
   req.body?.note ||
@@ -22,6 +24,24 @@ const readDeleteNote = (req) =>
   req.headers["x-approval-note"];
 
 const hasAttribute = (Model, field) => Boolean(Model?.rawAttributes?.[field]);
+
+const stripWorkflowNote = (value) =>
+  String(value || "")
+    .replace(/\[Approval pending for update\]/g, "")
+    .replace(/\[Update request approved\]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^(undefined|null)$/i, "");
+
+const buildPendingUpdateNote = (value) => {
+  const note = stripWorkflowNote(value);
+  return note ? `${note} ${PENDING_UPDATE_NOTE}` : PENDING_UPDATE_NOTE;
+};
+
+const buildApprovedUpdateNote = (value) => {
+  const note = stripWorkflowNote(value);
+  return note ? `${note} ${UPDATE_APPROVED_NOTE}` : UPDATE_APPROVED_NOTE;
+};
 
 const notifyApprovedPettyCash = async (req) => {
   const users = await User.findAll({
@@ -39,7 +59,7 @@ const notifyApprovedPettyCash = async (req) => {
       Notification.create({
         userId: user.Id,
         message: "Petty cash requisition request approved",
-        url: `/holygift.digitalever.com.bd/petty-cash`,
+        url: `/shifa.digitalever.com.bd/petty-cash`,
       }),
     ),
   );
@@ -61,7 +81,7 @@ const notifyApprovedAssetsRequisition = async (req) => {
       Notification.create({
         userId: user.Id,
         message: "Assets requisition request approved",
-        url: `/holygift.digitalever.com.bd/assets-requisition`,
+        url: `/shifa.digitalever.com.bd/assets-requisition`,
       }),
     ),
   );
@@ -111,9 +131,7 @@ const applyApprovalWorkflow =
         if (hasAttribute(Model, "approvalNote")) {
           // keep
         } else if (hasAttribute(Model, "note")) {
-          nextBody.note =
-            (req.body?.note ? `${req.body.note} ` : "") +
-            "[Approval pending for update]";
+          nextBody.note = buildPendingUpdateNote(req.body?.note);
           delete nextBody.approvalNote;
         } else {
           delete nextBody.approvalNote;
@@ -228,6 +246,8 @@ const approvePendingWorkflow =
       }
       if (hasAttribute(Model, "approvalNote")) {
         approvalPayload.approvalNote = null;
+      } else if (hasAttribute(Model, "note")) {
+        approvalPayload.note = buildApprovedUpdateNote(existing.note);
       }
       if (hasAttribute(Model, "requestedByUserId")) {
         approvalPayload.requestedByUserId = null;

@@ -9,10 +9,11 @@ const { DataTypes, Op } = require("sequelize");
 // Define models
 // =====================
 db.user = require("../app/modules/user/user.model")(db.sequelize, DataTypes);
-db.rolePermission = require("../app/modules/rolePermission/rolePermission.model")(
-  db.sequelize,
-  DataTypes,
-);
+db.rolePermission =
+  require("../app/modules/rolePermission/rolePermission.model")(
+    db.sequelize,
+    DataTypes,
+  );
 db.userLogHistory =
   require("../app/modules/userLogHistory/userLogHistory.model")(
     db.sequelize,
@@ -56,6 +57,11 @@ db.inventoryMaster =
 
 db.inTransitProduct =
   require("../app/modules/inTransitProduct/inTransitProduct.model")(
+    db.sequelize,
+    DataTypes,
+  );
+db.inTransitStock =
+  require("../app/modules/inTransitStock/inTransitStock.model")(
     db.sequelize,
     DataTypes,
   );
@@ -110,6 +116,8 @@ db.damageRepaired =
 
 db.meta = require("../app/modules/meta/meta.model")(db.sequelize, DataTypes);
 
+db.asset = require("../app/modules/asset/asset.model")(db.sequelize, DataTypes);
+
 db.assetsPurchase =
   require("../app/modules/assetsPurchase/assetsPurchase.model")(
     db.sequelize,
@@ -140,6 +148,11 @@ db.pettyCash = require("../app/modules/pettyCash/pettyCash.model")(
   db.sequelize,
   DataTypes,
 );
+db.pettyCashRequisition =
+  require("../app/modules/pettyCash/pettyCashRequisition.model")(
+    db.sequelize,
+    DataTypes,
+  );
 db.ledger = require("../app/modules/ledger/ledger.model")(
   db.sequelize,
   DataTypes,
@@ -216,10 +229,11 @@ db.employeeList = require("../app/modules/employeeList/employeeList.model")(
   db.sequelize,
   DataTypes,
 );
-db.dailyWorkReport = require("../app/modules/dailyWorkReport/dailyWorkReport.model")(
-  db.sequelize,
-  DataTypes,
-);
+db.dailyWorkReport =
+  require("../app/modules/dailyWorkReport/dailyWorkReport.model")(
+    db.sequelize,
+    DataTypes,
+  );
 
 db.department = require("../app/modules/department/department.model")(
   db.sequelize,
@@ -398,6 +412,9 @@ db.returnProduct.belongsTo(db.inventoryMaster, { foreignKey: "productId" });
 db.inventoryMaster.hasMany(db.inTransitProduct, { foreignKey: "productId" });
 db.inTransitProduct.belongsTo(db.inventoryMaster, { foreignKey: "productId" });
 
+db.product.hasMany(db.inTransitStock, { foreignKey: "productId" });
+db.inTransitStock.belongsTo(db.product, { foreignKey: "productId" });
+
 db.inventoryMaster.hasMany(db.damageProduct, { foreignKey: "productId" });
 db.damageProduct.belongsTo(db.inventoryMaster, { foreignKey: "productId" });
 
@@ -444,7 +461,10 @@ db.cashInOut.belongsTo(db.book, { foreignKey: "bookId" });
 db.supplier.hasMany(db.ledger, { foreignKey: "supplierId" });
 db.ledger.belongsTo(db.supplier, { foreignKey: "supplierId", as: "supplier" });
 
-db.user.hasOne(db.employeeList, { foreignKey: "userId", as: "employeeProfile" });
+db.user.hasOne(db.employeeList, {
+  foreignKey: "userId",
+  as: "employeeProfile",
+});
 db.employeeList.belongsTo(db.user, {
   foreignKey: "userId",
   as: "user",
@@ -719,6 +739,12 @@ db.purchaseRequisition.belongsTo(db.supplier, {
   as: "supplier",
 });
 
+db.asset.hasMany(db.purchaseRequisition, { foreignKey: "assetId" });
+db.purchaseRequisition.belongsTo(db.asset, {
+  foreignKey: "assetId",
+  as: "asset",
+});
+
 // ---- ReceivedProduct
 db.warehouse.hasMany(db.receivedProduct, { foreignKey: "warehouseId" });
 db.receivedProduct.belongsTo(db.warehouse, {
@@ -830,6 +856,18 @@ db.assetsStock.hasMany(db.assetsPurchase, { foreignKey: "productId" });
 db.assetsPurchase.belongsTo(db.assetsStock, {
   foreignKey: "productId",
   as: "assetStock",
+});
+
+db.asset.hasMany(db.assetsPurchase, { foreignKey: "assetId" });
+db.assetsPurchase.belongsTo(db.asset, {
+  foreignKey: "assetId",
+  as: "asset",
+});
+
+db.asset.hasMany(db.assetsRequisition, { foreignKey: "assetId" });
+db.assetsRequisition.belongsTo(db.asset, {
+  foreignKey: "assetId",
+  as: "asset",
 });
 
 db.assetsStock.hasMany(db.assetsSale, { foreignKey: "productId" });
@@ -1059,6 +1097,26 @@ const ensureAssetMovementColumns = async (modelKey) => {
       allowNull: true,
     });
   }
+
+  if (!tableDefinition.assetId) {
+    await queryInterface.addColumn(tableName, "assetId", {
+      type: DataTypes.INTEGER(10),
+      allowNull: true,
+    });
+  }
+};
+
+const ensureAssetIdColumn = async (modelKey) => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db[modelKey].getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!tableDefinition.assetId) {
+    await queryInterface.addColumn(tableName, "assetId", {
+      type: DataTypes.INTEGER(10),
+      allowNull: true,
+    });
+  }
 };
 
 const ensureAssetsStockColumns = async () => {
@@ -1071,6 +1129,26 @@ const ensureAssetsStockColumns = async () => {
       type: DataTypes.INTEGER(10),
       allowNull: false,
       defaultValue: 0,
+    });
+  }
+};
+
+const ensurePurchaseRequisitionAssetColumns = async () => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db.purchaseRequisition.getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!tableDefinition.productId) {
+    await queryInterface.addColumn(tableName, "productId", {
+      type: DataTypes.INTEGER(10),
+      allowNull: true,
+    });
+  }
+
+  if (!tableDefinition.assetId) {
+    await queryInterface.addColumn(tableName, "assetId", {
+      type: DataTypes.INTEGER(10),
+      allowNull: true,
     });
   }
 };
@@ -1138,7 +1216,10 @@ const ensureDamageStockPriceColumns = async (modelKey) => {
 };
 
 const syncAssetsStockSeedData = async () => {
-  const { ensureSeedAssetsStocks, rebuildAssetsStockBalances } = require("../app/modules/assetsStock/assetsStockSync");
+  const {
+    ensureSeedAssetsStocks,
+    rebuildAssetsStockBalances,
+  } = require("../app/modules/assetsStock/assetsStockSync");
 
   await db.sequelize.transaction(async (transaction) => {
     await ensureSeedAssetsStocks(transaction);
@@ -1165,7 +1246,10 @@ const syncDamageStockPriceData = async () => {
       continue;
     }
 
-    if (Number(stock.purchase_price || 0) > 0 || Number(stock.sale_price || 0) > 0) {
+    if (
+      Number(stock.purchase_price || 0) > 0 ||
+      Number(stock.sale_price || 0) > 0
+    ) {
       continue;
     }
 
@@ -1180,7 +1264,10 @@ const syncDamageStockPriceData = async () => {
 
     const latestMovement = await DamageProduct.findOne({
       where: { productId: { [Op.in]: inventoryIds } },
-      order: [["createdAt", "DESC"], ["Id", "DESC"]],
+      order: [
+        ["createdAt", "DESC"],
+        ["Id", "DESC"],
+      ],
       raw: true,
     });
 
@@ -1205,7 +1292,10 @@ const syncDamageStockPriceData = async () => {
       continue;
     }
 
-    if (Number(stock.purchase_price || 0) > 0 || Number(stock.sale_price || 0) > 0) {
+    if (
+      Number(stock.purchase_price || 0) > 0 ||
+      Number(stock.sale_price || 0) > 0
+    ) {
       continue;
     }
 
@@ -1220,7 +1310,10 @@ const syncDamageStockPriceData = async () => {
 
     const latestMovement = await DamageRepair.findOne({
       where: { productId: { [Op.in]: damageStockIds } },
-      order: [["createdAt", "DESC"], ["Id", "DESC"]],
+      order: [
+        ["createdAt", "DESC"],
+        ["Id", "DESC"],
+      ],
       raw: true,
     });
 
@@ -1239,6 +1332,61 @@ const syncDamageStockPriceData = async () => {
   }
 };
 
+const ensureInTransitStockSeedData = async () => {
+  const InTransitStock = db.inTransitStock;
+  const InTransitProduct = db.inTransitProduct;
+  const InventoryMaster = db.inventoryMaster;
+  const mergeVariants = require("../shared/mergeVariants");
+
+  const existingCount = await InTransitStock.count();
+  if (existingCount > 0) return;
+
+  const movements = await InTransitProduct.findAll({
+    where: { deletedAt: { [Op.is]: null } },
+    order: [
+      ["createdAt", "ASC"],
+      ["Id", "ASC"],
+    ],
+  });
+
+  for (const movement of movements) {
+    const inventory = await InventoryMaster.findOne({
+      attributes: ["Id", "name", "productId"],
+      where: { Id: movement.productId },
+    });
+
+    const productId = Number(inventory?.productId);
+    if (!productId) continue;
+
+    const existingStock = await InTransitStock.findOne({
+      where: { productId },
+    });
+
+    const qty = Number(movement.quantity || 0);
+    const purchasePrice = Number(movement.purchase_price || 0);
+    const salePrice = Number(movement.sale_price || 0);
+
+    if (existingStock) {
+      await existingStock.update({
+        quantity: Number(existingStock.quantity || 0) + qty,
+        variants: mergeVariants(existingStock.variants, movement.variants),
+        purchase_price:
+          Number(existingStock.purchase_price || 0) + purchasePrice,
+        sale_price: Number(existingStock.sale_price || 0) + salePrice,
+      });
+    } else {
+      await InTransitStock.create({
+        productId,
+        name: movement.name || inventory.name,
+        quantity: qty,
+        variants: movement.variants || [],
+        purchase_price: purchasePrice,
+        sale_price: salePrice,
+      });
+    }
+  }
+};
+
 db.sequelize
   .sync({ force: false })
   .then(async () => {
@@ -1253,28 +1401,26 @@ db.sequelize
     await ensureApprovalColumns("shift");
     await ensureApprovalColumns("holiday");
     await Promise.all(
-      [
-        "item",
-        "product",
-        "supplier",
-        "warehouse",
-        "profitLoss",
-        "salary",
-      ].map((modelKey) => ensureStatusAndNoteColumns(modelKey)),
+      ["item", "product", "supplier", "warehouse", "profitLoss", "salary"].map(
+        (modelKey) => ensureStatusAndNoteColumns(modelKey),
+      ),
     );
     await Promise.all(
       ["assetsPurchase", "assetsSale", "assetsDamage"].map((modelKey) =>
         ensureAssetMovementColumns(modelKey),
       ),
     );
+    await ensureAssetIdColumn("assetsRequisition");
+    await ensurePurchaseRequisitionAssetColumns();
     await ensureAssetsStockColumns();
     await Promise.all(
-      ["damageStock", "damageReparingStock"].map((modelKey) =>
+      ["damageStock", "damageReparingStock", "inTransitStock"].map((modelKey) =>
         ensureDamageStockPriceColumns(modelKey),
       ),
     );
     await syncAssetsStockSeedData();
     await syncDamageStockPriceData();
+    await ensureInTransitStockSeedData();
 
     const {
       DEFAULT_ROLE_MENU_PERMISSIONS,

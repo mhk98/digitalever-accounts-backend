@@ -1,6 +1,7 @@
 const express = require("express");
 const UserRoutes = require("../modules/user/user.routes");
 const ProductRoutes = require("../modules/product/product.routes");
+const AssetRoutes = require("../modules/asset/asset.routes");
 const AssetsPurchaseRoutes = require("../modules/assetsPurchase/assetsPurchase.routes");
 const AssetsStockRoutes = require("../modules/assetsStock/assetsStock.routes");
 const ReceivedProductRoutes = require("../modules/receivedProduct/receivedProduct.routes");
@@ -38,6 +39,7 @@ const MarketingExpenseRoutes = require("../modules/marketingExpense/marketingExp
 const InventoryMasterRoutes = require("../modules/inventoryMaster/inventoryMaster.routes");
 const InventoryOverviewRoutes = require("../modules/inventoryOverview/inventoryOverview.routes");
 const DamageStockRoutes = require("../modules/damageStock/damageStock.routes");
+const InTransitStockRoutes = require("../modules/inTransitStock/inTransitStock.routes");
 const SupplierHistoryRoutes = require("../modules/supplierHistory/supplierHistory.routes");
 const ManufactureRoutes = require("../modules/manufacture/manufacture.routes");
 const MixerRoutes = require("../modules/mixer/mixer.routes");
@@ -144,6 +146,10 @@ const moduleRoutes = [
     route: DamageStockRoutes,
   },
   {
+    path: "/intransit-stock",
+    route: InTransitStockRoutes,
+  },
+  {
     path: "/damage-repairing-stock",
     route: DamageReparingStockRoutes,
   },
@@ -174,6 +180,10 @@ const moduleRoutes = [
   {
     path: "/assets-requisition",
     route: AssetsRequisitionRoutes,
+  },
+  {
+    path: "/asset",
+    route: AssetRoutes,
   },
   {
     path: "/assets-purchase",

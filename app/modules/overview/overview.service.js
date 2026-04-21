@@ -7,7 +7,7 @@ const ApiError = require("../../../error/ApiError");
 const Receiveable = db.receiveable;
 const Payable = db.payable;
 const PurchaseRequisition = db.purchaseRequisition;
-const PettyCash = db.pettyCash;
+const PettyCashRequisition = db.pettyCashRequisition;
 const AssetsRequisition = db.assetsRequisition;
 const DamageStock = db.damageStock;
 const DamageReparingStock = db.damageReparingStock;
@@ -262,10 +262,9 @@ const getOverviewSummaryFromDB = async (filters) => {
       ...transactionDateWhere,
       status: "Pending",
     }),
-    countWhere(PettyCash, {
+    countWhere(PettyCashRequisition, {
       ...transactionDateWhere,
       status: "Pending",
-      paymentStatus: "CashIn",
     }),
     countWhere(AssetsRequisition, {
       ...transactionDateWhere,

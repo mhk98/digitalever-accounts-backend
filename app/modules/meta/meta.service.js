@@ -59,7 +59,7 @@ const insertIntoDB = async (data) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/holygift.digitalever.com.bd/${url}`,
+          url: `/shifa.digitalever.com.bd/${url}`,
         }),
       ),
     );
@@ -236,7 +236,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/holygift.digitalever.com.bd/`,
+        url: `/shifa.digitalever.com.bd/`,
       }),
     ),
   );

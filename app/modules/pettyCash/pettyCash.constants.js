@@ -6,6 +6,7 @@ const pettyCashFilterAbleFields = [
   "startDate",
   "endDate",
   "category",
+  "mode",
 ];
 
 const pettyCashSearchableFields = [

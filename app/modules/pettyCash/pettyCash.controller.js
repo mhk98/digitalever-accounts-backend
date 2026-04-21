@@ -1,6 +1,7 @@
 const catchAsync = require("../../../shared/catchAsync");
 const sendResponse = require("../../../shared/sendResponse");
 const pick = require("../../../shared/pick");
+const ApiError = require("../../../error/ApiError");
 const db = require("../../../models");
 const PettyCashService = require("./pettyCash.service");
 const { pettyCashFilterAbleFields } = require("./pettyCash.constants");
@@ -8,6 +9,17 @@ const { Op } = require("sequelize");
 const User = db.user;
 const Notification = db.notification;
 const PettyCash = db.pettyCash;
+const PettyCashRequisition = db.pettyCashRequisition;
+
+const isRequisitionMode = (value) =>
+  String(value || "").trim() === "requisition";
+
+const canApprovePettyCash = (role) => role === "superAdmin" || role === "admin";
+
+const removeUndefined = (payload) =>
+  Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined),
+  );
 
 const notifyPettyCashUsers = async ({ userId, roles, message, url }) => {
   if (!roles?.length || !message || !url) return;
@@ -46,6 +58,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
     status,
     category,
     userId,
+    mode,
   } = req.body;
   // const file = req.file.path.replace(/\\/g, "/");
   const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
@@ -79,23 +92,28 @@ const insertIntoDB = catchAsync(async (req, res) => {
     note: note || null,
     date: date,
     category,
+    requestedByUserId: req.user?.Id || userId || null,
   };
 
-  const result = await PettyCashService.insertIntoDB(data);
+  const shouldCreateRequisition =
+    isRequisitionMode(mode || req.query?.mode) || paymentStatus === "CashIn";
+  const result = await PettyCashService.insertIntoDB(data, {
+    mode: shouldCreateRequisition ? "requisition" : undefined,
+  });
 
-  if (finalStatus === "Pending") {
+  if (shouldCreateRequisition) {
     await notifyPettyCashUsers({
       userId,
       roles: ["superAdmin", "admin"],
       message: note || "Petty cash requisition request",
-      url: `/holygift.digitalever.com.bd/petty-cash-requisition`,
+      url: `/shifa.digitalever.com.bd/petty-cash-requisition`,
     });
   } else if (finalStatus === "Approved") {
     await notifyPettyCashUsers({
       userId,
       roles: ["accountant"],
       message: "Petty cash requisition request approved",
-      url: `/holygift.digitalever.com.bd/petty-cash`,
+      url: `/shifa.digitalever.com.bd/petty-cash`,
     });
   }
 
@@ -145,7 +163,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     category,
     remarks,
     userId,
-    actorRole,
+    mode,
   } = req.body;
   // const file = req.file.path.replace(/\\/g, "/");
   const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
@@ -154,12 +172,16 @@ const updateOneFromDB = catchAsync(async (req, res) => {
   const inputDateStr = String(date || "").slice(0, 10);
 
   // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
-  const existing = await PettyCash.findOne({
+  const shouldUpdateRequisition = isRequisitionMode(mode || req.query?.mode);
+  const Model = shouldUpdateRequisition ? PettyCashRequisition : PettyCash;
+  const existing = await Model.findOne({
     where: { Id: id },
     attributes: ["Id", "note", "status"],
   });
 
-  if (!existing) return 0;
+  if (!existing) {
+    throw new ApiError(404, "Petty cash record not found");
+  }
 
   const oldNote = String(existing.note || "").trim();
   const newNote = String(note || "").trim();
@@ -175,10 +197,17 @@ const updateOneFromDB = catchAsync(async (req, res) => {
 
   let finalStatus = existing.status || "Pending";
 
-  const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
+  const isPrivileged = canApprovePettyCash(req.user?.role);
 
-  if (isPrivileged) {
-    // ✅ superAdmin/admin: যা পাঠাবে সেটাই
+  if (!shouldUpdateRequisition) {
+    finalStatus =
+      isPrivileged && inputStatus
+        ? inputStatus
+        : ["Pending", "Pending Delete"].includes(finalStatus)
+          ? "Active"
+          : finalStatus || "Active";
+  } else if (isPrivileged) {
+    // ✅ superAdmin/admin requisition status change করতে পারবে
     finalStatus = inputStatus || finalStatus;
   } else {
     // ✅ others: today date না হলে বা new note হলে Pending override
@@ -190,34 +219,40 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     }
   }
 
-  const data = {
+  const data = removeUndefined({
     name,
     paymentMode,
     bankName,
     paymentStatus,
     amount,
-    note: newNote || null,
+    note: note !== undefined ? newNote || null : undefined,
     status: finalStatus,
     date: inputDateStr || undefined,
     remarks,
     category,
     file,
-  };
-  const result = await PettyCashService.updateOneFromDB(id, data);
+  });
+
+  const result =
+    shouldUpdateRequisition && isPrivileged && finalStatus === "Approved"
+      ? await PettyCashService.approveRequisition(id, req.user, data)
+      : await PettyCashService.updateOneFromDB(id, data, {
+          mode: shouldUpdateRequisition ? "requisition" : undefined,
+        });
 
   if (finalStatus === "Pending") {
     await notifyPettyCashUsers({
       userId,
       roles: ["superAdmin", "admin"],
       message: newNote || "Petty cash requisition request",
-      url: `/holygift.digitalever.com.bd/petty-cash-requisition`,
+      url: `/shifa.digitalever.com.bd/petty-cash-requisition`,
     });
   } else if (finalStatus === "Approved") {
     await notifyPettyCashUsers({
       userId,
       roles: ["accountant"],
       message: "Petty cash requisition request approved",
-      url: `/holygift.digitalever.com.bd/petty-cash`,
+      url: `/shifa.digitalever.com.bd/petty-cash`,
     });
   }
 
@@ -230,11 +265,34 @@ const updateOneFromDB = catchAsync(async (req, res) => {
 });
 
 const deleteIdFromDB = catchAsync(async (req, res) => {
-  const result = await PettyCashService.deleteIdFromDB(req.params.id);
+  const result = await PettyCashService.deleteIdFromDB(req.params.id, {
+    mode: req.query?.mode,
+  });
   sendResponse(res, {
     statusCode: 200,
     success: true,
     message: "PettyCash delete successfully!!",
+    data: result,
+  });
+});
+
+const approveRequisition = catchAsync(async (req, res) => {
+  const result = await PettyCashService.approveRequisition(
+    req.params.id,
+    req.user,
+  );
+
+  await notifyPettyCashUsers({
+    userId: req.user?.Id,
+    roles: ["accountant"],
+    message: "Petty cash requisition request approved",
+    url: `/shifa.digitalever.com.bd/petty-cash`,
+  });
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Petty cash requisition approved successfully",
     data: result,
   });
 });
@@ -256,6 +314,7 @@ const PettyCashController = {
   updateOneFromDB,
   deleteIdFromDB,
   getAllFromDBWithoutQuery,
+  approveRequisition,
 };
 
 module.exports = PettyCashController;

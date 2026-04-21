@@ -7,14 +7,82 @@ const {
 } = require("./assetsPurchase.constants");
 const AssetsPurchase = db.assetsPurchase;
 const AssetsStock = db.assetsStock;
+const Asset = db.asset;
 const Notification = db.notification;
 const User = db.user;
 const {
   rebuildAssetsStockBalances,
 } = require("../assetsStock/assetsStockSync");
 
+const normalizeOptionalText = (value) => {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  if (!text || ["undefined", "null"].includes(text.toLowerCase())) return null;
+  return text;
+};
+
+const normalizeOptionalId = (value) => {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return null;
+  }
+  const id = Number(value);
+  return Number.isNaN(id) ? null : id;
+};
+
+const ensureStockForAsset = async (asset, transaction) => {
+  const [stock] = await AssetsStock.findOrCreate({
+    where: { name: asset.name },
+    defaults: { name: asset.name, quantity: 0, price: 0 },
+    transaction,
+  });
+
+  return stock;
+};
+
+const resolveAssetStock = async (
+  payload = {},
+  existing = null,
+  transaction,
+) => {
+  const productId = normalizeOptionalId(payload.productId);
+  const assetId = normalizeOptionalId(payload.assetId);
+  const assetName = normalizeOptionalText(
+    payload.assetName || payload.newAssetName,
+  );
+
+  if (assetId) {
+    const asset = await Asset.findOne({ where: { Id: assetId }, transaction });
+    if (!asset) throw new ApiError(404, "Asset not found");
+    const stock = await ensureStockForAsset(asset, transaction);
+    return { stock, assetId: asset.Id };
+  }
+
+  if (assetName) {
+    const [asset] = await Asset.findOrCreate({
+      where: { name: assetName },
+      defaults: { name: assetName },
+      transaction,
+    });
+    const stock = await ensureStockForAsset(asset, transaction);
+    return { stock, assetId: asset.Id };
+  }
+
+  const fallbackProductId = productId || existing?.productId;
+  if (fallbackProductId) {
+    const stock = await AssetsStock.findOne({
+      where: { Id: fallbackProductId },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    if (!stock) throw new ApiError(404, "Assets stock product not found");
+    return { stock, assetId: existing?.assetId || null };
+  }
+
+  throw new ApiError(400, "Asset is required");
+};
+
 const insertIntoDB = async (payload) => {
-  const { productId, quantity, price, date, note, status } = payload;
+  const { quantity, price, date, note, status } = payload;
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
 
@@ -31,19 +99,12 @@ const insertIntoDB = async (payload) => {
         : "Active";
 
   return db.sequelize.transaction(async (t) => {
-    const stock = await AssetsStock.findOne({
-      where: { Id: productId },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
-
-    if (!stock) {
-      throw new ApiError(404, "Assets stock product not found");
-    }
+    const { stock, assetId } = await resolveAssetStock(payload, null, t);
 
     const data = {
       name: stock.name,
       productId: stock.Id,
+      assetId,
       quantity: Number(quantity),
       price: Number(price),
       date,
@@ -222,7 +283,7 @@ const deleteIdFromDB = async (id) => {
 //         {
 //           userId: u.Id,
 //           message,
-//           url: `/holygift.digitalever.com.bd/assets-purchase`,
+//           url: `/shifa.digitalever.com.bd/assets-purchase`,
 //         },
 //         {
 //           transaction: t,
@@ -235,8 +296,7 @@ const deleteIdFromDB = async (id) => {
 // };
 
 const updateOneFromDB = async (id, payload) => {
-  const { productId, quantity, price, note, date, status, userId, actorRole } =
-    payload;
+  const { quantity, price, note, date, status, userId, actorRole } = payload;
 
   const q = quantity === "" || quantity == null ? undefined : Number(quantity);
   const p = price === "" || price == null ? undefined : Number(price);
@@ -247,7 +307,7 @@ const updateOneFromDB = async (id, payload) => {
   // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
   const existing = await AssetsPurchase.findOne({
     where: { Id: id },
-    attributes: ["Id", "note", "status", "productId"],
+    attributes: ["Id", "note", "status", "productId", "assetId"],
   });
 
   if (!existing) return 0;
@@ -283,24 +343,12 @@ const updateOneFromDB = async (id, payload) => {
 
   // ---------- update payload ----------
   const updatedCount = await db.sequelize.transaction(async (t) => {
-    const selectedProductId =
-      productId === "" || productId == null
-        ? existing.productId
-        : Number(productId);
-
-    const stock = await AssetsStock.findOne({
-      where: { Id: selectedProductId },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
-
-    if (!stock) {
-      throw new ApiError(404, "Assets stock product not found");
-    }
+    const { stock, assetId } = await resolveAssetStock(payload, existing, t);
 
     const data = {
       name: stock.name,
       productId: stock.Id,
+      assetId,
       quantity: q,
       price: p,
       note: newNote || null,
@@ -343,7 +391,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/holygift.digitalever.com.bd/assets-purchase`,
+        url: `/shifa.digitalever.com.bd/assets-purchase`,
       }),
     ),
   );

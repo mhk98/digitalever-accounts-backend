@@ -33,8 +33,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
       },
       amount: {
-        type: DataTypes.FLOAT,
+        type: DataTypes.DECIMAL(15, 2),
         allowNull: false,
+        validate: {
+          notEmpty: true,
+        },
       },
       date: {
         type: DataTypes.DATEONLY,

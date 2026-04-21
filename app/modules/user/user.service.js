@@ -12,13 +12,6 @@ const welcomeCredentialsTemplate = require("../../utils/emailTemplates/welcomeCr
 const RolePermissionService = require("../rolePermission/rolePermission.service");
 const { ENUM_USER_ROLE } = require("../../enums/user");
 const DEFAULT_REGISTER_PASSWORD = "123456";
-const REQUIRED_DOCUMENT_FIELDS = [
-  "image",
-  "idCard",
-  "cv",
-  "guardianPhoto",
-  "guardianIdCard",
-];
 
 const sanitizeUser = (user) => {
   if (!user) return null;
@@ -26,25 +19,6 @@ const sanitizeUser = (user) => {
   const plainUser = typeof user.get === "function" ? user.get({ plain: true }) : user;
   delete plainUser.Password;
   return plainUser;
-};
-
-const validateRequiredDocuments = (payload = {}, existingUser = null) => {
-  const missingFields = REQUIRED_DOCUMENT_FIELDS.filter((field) => {
-    const nextValue = payload[field];
-    if (typeof nextValue === "string" && nextValue.trim()) {
-      return false;
-    }
-
-    const existingValue = existingUser?.[field];
-    return !(typeof existingValue === "string" && existingValue.trim());
-  });
-
-  if (missingFields.length) {
-    throw new ApiError(
-      400,
-      `Required document(s) missing: ${missingFields.join(", ")}`,
-    );
-  }
 };
 
 const login = async (buyerData) => {
@@ -124,7 +98,6 @@ const register = async (userData) => {
 
   const isUserExist = await User.findOne({ where: { Email } });
   if (isUserExist) throw new ApiError(409, "User already exist");
-  validateRequiredDocuments(userData);
 
   // ✅ user create
   const result = await User.create({

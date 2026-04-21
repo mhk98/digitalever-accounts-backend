@@ -9,11 +9,99 @@ const parseVariants = require("../../../shared/parseVariants");
 
 const PurchaseRequisition = db.purchaseRequisition;
 const Product = db.product;
+const Asset = db.asset;
 const Notification = db.notification;
 const User = db.user;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
 const CashInOut = db.cashInOut;
+
+const normalizeOptionalText = (value) => {
+  if (value === undefined || value === null) return null;
+
+  const text = String(value).trim();
+  if (!text || ["undefined", "null"].includes(text.toLowerCase())) {
+    return null;
+  }
+
+  return text;
+};
+
+const normalizeOptionalId = (value) => {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return null;
+  }
+
+  const id = Number(value);
+  return Number.isNaN(id) ? null : id;
+};
+
+const resolveRequisitionItem = async (
+  { productId, assetId, assetName, existing = null },
+  options = {},
+) => {
+  const normalizedProductId = normalizeOptionalId(productId);
+  const normalizedAssetId = normalizeOptionalId(assetId);
+  const normalizedAssetName = normalizeOptionalText(assetName);
+
+  if (normalizedProductId) {
+    const productData = await Product.findOne({
+      where: { Id: normalizedProductId },
+      transaction: options.transaction,
+    });
+
+    if (!productData) {
+      throw new ApiError(404, "Product not found");
+    }
+
+    return {
+      name: productData.name,
+      productId: normalizedProductId,
+      assetId: null,
+    };
+  }
+
+  if (normalizedAssetId) {
+    const assetData = await Asset.findOne({
+      where: { Id: normalizedAssetId },
+      transaction: options.transaction,
+    });
+
+    if (!assetData) {
+      throw new ApiError(404, "Asset not found");
+    }
+
+    return {
+      name: assetData.name,
+      productId: null,
+      assetId: normalizedAssetId,
+    };
+  }
+
+  if (normalizedAssetName) {
+    const [assetData] = await Asset.findOrCreate({
+      where: { name: normalizedAssetName },
+      defaults: { name: normalizedAssetName },
+      transaction: options.transaction,
+    });
+
+    return {
+      name: assetData.name,
+      productId: null,
+      assetId: assetData.Id,
+    };
+  }
+
+  if (existing) {
+    return {
+      name: existing.name,
+      productId: existing.productId || null,
+      assetId: existing.assetId || null,
+    };
+  }
+
+  throw new ApiError(400, "Product or asset is required");
+};
 
 const insertIntoDB = async (data) => {
   const {
@@ -21,6 +109,10 @@ const insertIntoDB = async (data) => {
     amount,
     variants,
     productId,
+    assetId,
+    assetName,
+    newAssetName,
+    name,
     userId,
     bookId,
     note,
@@ -32,14 +124,6 @@ const insertIntoDB = async (data) => {
   } = data;
 
   const incomingVariants = parseVariants(variants);
-
-  const productData = await Product.findOne({
-    where: { Id: productId },
-  });
-
-  if (!productData) {
-    throw new ApiError(404, "Product not found");
-  }
 
   // const todayStr = new Date().toISOString().slice(0, 10);
   // const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
@@ -60,8 +144,17 @@ const insertIntoDB = async (data) => {
   //         : "Active";
 
   return db.sequelize.transaction(async (t) => {
+    const item = await resolveRequisitionItem(
+      {
+        productId,
+        assetId,
+        assetName: assetName || newAssetName || name,
+      },
+      { transaction: t },
+    );
+
     const payload = {
-      name: productData.name,
+      name: item.name,
       procurement: procurement || null,
       quantity: Number(quantity),
       amount: Number(amount || 0),
@@ -72,7 +165,8 @@ const insertIntoDB = async (data) => {
       variants: incomingVariants,
       supplierId,
       warehouseId,
-      productId,
+      productId: item.productId,
+      assetId: item.assetId,
     };
 
     const result = await PurchaseRequisition.create(payload, {
@@ -100,7 +194,7 @@ const insertIntoDB = async (data) => {
             {
               userId: u.Id,
               message,
-              url: `/holygift.digitalever.com.bd/purchase-requisition`,
+              url: `/shifa.digitalever.com.bd/purchase-requisition`,
             },
             { transaction: t },
           ),
@@ -175,6 +269,11 @@ const getAllFromDB = async (filters, options) => {
         as: "warehouse",
         attributes: ["Id", "name"],
       },
+      {
+        model: Asset,
+        as: "asset",
+        attributes: ["Id", "name"],
+      },
     ],
     paranoid: true,
     order:
@@ -205,6 +304,23 @@ const getDataById = async (id) => {
     where: {
       Id: id,
     },
+    include: [
+      {
+        model: Supplier,
+        as: "supplier",
+        attributes: ["Id", "name"],
+      },
+      {
+        model: Warehouse,
+        as: "warehouse",
+        attributes: ["Id", "name"],
+      },
+      {
+        model: Asset,
+        as: "asset",
+        attributes: ["Id", "name"],
+      },
+    ],
   });
 
   return result;
@@ -224,6 +340,10 @@ const updateOneFromDB = async (id, payload) => {
   const {
     quantity,
     productId,
+    assetId,
+    assetName,
+    newAssetName,
+    name,
     variants,
     note,
     date,
@@ -238,23 +358,13 @@ const updateOneFromDB = async (id, payload) => {
 
   const incomingVariants = parseVariants(variants);
 
-  const productData = await Product.findOne({
-    where: {
-      Id: productId,
-    },
-  });
-
-  if (!productData) {
-    throw new ApiError(404, "Product not found");
-  }
-
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10);
 
   // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
   const existing = await PurchaseRequisition.findOne({
     where: { Id: id },
-    attributes: ["Id", "note", "status"],
+    attributes: ["Id", "note", "status", "name", "productId", "assetId"],
   });
 
   if (!existing) return 0;
@@ -289,7 +399,6 @@ const updateOneFromDB = async (id, payload) => {
   }
 
   const data = {
-    name: productData.name,
     quantity,
     amount: Number(amount || 0),
     bookId: bookId || null,
@@ -299,10 +408,23 @@ const updateOneFromDB = async (id, payload) => {
     date: inputDateStr || undefined,
     supplierId,
     warehouseId,
-    productId,
   };
 
   return db.sequelize.transaction(async (t) => {
+    const item = await resolveRequisitionItem(
+      {
+        productId,
+        assetId,
+        assetName: assetName || newAssetName || name,
+        existing,
+      },
+      { transaction: t },
+    );
+
+    data.name = item.name;
+    data.productId = item.productId;
+    data.assetId = item.assetId;
+
     if (status === "Completed") {
       // Handle completed status logic if needed
 
@@ -344,7 +466,7 @@ const updateOneFromDB = async (id, payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/holygift.digitalever.com.bd/purchase-product`,
+          url: `/shifa.digitalever.com.bd/purchase-product`,
         }),
       ),
     );
@@ -355,6 +477,13 @@ const updateOneFromDB = async (id, payload) => {
 
 const getAllFromDBWithoutQuery = async () => {
   const result = await PurchaseRequisition.findAll({
+    include: [
+      {
+        model: Asset,
+        as: "asset",
+        attributes: ["Id", "name"],
+      },
+    ],
     paranoid: true,
     order: [["createdAt", "DESC"]],
   });

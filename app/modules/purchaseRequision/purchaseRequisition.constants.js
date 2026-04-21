@@ -3,6 +3,8 @@ const PurchaseRequisitionFilterAbleFileds = [
   "startDate",
   "endDate",
   "name",
+  "assetId",
+  "productId",
 ];
 
 const PurchaseRequisitionSearchableFields = ["searchTerm"];

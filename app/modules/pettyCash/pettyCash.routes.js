@@ -1,51 +1,50 @@
 const { ENUM_USER_ROLE } = require("../../enums/user");
 const auth = require("../../middlewares/auth");
-const { requireMenuPermission } = require("../../middlewares/requireMenuPermission");
-const { uploadFile } = require("../../middlewares/upload");
 const {
-  applyApprovalWorkflow,
-  approvePendingWorkflow,
-} = require("../../middlewares/approvalRouteWorkflow");
+  requireAnyPermission,
+} = require("../../middlewares/requireMenuPermission");
+const { uploadFile } = require("../../middlewares/upload");
 
 const PettyCashController = require("./pettyCash.controller");
 const router = require("express").Router();
+const pettyCashAccess = requireAnyPermission([
+  "petty_cash",
+  "petty_cash_requisition",
+]);
 
 router.post(
   "/create",
   uploadFile,
   auth(),
-  requireMenuPermission("petty_cash"),
-  applyApprovalWorkflow({ modelKey: "pettyCash", entityLabel: "Petty Cash" }),
+  pettyCashAccess,
   PettyCashController.insertIntoDB,
 );
-router.get("/", auth(), requireMenuPermission("petty_cash"), PettyCashController.getAllFromDB);
+router.get("/", auth(), pettyCashAccess, PettyCashController.getAllFromDB);
 router.get(
   "/all",
   auth(),
-  requireMenuPermission("petty_cash"),
+  pettyCashAccess,
   PettyCashController.getAllFromDBWithoutQuery,
 );
 // router.get("/:id", PettyCashController.getDataById);
 router.delete(
   "/:id",
   auth(),
-  requireMenuPermission("petty_cash"),
-  applyApprovalWorkflow({ modelKey: "pettyCash", entityLabel: "Petty Cash" }),
+  pettyCashAccess,
   PettyCashController.deleteIdFromDB,
 );
 router.put(
   "/:id",
   uploadFile,
   auth(),
-  requireMenuPermission("petty_cash"),
-  applyApprovalWorkflow({ modelKey: "pettyCash", entityLabel: "Petty Cash" }),
+  pettyCashAccess,
   PettyCashController.updateOneFromDB,
 );
 router.post(
   "/:id/approve",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
-  requireMenuPermission("petty_cash"),
-  approvePendingWorkflow({ modelKey: "pettyCash", entityLabel: "Petty Cash" }),
+  pettyCashAccess,
+  PettyCashController.approveRequisition,
 );
 const PettyCashRoutes = router;
 module.exports = PettyCashRoutes;
