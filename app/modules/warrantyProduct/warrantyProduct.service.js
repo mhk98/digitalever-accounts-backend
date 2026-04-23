@@ -47,7 +47,7 @@ const insertIntoDB = async (data) => {
     supplier: productData.supplier,
     productId: receivedId,
     status: finalStatus || "---",
-    note: note || null,
+    note: finalStatus === "Approved" ? null : note || null,
     date: date,
     warrantyValue,
     warrantyUnit,
@@ -268,7 +268,7 @@ const updateOneFromDB = async (id, data) => {
     sale_price: productData.sale_price * quantity,
     supplier: productData.supplier,
     productId: receivedId,
-    note: status === "Approved" ? "---" : note,
+    note: status === "Approved" ? null : note,
     status: status ? status : "Pending",
   };
 
@@ -299,7 +299,7 @@ const updateOneFromDB = async (id, data) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/shifa.digitalever.com.bd/confirm-order`,
+        url: `/kafelamart.digitalever.com.bd/confirm-order`,
       }),
     ),
   );

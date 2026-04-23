@@ -21,6 +21,22 @@ const normalizeOptionalText = (value) => {
   return text;
 };
 
+const normalizeRole = (role) => String(role || "").trim().toLowerCase();
+
+const isPrivilegedRole = (role) => {
+  const r = normalizeRole(role);
+  return r === "admin" || r === "superadmin";
+};
+
+const getTodayYmd = () => {
+  // App users operate in BD time; using UTC via toISOString() can flip dates around midnight.
+  try {
+    return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Dhaka" });
+  } catch (e) {
+    return new Date().toISOString().slice(0, 10);
+  }
+};
+
 // const insertIntoDB = catchAsync(async (req, res) => {
 //   const {
 //     name,
@@ -91,7 +107,7 @@ const normalizeOptionalText = (value) => {
 //     amount: amountNumber,
 //     remarks: remarks || "",
 //     status: finalStatus || "---",
-//     note: note || null,
+//     note: finalStatus === "Approved" ? null : note || null,
 //     date: date,
 //     file, // null allowed
 //     category,
@@ -150,7 +166,6 @@ const insertIntoDB = catchAsync(async (req, res) => {
     lender,
     bookId,
     supplierId,
-    userId,
   } = req.body;
 
   const file = req.file?.path ? req.file.path.replace(/\\/g, "/") : null;
@@ -194,20 +209,8 @@ const insertIntoDB = catchAsync(async (req, res) => {
     throw new ApiError(400, "SupplierId must be a valid number");
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10);
-
-  const isApproved = String(status || "").trim() === "Approved";
-
   const normalizedNote = normalizeOptionalText(note);
-
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
-      ? "Pending"
-      : normalizedNote
-        ? "Pending"
-        : "Active";
+  const finalStatus = String(status || "").trim() || "Active";
 
   const data = {
     name: name || null,
@@ -227,17 +230,20 @@ const insertIntoDB = catchAsync(async (req, res) => {
     supplierId: finalSupplierId, // ✅ only CashOut হলে value যাবে, নাহলে null
   };
 
+  const actor = req.user || {};
+  const actorUserId = actor?.Id || null;
+
   const users = await User.findAll({
     attributes: ["Id", "role"],
     where: {
-      Id: { [Op.ne]: userId },
+      Id: { [Op.ne]: actorUserId },
       role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
     },
   });
 
   if (users.length) {
     const message =
-      status === "Approved"
+      finalStatus === "Approved"
         ? "Cash in/out request approved"
         : normalizedNote || "Please approved my request";
 
@@ -338,8 +344,6 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     bookId,
     lender,
     supplierId,
-    userId,
-    actorRole,
   } = req.body;
 
   // ✅ file optional safe (new file না দিলে আগেরটা থাকবে - service এ handle করা ভাল)
@@ -373,10 +377,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     throw new ApiError(400, "Amount must be greater than 0");
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10);
-
-  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
+  // ✅ আগে পুরোনো ডাটা আনো
   const existing = await CashInOut.findOne({
     where: { Id: id },
     attributes: ["Id", "note", "status"],
@@ -384,34 +385,10 @@ const updateOneFromDB = catchAsync(async (req, res) => {
 
   if (!existing) return 0;
 
-  const oldNote = normalizeOptionalText(existing.note) || "";
   const newNote = normalizeOptionalText(note);
-
-  // ✅ newNote খালি না হলে + oldNote থেকে আলাদা হলে => pending trigger
-  const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
-
-  // ✅ today না হলে pending trigger (date না পাঠালে trigger হবে না)
-  const dateTriggersPending =
-    Boolean(inputDateStr) && inputDateStr !== todayStr;
-
-  const inputStatus = String(status || "").trim();
-
-  let finalStatus = existing.status || "Pending";
-
-  const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
-
-  if (isPrivileged) {
-    // ✅ superAdmin/admin: যা পাঠাবে সেটাই
-    finalStatus = inputStatus || finalStatus;
-  } else {
-    // ✅ others: today date না হলে বা new note হলে Pending override
-    if (dateTriggersPending || noteTriggersPending) {
-      finalStatus = "Pending";
-    } else {
-      // ✅ otherwise: status পাঠালে সেটাই, না পাঠালে আগেরটা
-      finalStatus = inputStatus || finalStatus;
-    }
-  }
+  const actor = req.user || {};
+  const finalStatus =
+    String(status || "").trim() || String(existing.status || "").trim() || "Active";
 
   const data = {
     name: name ?? undefined,
@@ -420,9 +397,9 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     bankName: isBank ? bankName || "" : "", // ✅ Bank না হলে blank
     bankAccount: isBank ? bankAccountNumber : null, // ✅ Bank না হলে NULL
     remarks: remarks ?? undefined,
-    note: newNote,
+    note: finalStatus === "Approved" ? null : newNote,
     status: finalStatus,
-    date: inputDateStr || undefined,
+    date: (date && String(date).slice(0, 10)) || undefined,
     category,
     lender,
     bookId: bookId || undefined,
@@ -433,19 +410,22 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     ...(file !== undefined ? { file } : {}),
   };
 
+  // Used by service notification logic (do not trust client-sent userId).
+  data.userId = actor?.Id || null;
+
   const result = await CashInOutService.updateOneFromDB(id, data);
 
   const users = await User.findAll({
     attributes: ["Id", "role"],
     where: {
-      Id: { [Op.ne]: userId },
+      Id: { [Op.ne]: actor?.Id || null },
       role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
     },
   });
 
   if (users.length) {
     const message =
-      status === "Approved"
+      finalStatus === "Approved"
         ? "Cash book request approved"
         : newNote || "Please approved my request";
 

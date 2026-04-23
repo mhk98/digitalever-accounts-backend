@@ -60,18 +60,7 @@ const insertIntoDB = async (data, file) => {
   // ✅ parse incoming variants
   const incomingVariants = parseVariants(variants);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10);
-
-  const isApproved = String(status || "").trim() === "Approved";
-
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
-      ? "Pending"
-      : note
-        ? "Pending"
-        : "Active";
+  const finalStatus = String(status || "").trim() || "Active";
 
   return db.sequelize.transaction(async (t) => {
     // =========================
@@ -90,7 +79,7 @@ const insertIntoDB = async (data, file) => {
       weight,
       variants: incomingVariants,
       status: finalStatus || "---",
-      note: note || null,
+      note: finalStatus === "Approved" ? null : note || null,
       date,
     };
 
@@ -121,6 +110,7 @@ const insertIntoDB = async (data, file) => {
         bookId: normalizedBookId,
         paymentStatus: "Unpaid",
         amount: Number(purchase_price || 0) * Number(quantity || 0),
+        status: "Active",
         date,
         file,
       },
@@ -493,7 +483,7 @@ const updateOneFromDB = async (id, payload) => {
       sku,
       weight,
       variants: incomingVariants,
-      note: newNote || null,
+      note: finalStatus === "Approved" ? null : newNote || null,
       status: finalStatus,
       date: inputDateStr || undefined,
       file,
@@ -627,7 +617,7 @@ const updateOneFromDB = async (id, payload) => {
           {
             userId: u.Id,
             message,
-            url: `/shifa.digitalever.com.bd/purchase-product`,
+            url: `/kafelamart.digitalever.com.bd/purchase-product`,
           },
           { transaction: t },
         ),

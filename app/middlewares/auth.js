@@ -37,6 +37,18 @@ const auth =
         ...verifiedUser,
         ...plainUser,
       }; // Add current user info to request object
+
+      // Some services expect actorRole/userId in payload. Frontend might not send these.
+      // We only fill them if missing to avoid overriding intentional values.
+      if (req.body && typeof req.body === "object") {
+        if (req.body.actorRole === undefined || req.body.actorRole === null) {
+          req.body.actorRole = plainUser.role;
+        }
+        if (req.body.userId === undefined || req.body.userId === null) {
+          req.body.userId = plainUser.Id;
+        }
+      }
+
       req.menuPermissions =
         await RolePermissionService.getEffectiveMenuPermissions(plainUser.role);
 

@@ -13,6 +13,22 @@ const uniq = (items = []) => [...new Set(items)];
 
 const isValidRole = (role) => validRoles.includes(role);
 
+// Legacy permission keys used by older UI versions.
+// Backend routes currently guard with "department_designation", so we treat these as equivalent.
+const LEGACY_PERMISSION_ALIASES = {
+  department_management: "department_designation",
+  designation_management: "department_designation",
+};
+
+const expandLegacyPermissions = (permissions = []) => {
+  const expanded = new Set(permissions);
+  permissions.forEach((key) => {
+    const mapped = LEGACY_PERMISSION_ALIASES[key];
+    if (mapped) expanded.add(mapped);
+  });
+  return Array.from(expanded);
+};
+
 const sanitizePermission = (permission) => {
   if (typeof permission !== "string") {
     return permission;
@@ -56,8 +72,8 @@ const validateRole = (role) => {
 };
 
 const validateMenuPermissions = (menuPermissions) => {
-  const normalizedPermissions = normalizeMenuPermissions(menuPermissions).map(
-    sanitizePermission,
+  const normalizedPermissions = expandLegacyPermissions(
+    normalizeMenuPermissions(menuPermissions).map(sanitizePermission),
   );
 
   if (!Array.isArray(normalizedPermissions)) {
@@ -91,7 +107,9 @@ const getEffectiveMenuPermissions = async (role) => {
   });
 
   if (!record) {
-    return [];
+    // Fallback to configured defaults when no explicit role-permission record exists.
+    // This keeps the UI navigable out of the box and prevents empty permission sets.
+    return validateMenuPermissions(getDefaultPermissionsForRole(role));
   }
 
   return validateMenuPermissions(record.menuPermissions || []);
@@ -128,8 +146,14 @@ const updateRolePermissions = async (role, menuPermissions) => {
 };
 
 const hasMenuPermission = (userPermissions = [], requiredPermission) => {
+  const alias = LEGACY_PERMISSION_ALIASES[requiredPermission];
   return (
     userPermissions.includes(requiredPermission) ||
+    (alias ? userPermissions.includes(alias) : false) ||
+    // Also allow legacy keys to satisfy the canonical permission check.
+    (requiredPermission === "department_designation" &&
+      (userPermissions.includes("department_management") ||
+        userPermissions.includes("designation_management"))) ||
     userPermissions.includes("*") ||
     requiredPermission === "*"
   );

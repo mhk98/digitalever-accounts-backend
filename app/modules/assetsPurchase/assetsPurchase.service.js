@@ -83,20 +83,7 @@ const resolveAssetStock = async (
 
 const insertIntoDB = async (payload) => {
   const { quantity, price, date, note, status } = payload;
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
-
-  // ✅ Approved হলে পুরোনো date-ও allow + save
-  const isApproved = String(status || "").trim() === "Approved";
-
-  // ✅ current date না হলে auto Pending
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
-      ? "Pending"
-      : note
-        ? "Pending"
-        : "Active";
+  const finalStatus = String(status || "").trim() || "Active";
 
   return db.sequelize.transaction(async (t) => {
     const { stock, assetId } = await resolveAssetStock(payload, null, t);
@@ -110,7 +97,7 @@ const insertIntoDB = async (payload) => {
       date,
       total: Number(price) * Number(quantity),
       status: finalStatus || "---",
-      note: note || null,
+      note: finalStatus === "Approved" ? null : note || null,
     };
 
     const result = await AssetsPurchase.create(data, { transaction: t });
@@ -283,7 +270,7 @@ const deleteIdFromDB = async (id) => {
 //         {
 //           userId: u.Id,
 //           message,
-//           url: `/shifa.digitalever.com.bd/assets-purchase`,
+//           url: `/kafelamart.digitalever.com.bd/assets-purchase`,
 //         },
 //         {
 //           transaction: t,
@@ -351,7 +338,7 @@ const updateOneFromDB = async (id, payload) => {
       assetId,
       quantity: q,
       price: p,
-      note: newNote || null,
+      note: finalStatus === "Approved" ? null : newNote || null,
       status: finalStatus,
       date: inputDateStr || undefined,
       total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
@@ -391,7 +378,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/shifa.digitalever.com.bd/assets-purchase`,
+        url: `/kafelamart.digitalever.com.bd/assets-purchase`,
       }),
     ),
   );

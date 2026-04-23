@@ -19,20 +19,7 @@ const insertIntoDB = async (data) => {
     throw new ApiError(400, "Quantity must be greater than 0");
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
-
-  // ✅ Approved হলে পুরোনো date-ও allow + save
-  const isApproved = String(status || "").trim() === "Approved";
-
-  // ✅ current date না হলে auto Pending
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
-      ? "Pending"
-      : note
-        ? "Pending"
-        : "Active";
+  const finalStatus = String(status || "").trim() || "Active";
 
   return await db.sequelize.transaction(async (t) => {
     const stock = await AssetsStock.findOne({
@@ -58,7 +45,7 @@ const insertIntoDB = async (data) => {
       total: price * quantity,
       productId,
       status: finalStatus || "---",
-      note: note || null,
+      note: finalStatus === "Approved" ? null : note || null,
       date: date,
     };
 
@@ -265,7 +252,7 @@ const updateOneFromDB = async (id, data) => {
       name: stock.name,
       quantity: saleQty,
       price,
-      note: newNote || null,
+      note: finalStatus === "Approved" ? null : newNote || null,
       status: finalStatus,
       total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
       date: inputDateStr || undefined,
@@ -304,7 +291,7 @@ const updateOneFromDB = async (id, data) => {
           {
             userId: u.Id,
             message,
-            url: `/shifa.digitalever.com.bd/assets-sale`,
+            url: `/kafelamart.digitalever.com.bd/assets-sale`,
           },
           {
             transaction: t,

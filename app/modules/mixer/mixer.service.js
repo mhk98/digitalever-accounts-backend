@@ -225,7 +225,7 @@ const sanitizeMixerRecord = (record) => {
 //         name: productData.name,
 //         date,
 //         combo,
-//         note: note || null,
+//         note: finalStatus === "Approved" ? null : note || null,
 //       },
 //       { transaction: t },
 //     );
@@ -441,7 +441,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: "/shifa.digitalever.com.bd/mixer",
+        url: "/kafelamart.digitalever.com.bd/mixer",
       }),
     ),
   );

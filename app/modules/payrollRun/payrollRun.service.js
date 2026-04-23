@@ -115,7 +115,7 @@ const generatePayrollRun = async (payload = {}) => {
         title: payload.title || `Payroll ${month}`,
         status: payload.status || "Draft",
         generatedAt: new Date(),
-        note: payload.note || null,
+        note: payload.status === "Approved" ? null : payload.note || null,
       },
       { transaction: t },
     );

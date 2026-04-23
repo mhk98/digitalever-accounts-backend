@@ -19,17 +19,6 @@ const normalizeUnitPayload = (unit, unitValue) => {
   return toBaseStockPayload(unit, unitValue);
 };
 
-const resolveStatus = ({ status, date, note }) => {
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10);
-  const isApproved = String(status || "").trim() === "Approved";
-
-  if (isApproved) return "Approved";
-  if (inputDateStr && inputDateStr !== todayStr) return "Pending";
-  if (String(note || "").trim()) return "Pending";
-  return "Active";
-};
-
 const insertIntoDB = async (payload) => {
   const {
     itemId,
@@ -56,7 +45,7 @@ const insertIntoDB = async (payload) => {
 
   const calculatedUnitCost =
     totalUnitValue > 0 ? totalCost / totalUnitValue : 0;
-  const finalStatus = resolveStatus({ status, date, note });
+  const finalStatus = String(status || "").trim() || "Active";
 
   return db.sequelize.transaction(async (t) => {
     const manufactureData = {
@@ -70,7 +59,7 @@ const insertIntoDB = async (payload) => {
 
       // unitCost: calculatedUnitCost,
       date,
-      note: note || null,
+      note: finalStatus === "Approved" ? null : note || null,
       status: finalStatus,
     };
 
@@ -231,7 +220,6 @@ const updateOneFromDB = async (id, payload) => {
     status,
     supplierId,
     userId,
-    actorRole,
   } = payload;
 
   const existing = await Manufacture.findOne({
@@ -251,24 +239,9 @@ const updateOneFromDB = async (id, payload) => {
 
   if (!existing) return 0;
 
-  const oldNote = String(existing.note || "").trim();
   const newNote = String(note || "").trim();
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10);
-  const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
-  const dateTriggersPending =
-    Boolean(inputDateStr) && inputDateStr !== todayStr;
   const inputStatus = String(status || "").trim();
-  const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
-
-  let finalStatus = existing.status || "Pending";
-  if (isPrivileged) {
-    finalStatus = inputStatus || finalStatus;
-  } else if (dateTriggersPending || noteTriggersPending) {
-    finalStatus = "Pending";
-  } else {
-    finalStatus = inputStatus || finalStatus;
-  }
+  const finalStatus = inputStatus || existing.status || "Pending";
 
   const nextUnitInput = unit === "" || unit == null ? existing.unit : unit;
   const nextUnitValueInput =
@@ -295,9 +268,9 @@ const updateOneFromDB = async (id, payload) => {
     cost: nextTotalCost,
     supplierId,
     // unitCost: totalUnitValue > 0 ? nextTotalCost / totalUnitValue : undefined,
-    note: newNote || null,
+    note: finalStatus === "Approved" ? null : newNote || null,
     status: finalStatus,
-    date: inputDateStr || undefined,
+    date: String(date || "").slice(0, 10) || undefined,
   };
 
   const oldItemId = existing.itemId;
@@ -412,7 +385,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: "/shifa.digitalever.com.bd/manufacture",
+        url: "/kafelamart.digitalever.com.bd/manufacture",
       }),
     ),
   );

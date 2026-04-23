@@ -8,10 +8,6 @@ const {
 const mergeVariants = require("../../../shared/mergeVariants");
 const parseVariants = require("../../../shared/parseVariants");
 const subtractVariants = require("../../../shared/subtractVariants");
-const {
-  addInTransitStock,
-  subtractInTransitStock,
-} = require("../inTransitStock/inTransitStock.helpers");
 const InTransitProduct = db.inTransitProduct;
 const Notification = db.notification;
 const User = db.user;
@@ -71,20 +67,7 @@ const insertIntoDB = async (data) => {
     throw new ApiError(400, "Quantity must be greater than 0");
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
-
-  // ✅ Approved হলে পুরোনো date-ও allow + save
-  const isApproved = String(status || "").trim() === "Approved";
-
-  // ✅ current date না হলে auto Pending
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
-      ? "Pending"
-      : note
-        ? "Pending"
-        : "Active";
+  const finalStatus = String(status || "").trim() || "Active";
 
   return await db.sequelize.transaction(async (t) => {
     const inventory = await findInventoryByRequestReference(rid, t);
@@ -109,10 +92,6 @@ const insertIntoDB = async (data) => {
       throw new ApiError(400, "InventoryMaster.Id missing");
     }
 
-    const transitPurchasePrice =
-      Number(inventory.purchase_price || 0) * returnQty;
-    const transitSalePrice = Number(inventory.sale_price || 0) * returnQty;
-
     const result = await InTransitProduct.create(
       {
         name: inventory.name,
@@ -121,23 +100,14 @@ const insertIntoDB = async (data) => {
         quantity: returnQty,
         variants: incomingVariants,
         source: "In Transit Product",
-        purchase_price: transitPurchasePrice,
-        sale_price: transitSalePrice,
+        purchase_price: Number(inventory.purchase_price * returnQty),
+        sale_price: Number(inventory.sale_price * returnQty),
         productId: inventoryId,
         status: finalStatus || "---",
-        note: note || null,
+        note: finalStatus === "Approved" ? null : note || null,
         date: date,
       },
       { transaction: t },
-    );
-
-    await addInTransitStock(
-      inventory,
-      returnQty,
-      incomingVariants,
-      transitPurchasePrice,
-      transitSalePrice,
-      t,
     );
 
     const finalQuantity = oldQty - returnQty;
@@ -282,14 +252,7 @@ const deleteIdFromDB = async (id) => {
     // 1) Return row খুঁজে বের করো
     const ret = await InTransitProduct.findOne({
       where: { Id: id },
-      attributes: [
-        "Id",
-        "productId",
-        "quantity",
-        "variants",
-        "purchase_price",
-        "sale_price",
-      ],
+      attributes: ["Id", "productId", "quantity", "variants"],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -309,14 +272,6 @@ const deleteIdFromDB = async (id) => {
 
     const finalQuantity = Number(received.quantity || 0) + qty;
     const finalVariants = mergeVariants(received.variants, ret.variants);
-    await subtractInTransitStock(
-      received,
-      qty,
-      ret.variants,
-      ret.purchase_price,
-      ret.sale_price,
-      t,
-    );
     // 3) stock ফিরিয়ে দাও
     await InventoryMaster.update(
       {
@@ -417,7 +372,7 @@ const deleteIdFromDB = async (id) => {
 //       supplierId,
 //       warehouseId,
 //       productId: receivedId,
-//       note: newNote || null,
+//       note: finalStatus === "Approved" ? null : newNote || null,
 //       status: finalStatus,
 //       date: inputDateStr || undefined,
 //     };
@@ -515,7 +470,7 @@ const deleteIdFromDB = async (id) => {
 //           {
 //             userId: u.Id,
 //             message,
-//             url: `/shifa.digitalever.com.bd/purchase-return`,
+//             url: `/kafelamart.digitalever.com.bd/purchase-return`,
 //           },
 //           { transaction: t },
 //         ),
@@ -549,16 +504,7 @@ const updateOneFromDB = async (id, payload) => {
     // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
     const existing = await InTransitProduct.findOne({
       where: { Id: id },
-      attributes: [
-        "Id",
-        "note",
-        "status",
-        "quantity",
-        "variants",
-        "productId",
-        "purchase_price",
-        "sale_price",
-      ],
+      attributes: ["Id", "note", "status", "quantity", "variants", "productId"],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -618,15 +564,6 @@ const updateOneFromDB = async (id, payload) => {
       { transaction: t },
     );
 
-    await subtractInTransitStock(
-      oldInv,
-      qty,
-      existingVariants,
-      existing.purchase_price,
-      existing.sale_price,
-      t,
-    );
-
     let targetInv = oldInv;
     if (Number(receivedId) !== oldProductId) {
       targetInv = await findInventoryByRequestReference(Number(receivedId), t);
@@ -652,19 +589,10 @@ const updateOneFromDB = async (id, payload) => {
       supplierId,
       warehouseId,
       productId: targetInv.Id,
-      note: newNote || null,
+      note: finalStatus === "Approved" ? null : newNote || null,
       status: finalStatus,
       date: inputDateStr || undefined,
     };
-
-    await addInTransitStock(
-      targetInv,
-      nextQty,
-      incomingVariants,
-      data.purchase_price,
-      data.sale_price,
-      t,
-    );
 
     await targetInv.update(
       {
@@ -697,7 +625,7 @@ const updateOneFromDB = async (id, payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/shifa.digitalever.com.bd/purchase-product`,
+          url: `/kafelamart.digitalever.com.bd/purchase-product`,
         }),
       ),
     );

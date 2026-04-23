@@ -453,7 +453,7 @@ const updateOneFromDB = async (id, payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/shifa.digitalever.com.bd/book/${bookId}`,
+          url: `/kafelamart.digitalever.com.bd/book/${bookId}`,
         }),
       ),
     );

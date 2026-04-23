@@ -58,20 +58,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
     throw new ApiError(400, "Amount must be greater than 0");
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
-
-  // ✅ Approved হলে পুরোনো date-ও allow + save
-  const isApproved = String(status || "").trim() === "Approved";
-
-  // ✅ current date না হলে auto Pending
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
-      ? "Pending"
-      : note
-        ? "Pending"
-        : "Active";
+  const finalStatus = String(status || "").trim() || "Active";
 
   const data = {
     name: name || null,
@@ -82,7 +69,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
     amount: amountNumber,
     remarks: remarks || "",
     status: finalStatus || "---",
-    note: note || null,
+    note: finalStatus === "Approved" ? null : note || null,
     date: date,
     file, // null allowed
     category,
@@ -99,7 +86,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
 
   if (users.length) {
     const message =
-      status === "Approved"
+      finalStatus === "Approved"
         ? "Cash in/out request approved"
         : note || "Please approved my request";
 
@@ -281,7 +268,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     bankName: isBank ? bankName || "" : "", // ✅ Bank না হলে blank
     bankAccount: isBank ? bankAccountNumber : null, // ✅ Bank না হলে NULL
     remarks: remarks ?? undefined,
-    note: newNote || null,
+    note: finalStatus === "Approved" ? null : newNote || null,
     status: finalStatus,
     date: inputDateStr || undefined,
     category,

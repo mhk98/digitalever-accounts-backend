@@ -10,13 +10,46 @@ const sanitizeApprovalNote = (value) => {
   return note || null;
 };
 
-const applyCreateWorkflow = (payload = {}, user = {}) => {
+const getTodayYmd = () => {
+  // Prefer BD time for date-based approval rules.
+  try {
+    return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Dhaka" });
+  } catch (e) {
+    return new Date().toISOString().slice(0, 10);
+  }
+};
+
+const normalizeYmd = (value) => String(value || "").slice(0, 10);
+
+const shouldCreateBePending = (payload = {}, options = {}) => {
+  const hasDateField =
+    options.hasDateField ??
+    Object.prototype.hasOwnProperty.call(payload || {}, "date");
+
+  if (!hasDateField) return false;
+
+  const inputDate = normalizeYmd(payload.date);
+  // Requirement: for non-privileged users, if "today's date" is not provided
+  // (missing/empty) or is not today -> Pending.
+  if (!inputDate) return true;
+  return inputDate !== getTodayYmd();
+};
+
+const applyCreateWorkflow = (payload = {}, user = {}, options = {}) => {
+  const privileged = isPrivilegedRole(user.role);
+  const nextStatus = privileged
+    ? payload.status || "Active"
+    : shouldCreateBePending(payload, options)
+      ? "Pending"
+      : "Active";
+
   return {
     ...payload,
-    status: isPrivilegedRole(user.role) ? payload.status || "Active" : payload.status,
+    // Non-privileged users cannot choose status on create. Only back-dated records become Pending.
+    status: nextStatus,
     pendingAction: null,
     approvalNote: null,
-    requestedByUserId: null,
+    requestedByUserId: privileged ? null : user.Id || null,
   };
 };
 

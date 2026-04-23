@@ -19,6 +19,7 @@ const UPDATE_APPROVED_NOTE = "[Update request approved]";
 
 const readDeleteNote = (req) =>
   req.body?.note ||
+  req.body?.approvalNote ||
   req.query?.note ||
   req.headers["x-delete-note"] ||
   req.headers["x-approval-note"];
@@ -59,7 +60,7 @@ const notifyApprovedPettyCash = async (req) => {
       Notification.create({
         userId: user.Id,
         message: "Petty cash requisition request approved",
-        url: `/shifa.digitalever.com.bd/petty-cash`,
+        url: `/kafelamart.digitalever.com.bd/petty-cash`,
       }),
     ),
   );
@@ -81,7 +82,7 @@ const notifyApprovedAssetsRequisition = async (req) => {
       Notification.create({
         userId: user.Id,
         message: "Assets requisition request approved",
-        url: `/shifa.digitalever.com.bd/assets-requisition`,
+        url: `/kafelamart.digitalever.com.bd/assets-requisition`,
       }),
     ),
   );
@@ -100,7 +101,9 @@ const applyApprovalWorkflow =
       }
 
       if (req.method === "POST") {
-        const nextBody = applyCreateWorkflow(req.body || {}, req.user || {});
+        const nextBody = applyCreateWorkflow(req.body || {}, req.user || {}, {
+          hasDateField: hasAttribute(Model, "date"),
+        });
         if (!hasAttribute(Model, "status")) {
           delete nextBody.status;
         }
@@ -131,7 +134,11 @@ const applyApprovalWorkflow =
         if (hasAttribute(Model, "approvalNote")) {
           // keep
         } else if (hasAttribute(Model, "note")) {
-          nextBody.note = buildPendingUpdateNote(req.body?.note);
+          const incomingNote =
+            req.body?.note !== undefined
+              ? req.body.note
+              : req.body?.approvalNote;
+          nextBody.note = buildPendingUpdateNote(incomingNote);
           delete nextBody.approvalNote;
         } else {
           delete nextBody.approvalNote;
@@ -156,6 +163,16 @@ const applyApprovalWorkflow =
       const existing = await Model.findOne({ where: { Id: req.params.id } });
       if (!existing) {
         throw new ApiError(404, `${entityLabel || "Record"} not found`);
+      }
+
+      // Ownership guard: employees can only request delete for their own KPI rows.
+      if (
+        modelKey === "kpi" &&
+        req.user?.role === ENUM_USER_ROLE.EMPLOYEE &&
+        hasAttribute(Model, "userId") &&
+        Number(existing.userId) !== Number(req.user?.Id)
+      ) {
+        throw new ApiError(403, "You can only request delete for your own KPI");
       }
 
       const workflowPayload = buildDeleteWorkflowPayload(
@@ -187,6 +204,48 @@ const applyApprovalWorkflow =
       await Model.update(updatePayload, {
         where: { Id: req.params.id },
       });
+
+      // Notify privileged users about delete requests.
+      {
+        const privilegedUsers = await User.findAll({
+          attributes: ["Id", "role"],
+          where: {
+            Id: { [Op.ne]: req.user?.Id || null },
+            role: {
+              [Op.in]: [ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN],
+            },
+          },
+        });
+
+        if (privilegedUsers.length) {
+          const noteText = workflowPayload?.approvalNote || "";
+          const message = noteText
+            ? `${entityLabel || "Record"} delete request: ${noteText}`
+            : `${entityLabel || "Record"} delete request submitted`;
+
+          const bookId =
+            hasAttribute(Model, "bookId") && existing?.bookId
+              ? existing.bookId
+              : null;
+
+          const url =
+            modelKey === "cashInOut" && bookId
+              ? `/apikafela.digitalever.com.bd/book/${bookId}`
+              : modelKey === "cashInOut"
+                ? `/apikafela.digitalever.com.bd/cash-in-out`
+                : `/kafelamart.digitalever.com.bd${req.baseUrl || ""}`;
+
+          await Promise.all(
+            privilegedUsers.map((u) =>
+              Notification.create({
+                userId: u.Id,
+                message,
+                url,
+              }),
+            ),
+          );
+        }
+      }
 
       const updated = await Model.findOne({ where: { Id: req.params.id } });
 
@@ -239,7 +298,8 @@ const approvePendingWorkflow =
       const approvalPayload = {};
 
       if (hasAttribute(Model, "status")) {
-        approvalPayload.status = "Active";
+        approvalPayload.status =
+          modelKey === "cashInOut" ? "Approved" : "Active";
       }
       if (hasAttribute(Model, "pendingAction")) {
         approvalPayload.pendingAction = null;
@@ -247,7 +307,7 @@ const approvePendingWorkflow =
       if (hasAttribute(Model, "approvalNote")) {
         approvalPayload.approvalNote = null;
       } else if (hasAttribute(Model, "note")) {
-        approvalPayload.note = buildApprovedUpdateNote(existing.note);
+        approvalPayload.note = null;
       }
       if (hasAttribute(Model, "requestedByUserId")) {
         approvalPayload.requestedByUserId = null;

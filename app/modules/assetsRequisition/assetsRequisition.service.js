@@ -75,7 +75,7 @@ const insertIntoDB = async (payload) => {
       date,
       total: Number(price * quantity),
       status: finalStatus || "---",
-      note: note || null,
+      note: finalStatus === "Approved" ? null : note || null,
     };
 
     return AssetsRequisition.create(data, { transaction });
@@ -97,7 +97,7 @@ const insertIntoDB = async (payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/shifa.digitalever.com.bd/assets-requisition`,
+          url: `/kafelamart.digitalever.com.bd/assets-requisition`,
         }),
       ),
     );
@@ -240,7 +240,7 @@ const deleteIdFromDB = async (id) => {
 //     name: name === "" ? undefined : name,
 //     quantity: q,
 //     price: p,
-//     note: note || null,
+//     note: finalStatus === "Approved" ? null : note || null,
 //     status: finalStatus,
 //     total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
 //   };
@@ -276,7 +276,7 @@ const deleteIdFromDB = async (id) => {
 //         {
 //           userId: u.Id,
 //           message,
-//           url: `/shifa.digitalever.com.bd/assets-purchase`,
+//           url: `/kafelamart.digitalever.com.bd/assets-purchase`,
 //         },
 //         {
 //           transaction: t,
@@ -336,6 +336,7 @@ const updateOneFromDB = async (id, payload) => {
 
   // ---------- update payload ----------
   const asset = await resolveAsset(payload, existing);
+  const finalNote = finalStatus === "Approved" ? null : newNote || null;
   const data = {
     name: asset.name,
     assetId: asset.assetId,
@@ -343,7 +344,7 @@ const updateOneFromDB = async (id, payload) => {
     price: p,
     total: Number.isFinite(p) && Number.isFinite(q) ? p * q : undefined,
     date: inputDateStr || undefined,
-    note: newNote || null,
+    note: finalNote,
     status: finalStatus,
   };
 
@@ -376,7 +377,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/shifa.digitalever.com.bd/assets-requisition`,
+        url: `/kafelamart.digitalever.com.bd/assets-requisition`,
       }),
     ),
   );

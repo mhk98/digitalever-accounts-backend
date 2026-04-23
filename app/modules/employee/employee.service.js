@@ -34,21 +34,7 @@ const insertIntoDB = async (payload) => {
   } = payload;
 
   console.log("employeeData", payload);
-
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
-
-  // ✅ Approved হলে পুরোনো date-ও allow + save
-  const isApproved = String(status || "").trim() === "Approved";
-
-  // ✅ current date না হলে auto Pending
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
-      ? "Pending"
-      : note
-        ? "Pending"
-        : "Active";
+  const finalStatus = String(status || "").trim() || "Active";
 
   const data = {
     name,
@@ -96,6 +82,7 @@ const insertIntoDB = async (payload) => {
           paymentStatus: "CashIn",
           amount: result.advance,
           bookId: bookId || null,
+          status: "Active",
           date: result.date || new Date(),
         },
         { transaction: t },
@@ -107,6 +94,7 @@ const insertIntoDB = async (payload) => {
           paymentStatus: "CashOut",
           amount: result.total_salary,
           bookId: bookId || null,
+          status: "Active",
           date: result.date || new Date(),
         },
         { transaction: t },
@@ -284,7 +272,7 @@ const updateOneFromDB = async (id, payload) => {
     friday_absent,
     unapproval_absent,
     net_salary,
-    note: newNote || null,
+    note: finalStatus === "Approved" ? null : newNote || null,
     date: inputDateStr || undefined,
     remarks,
     status: finalStatus,
@@ -319,7 +307,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/shifa.digitalever.com.bd/employee`,
+        url: `/kafelamart.digitalever.com.bd/employee`,
       }),
     ),
   );

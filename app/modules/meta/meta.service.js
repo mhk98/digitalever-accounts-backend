@@ -9,28 +9,13 @@ const User = db.user;
 
 const insertIntoDB = async (data) => {
   const { date, note, status, amount, platform, userId } = data;
-
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
-
-  // ✅ Approved হলে পুরোনো date-ও allow + save
-  const isApproved = String(status || "").trim() === "Approved";
-
-  // ✅ current date না হলে auto Pending
-  // ✅ current date না হলে auto Pending
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
-      ? "Pending"
-      : note
-        ? "Pending"
-        : "Active";
+  const finalStatus = String(status || "").trim() || "Active";
 
   const result = await Meta.create({
     date: date,
     amount,
     status: finalStatus || "---",
-    note: note || null,
+    note: finalStatus === "Approved" ? null : note || null,
     platform,
   });
 
@@ -50,7 +35,7 @@ const insertIntoDB = async (data) => {
 
   if (users.length) {
     const message =
-      status === "Approved"
+      finalStatus === "Approved"
         ? "Received product request approved"
         : note || "Please approved my request";
 
@@ -59,7 +44,7 @@ const insertIntoDB = async (data) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/shifa.digitalever.com.bd/${url}`,
+          url: `/kafelamart.digitalever.com.bd/${url}`,
         }),
       ),
     );
@@ -204,7 +189,7 @@ const updateOneFromDB = async (id, payload) => {
 
   const data = {
     date: inputDateStr || undefined,
-    note: newNote || null,
+    note: finalStatus === "Approved" ? null : newNote || null,
     status: finalStatus,
     amount,
   };
@@ -236,7 +221,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/shifa.digitalever.com.bd/`,
+        url: `/kafelamart.digitalever.com.bd/`,
       }),
     ),
   );

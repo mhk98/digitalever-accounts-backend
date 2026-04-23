@@ -91,7 +91,7 @@ const buildEmployeeData = (payload = {}, currentStatus) => {
         : null,
     requestedByUserId: payload.requestedByUserId || null,
     date: inputDateStr || null,
-    note: note || null,
+    note: finalStatus === "Approved" ? null : note || null,
   };
 };
 

@@ -90,46 +90,48 @@ const insertIntoDB = async (data) => {
 
     const result = await Ledger.create(normalizedData, { transaction: t });
 
-    if (supplierId) {
-      // SupplierHistory
-      await SupplierHistory.create(
-        {
-          supplierId,
-          bookId,
-          amount,
-          status: cashType,
-          date: date || new Date(),
-          note: note || "",
-        },
-        { transaction: t },
-      );
-      // CashInOut
-      await CashInOut.create(
-        {
-          supplierId,
-          bookId,
-          paymentStatus: cashType,
-          amount,
-          date,
-          file,
-        },
-        { transaction: t },
-      );
-    }
+      if (supplierId) {
+        // SupplierHistory
+        await SupplierHistory.create(
+          {
+            supplierId,
+            bookId,
+            amount,
+            status: cashType,
+            date: date || new Date(),
+            note: note || "",
+          },
+          { transaction: t },
+        );
+        // CashInOut
+        await CashInOut.create(
+          {
+            supplierId,
+            bookId,
+            paymentStatus: cashType,
+            amount,
+            status: "Active",
+            date,
+            file,
+          },
+          { transaction: t },
+        );
+      }
 
-    if (employeeId) {
-      // CashInOut
-      await CashInOut.create(
-        {
-          employeeId,
-          bookId,
-          paymentStatus: cashType,
-          amount,
-          date,
-        },
-        { transaction: t },
-      );
-    }
+      if (employeeId) {
+        // CashInOut
+        await CashInOut.create(
+          {
+            employeeId,
+            bookId,
+            paymentStatus: cashType,
+            amount,
+            status: "Active",
+            date,
+          },
+          { transaction: t },
+        );
+      }
 
     await LedgerHistory.create(
       {

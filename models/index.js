@@ -60,11 +60,6 @@ db.inTransitProduct =
     db.sequelize,
     DataTypes,
   );
-db.inTransitStock =
-  require("../app/modules/inTransitStock/inTransitStock.model")(
-    db.sequelize,
-    DataTypes,
-  );
 
 db.returnProduct = require("../app/modules/returnProduct/returnProduct.model")(
   db.sequelize,
@@ -220,6 +215,11 @@ db.payable = require("../app/modules/payable/payable.model")(
   DataTypes,
 );
 
+db.kpi = require("../app/modules/kpi/kpi.model")(db.sequelize, DataTypes);
+db.kpiSetting = require("../app/modules/kpi/kpiSetting.model")(
+  db.sequelize,
+  DataTypes,
+);
 db.employee = require("../app/modules/employee/employee.model")(
   db.sequelize,
   DataTypes,
@@ -302,6 +302,15 @@ db.payrollItem = require("../app/modules/payrollItem/payrollItem.model")(
 );
 
 db.notification = require("../app/modules/notification/notification.model")(
+  db.sequelize,
+  DataTypes,
+);
+db.chatConversation =
+  require("../app/modules/chat/chatConversation.model")(
+    db.sequelize,
+    DataTypes,
+  );
+db.chatMessage = require("../app/modules/chat/chatMessage.model")(
   db.sequelize,
   DataTypes,
 );
@@ -412,9 +421,6 @@ db.returnProduct.belongsTo(db.inventoryMaster, { foreignKey: "productId" });
 db.inventoryMaster.hasMany(db.inTransitProduct, { foreignKey: "productId" });
 db.inTransitProduct.belongsTo(db.inventoryMaster, { foreignKey: "productId" });
 
-db.product.hasMany(db.inTransitStock, { foreignKey: "productId" });
-db.inTransitStock.belongsTo(db.product, { foreignKey: "productId" });
-
 db.inventoryMaster.hasMany(db.damageProduct, { foreignKey: "productId" });
 db.damageProduct.belongsTo(db.inventoryMaster, { foreignKey: "productId" });
 
@@ -504,6 +510,52 @@ db.user.hasMany(db.userLogHistory, {
 db.userLogHistory.belongsTo(db.user, {
   foreignKey: "userId",
   as: "user",
+});
+
+db.user.hasMany(db.chatConversation, {
+  foreignKey: "userOneId",
+  as: "chatConversationsAsUserOne",
+});
+db.chatConversation.belongsTo(db.user, {
+  foreignKey: "userOneId",
+  as: "userOne",
+});
+db.user.hasMany(db.chatConversation, {
+  foreignKey: "userTwoId",
+  as: "chatConversationsAsUserTwo",
+});
+db.chatConversation.belongsTo(db.user, {
+  foreignKey: "userTwoId",
+  as: "userTwo",
+});
+db.chatConversation.hasMany(db.chatMessage, {
+  foreignKey: "conversationId",
+  as: "messages",
+});
+db.chatMessage.belongsTo(db.chatConversation, {
+  foreignKey: "conversationId",
+  as: "conversation",
+});
+db.chatConversation.belongsTo(db.chatMessage, {
+  foreignKey: "lastMessageId",
+  as: "lastMessage",
+  constraints: false,
+});
+db.user.hasMany(db.chatMessage, {
+  foreignKey: "senderUserId",
+  as: "sentChatMessages",
+});
+db.chatMessage.belongsTo(db.user, {
+  foreignKey: "senderUserId",
+  as: "sender",
+});
+db.user.hasMany(db.chatMessage, {
+  foreignKey: "receiverUserId",
+  as: "receivedChatMessages",
+});
+db.chatMessage.belongsTo(db.user, {
+  foreignKey: "receiverUserId",
+  as: "receiver",
 });
 
 db.department.hasMany(db.designation, {
@@ -1038,6 +1090,109 @@ const ensureEmployeeColumns = async () => {
   });
 };
 
+const ensureKPIColumns = async () => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db.kpi.getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  const maybeAddColumn = async (columnName, definition) => {
+    if (!tableDefinition[columnName]) {
+      await queryInterface.addColumn(tableName, columnName, definition);
+    }
+  };
+
+  await maybeAddColumn("employeeId", {
+    type: DataTypes.INTEGER(10),
+    allowNull: true,
+  });
+  await maybeAddColumn("designationType", {
+    type: DataTypes.STRING(16),
+    allowNull: true,
+  });
+  await maybeAddColumn("periodType", {
+    type: DataTypes.STRING(32),
+    allowNull: true,
+  });
+  await maybeAddColumn("periodStartDate", {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+  });
+  await maybeAddColumn("periodEndDate", {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+  });
+
+  const rawColumns = [
+    "confirmRaw",
+    "deliveredRaw",
+    "returnParcentRaw",
+    "lateRaw",
+    "absentRaw",
+    "leaveRaw",
+    "workingTimeRaw",
+  ];
+
+  for (const columnName of rawColumns) {
+    await maybeAddColumn(columnName, {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: true,
+    });
+  }
+
+  const markColumns = [
+    "delivered",
+    "returnParcent",
+    "late",
+    "absent",
+    "leave",
+    "workingTime",
+    "qc",
+    "overallBaviour",
+    "totalSaleAmount",
+  ];
+
+  for (const columnName of markColumns) {
+    if (tableDefinition[columnName]) {
+      await queryInterface.changeColumn(tableName, columnName, {
+        type:
+          columnName === "totalSaleAmount"
+            ? DataTypes.DECIMAL(12, 2)
+            : DataTypes.DECIMAL(10, 2),
+        allowNull: true,
+        defaultValue: 0,
+      });
+    }
+  }
+};
+
+const ensureKPIDesignations = async () => {
+  const Designation = db.designation;
+  if (!Designation) return;
+
+  await Promise.all(
+    [
+      { code: "CS", name: "CS" },
+      { code: "UP", name: "UP" },
+    ].map(async (item) => {
+      const [row] = await Designation.findOrCreate({
+        where: { code: item.code },
+        defaults: {
+          name: item.name,
+          code: item.code,
+          status: "Active",
+        },
+      });
+
+      if (row.status !== "Active" || row.name !== item.name) {
+        await row.update({
+          name: item.name,
+          status: "Active",
+        });
+      }
+    }),
+  );
+};
+
 const ensureStatusAndNoteColumns = async (modelKey) => {
   const queryInterface = db.sequelize.getQueryInterface();
   const tableName = db[modelKey].getTableName();
@@ -1332,61 +1487,6 @@ const syncDamageStockPriceData = async () => {
   }
 };
 
-const ensureInTransitStockSeedData = async () => {
-  const InTransitStock = db.inTransitStock;
-  const InTransitProduct = db.inTransitProduct;
-  const InventoryMaster = db.inventoryMaster;
-  const mergeVariants = require("../shared/mergeVariants");
-
-  const existingCount = await InTransitStock.count();
-  if (existingCount > 0) return;
-
-  const movements = await InTransitProduct.findAll({
-    where: { deletedAt: { [Op.is]: null } },
-    order: [
-      ["createdAt", "ASC"],
-      ["Id", "ASC"],
-    ],
-  });
-
-  for (const movement of movements) {
-    const inventory = await InventoryMaster.findOne({
-      attributes: ["Id", "name", "productId"],
-      where: { Id: movement.productId },
-    });
-
-    const productId = Number(inventory?.productId);
-    if (!productId) continue;
-
-    const existingStock = await InTransitStock.findOne({
-      where: { productId },
-    });
-
-    const qty = Number(movement.quantity || 0);
-    const purchasePrice = Number(movement.purchase_price || 0);
-    const salePrice = Number(movement.sale_price || 0);
-
-    if (existingStock) {
-      await existingStock.update({
-        quantity: Number(existingStock.quantity || 0) + qty,
-        variants: mergeVariants(existingStock.variants, movement.variants),
-        purchase_price:
-          Number(existingStock.purchase_price || 0) + purchasePrice,
-        sale_price: Number(existingStock.sale_price || 0) + salePrice,
-      });
-    } else {
-      await InTransitStock.create({
-        productId,
-        name: movement.name || inventory.name,
-        quantity: qty,
-        variants: movement.variants || [],
-        purchase_price: purchasePrice,
-        sale_price: salePrice,
-      });
-    }
-  }
-};
-
 db.sequelize
   .sync({ force: false })
   .then(async () => {
@@ -1394,10 +1494,12 @@ db.sequelize
     await ensureAttendanceDeviceApiKeyColumn();
     await ensureEmployeeListColumns();
     await ensureEmployeeColumns();
+    await ensureKPIColumns();
     await ensureUserStatusColumn();
     await ensureUserDocumentColumns();
     await ensureApprovalColumns("department");
     await ensureApprovalColumns("designation");
+    await ensureKPIDesignations();
     await ensureApprovalColumns("shift");
     await ensureApprovalColumns("holiday");
     await Promise.all(
@@ -1414,13 +1516,13 @@ db.sequelize
     await ensurePurchaseRequisitionAssetColumns();
     await ensureAssetsStockColumns();
     await Promise.all(
-      ["damageStock", "damageReparingStock", "inTransitStock"].map((modelKey) =>
+      ["damageStock", "damageReparingStock"].map((modelKey) =>
         ensureDamageStockPriceColumns(modelKey),
       ),
     );
     await syncAssetsStockSeedData();
     await syncDamageStockPriceData();
-    await ensureInTransitStockSeedData();
+    await require("../app/modules/kpi/kpi.service").ensureDefaultSettings();
 
     const {
       DEFAULT_ROLE_MENU_PERMISSIONS,

@@ -31,22 +31,26 @@ const normalizeOptionalNumber = (value) => {
   return Number.isNaN(parsed) ? null : parsed;
 };
 
-const sanitizeEnrollmentPayload = (payload = {}) => ({
-  employeeId: normalizeOptionalNumber(payload.employeeId),
-  attendanceDeviceId: normalizeOptionalNumber(payload.attendanceDeviceId),
-  deviceUserId: String(payload.deviceUserId || "").trim(),
-  biometricModes: Array.isArray(payload.biometricModes)
-    ? payload.biometricModes
-    : String(payload.biometricModes || "")
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-  enrollmentStatus: payload.enrollmentStatus || "Enrolled",
-  enrolledAt: payload.enrolledAt || new Date(),
-  lastSyncedAt: payload.lastSyncedAt || null,
-  note: payload.note || null,
-  status: payload.status || "Active",
-});
+const sanitizeEnrollmentPayload = (payload = {}) => {
+  const status = payload.status || "Active";
+
+  return {
+    employeeId: normalizeOptionalNumber(payload.employeeId),
+    attendanceDeviceId: normalizeOptionalNumber(payload.attendanceDeviceId),
+    deviceUserId: String(payload.deviceUserId || "").trim(),
+    biometricModes: Array.isArray(payload.biometricModes)
+      ? payload.biometricModes
+      : String(payload.biometricModes || "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+    enrollmentStatus: payload.enrollmentStatus || "Enrolled",
+    enrolledAt: payload.enrolledAt || new Date(),
+    lastSyncedAt: payload.lastSyncedAt || null,
+    note: status === "Approved" ? null : payload.note || null,
+    status,
+  };
+};
 
 const ensureReferences = async ({ employeeId, attendanceDeviceId, deviceUserId }, excludeId) => {
   if (!employeeId || !attendanceDeviceId || !deviceUserId) {

@@ -26,6 +26,8 @@ const sanitizePayload = (payload = {}) => {
   const startDate = payload.startDate;
   const endDate = payload.endDate || payload.startDate;
   if (!startDate || !endDate) throw new ApiError(400, "startDate and endDate are required");
+  const approvalStatus = payload.approvalStatus || "Pending";
+
   return {
     employeeId: Number(payload.employeeId),
     leaveTypeId: Number(payload.leaveTypeId),
@@ -33,11 +35,11 @@ const sanitizePayload = (payload = {}) => {
     endDate,
     totalDays: Number(payload.totalDays || dateDiffInclusive(startDate, endDate)),
     reason: payload.reason,
-    approvalStatus: payload.approvalStatus || "Pending",
+    approvalStatus,
     requestedByUserId: payload.requestedByUserId ? Number(payload.requestedByUserId) : null,
     approvedByUserId: payload.approvedByUserId ? Number(payload.approvedByUserId) : null,
     approvedAt: payload.approvedAt || null,
-    note: payload.note || null,
+    note: approvalStatus === "Approved" ? null : payload.note || null,
   };
 };
 

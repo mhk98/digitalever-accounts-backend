@@ -82,45 +82,47 @@ const insertIntoDB = async (payload) => {
       throw new ApiError(404, "Ledger not found for the provided ledgerId");
     }
 
-    if (supplierId) {
-      // SupplierHistory
-      await SupplierHistory.create(
-        {
-          supplierId,
-          bookId,
-          amount: cashType === "Paid" ? paidAmount : unpaidAmount,
-          status: cashType,
-          date: date || new Date(),
-          note: note || "",
-        },
-        { transaction: t },
-      );
-      // CashInOut
-      await CashInOut.create(
-        {
-          supplierId,
-          bookId,
-          paymentStatus: cashType === "Paid" ? "CashIn" : "Unpaid",
-          amount: cashType === "Paid" ? paidAmount : unpaidAmount,
-          date,
-        },
-        { transaction: t },
-      );
-    }
+      if (supplierId) {
+        // SupplierHistory
+        await SupplierHistory.create(
+          {
+            supplierId,
+            bookId,
+            amount: cashType === "Paid" ? paidAmount : unpaidAmount,
+            status: cashType,
+            date: date || new Date(),
+            note: note || "",
+          },
+          { transaction: t },
+        );
+        // CashInOut
+        await CashInOut.create(
+          {
+            supplierId,
+            bookId,
+            paymentStatus: cashType === "Paid" ? "CashIn" : "Unpaid",
+            amount: cashType === "Paid" ? paidAmount : unpaidAmount,
+            status: "Active",
+            date,
+          },
+          { transaction: t },
+        );
+      }
 
-    if (employeeId) {
-      // CashInOut
-      await CashInOut.create(
-        {
-          employeeId,
-          bookId,
-          paymentStatus: cashType === "Paid" ? "CashIn" : "Unpaid",
-          amount: cashType === "Paid" ? paidAmount : unpaidAmount,
-          date,
-        },
-        { transaction: t },
-      );
-    }
+      if (employeeId) {
+        // CashInOut
+        await CashInOut.create(
+          {
+            employeeId,
+            bookId,
+            paymentStatus: cashType === "Paid" ? "CashIn" : "Unpaid",
+            amount: cashType === "Paid" ? paidAmount : unpaidAmount,
+            status: "Active",
+            date,
+          },
+          { transaction: t },
+        );
+      }
 
     const result = await LedgerHistory.create(data, { transaction: t });
 

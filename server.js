@@ -78,9 +78,11 @@ const db = require("./models"); // Sequelize instance
 const routes = require("./app/routes");
 const ApiError = require("./error/ApiError");
 const userLogHistory = require("./app/middlewares/userLogHistory");
+const { initializeChatSocket } = require("./app/realtime/socket");
 
 const app = express();
 const server = http.createServer(app);
+initializeChatSocket(server);
 
 const PORT = process.env.PORT || 5000;
 
@@ -218,7 +220,7 @@ process.on("SIGINT", async () => {
 // /* -------------------- CORS -------------------- */
 // const allowedOrigins = [
 //   "http://localhost:5173",
-//   "https://shifa.digitalever.com.bd",
+//   "https://kafelamart.digitalever.com.bd",
 // ];
 
 // const corsOptions = {

@@ -7,26 +7,15 @@ const db = require("../../../models");
 const { Op } = require("sequelize");
 const User = db.user;
 const Payable = db.payable;
+const Notification = db.notification;
 
 const insertIntoDB = catchAsync(async (req, res) => {
-  const { name, amount, remarks, note, status, date, userId } = req.body;
+  const { name, amount, remarks, note, status, date } = req.body;
 
   const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
-
-  // ✅ Approved হলে পুরোনো date-ও allow + save
-  const isApproved = String(status || "").trim() === "Approved";
-
-  // ✅ current date না হলে auto Pending
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
-      ? "Pending"
-      : note
-        ? "Pending"
-        : "Active";
+  // Status is set by applyApprovalWorkflow middleware.
+  const finalStatus = String(status || "").trim() || "Active";
 
   const data = {
     name,
@@ -34,21 +23,22 @@ const insertIntoDB = catchAsync(async (req, res) => {
     remarks,
     file,
     status: finalStatus || "---",
-    note: note || null,
+    note: finalStatus === "Approved" ? null : note || null,
     date: date,
   };
 
+  const actorUserId = req.user?.Id || null;
   const users = await User.findAll({
     attributes: ["Id", "role"],
     where: {
-      Id: { [Op.ne]: userId },
+      Id: { [Op.ne]: actorUserId },
       role: { [Op.in]: ["superAdmin", "admin", "accountant"] },
     },
   });
 
   if (users.length) {
     const message =
-      status === "Approved"
+      finalStatus === "Approved"
         ? "Payable request approved"
         : note || "Please approved my request";
 
@@ -98,12 +88,9 @@ const getDataById = catchAsync(async (req, res) => {
 
 const updateOneFromDB = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const { name, amount, remarks, note, status, userId, actorRole } = req.body;
+  const { name, amount, remarks, note, status, date } = req.body;
 
   const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
-
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10);
 
   // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
   const existing = await Payable.findOne({
@@ -113,40 +100,17 @@ const updateOneFromDB = catchAsync(async (req, res) => {
 
   if (!existing) return 0;
 
-  const oldNote = String(existing.note || "").trim();
   const newNote = String(note || "").trim();
 
-  // ✅ newNote খালি না হলে + oldNote থেকে আলাদা হলে => pending trigger
-  const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
-
-  // ✅ today না হলে pending trigger (date না পাঠালে trigger হবে না)
-  const dateTriggersPending =
-    Boolean(inputDateStr) && inputDateStr !== todayStr;
-
   const inputStatus = String(status || "").trim();
-
-  let finalStatus = existing.status || "Pending";
-
-  const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
-
-  if (isPrivileged) {
-    // ✅ superAdmin/admin: যা পাঠাবে সেটাই
-    finalStatus = inputStatus || finalStatus;
-  } else {
-    // ✅ others: today date না হলে বা new note হলে Pending override
-    if (dateTriggersPending || noteTriggersPending) {
-      finalStatus = "Pending";
-    } else {
-      // ✅ otherwise: status পাঠালে সেটাই, না পাঠালে আগেরটা
-      finalStatus = inputStatus || finalStatus;
-    }
-  }
+  const finalStatus = inputStatus || existing.status || "Pending";
+  const inputDateStr = String(date || "").slice(0, 10);
 
   const data = {
     name,
     amount,
     remarks,
-    note: newNote || null,
+    note: finalStatus === "Approved" ? null : newNote || null,
     status: finalStatus,
     date: inputDateStr || undefined,
     file,
@@ -155,16 +119,16 @@ const updateOneFromDB = catchAsync(async (req, res) => {
   const users = await User.findAll({
     attributes: ["Id", "role"],
     where: {
-      Id: { [Op.ne]: userId },
+      Id: { [Op.ne]: req.user?.Id || null },
       role: { [Op.in]: ["superAdmin", "admin", "accountant"] },
     },
   });
 
   if (users.length) {
     const message =
-      status === "Approved"
+      finalStatus === "Approved"
         ? "Payable request approved"
-        : note || "Please approved my request";
+        : newNote || "Please approved my request";
 
     await Promise.all(
       users.map((u) =>

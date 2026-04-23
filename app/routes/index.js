@@ -39,7 +39,6 @@ const MarketingExpenseRoutes = require("../modules/marketingExpense/marketingExp
 const InventoryMasterRoutes = require("../modules/inventoryMaster/inventoryMaster.routes");
 const InventoryOverviewRoutes = require("../modules/inventoryOverview/inventoryOverview.routes");
 const DamageStockRoutes = require("../modules/damageStock/damageStock.routes");
-const InTransitStockRoutes = require("../modules/inTransitStock/inTransitStock.routes");
 const SupplierHistoryRoutes = require("../modules/supplierHistory/supplierHistory.routes");
 const ManufactureRoutes = require("../modules/manufacture/manufacture.routes");
 const MixerRoutes = require("../modules/mixer/mixer.routes");
@@ -68,6 +67,8 @@ const PayrollItemRoutes = require("../modules/payrollItem/payrollItem.routes");
 const ProfileLossRoutes = require("../modules/profitLoss/profitLoss.routes");
 const RolePermissionRoutes = require("../modules/rolePermission/rolePermission.routes");
 const UserLogHistoryRoutes = require("../modules/userLogHistory/userLogHistory.routes");
+const KPIRoutes = require("../modules/kpi/kpi.routes");
+const ChatRoutes = require("../modules/chat/chat.routes");
 
 const router = express.Router();
 
@@ -144,10 +145,6 @@ const moduleRoutes = [
   {
     path: "/damage-stock",
     route: DamageStockRoutes,
-  },
-  {
-    path: "/intransit-stock",
-    route: InTransitStockRoutes,
   },
   {
     path: "/damage-repairing-stock",
@@ -268,6 +265,14 @@ const moduleRoutes = [
   {
     path: "/payable",
     route: PayableRoutes,
+  },
+  {
+    path: "/kpi",
+    route: KPIRoutes,
+  },
+  {
+    path: "/chat",
+    route: ChatRoutes,
   },
   {
     path: "/employee",

@@ -146,20 +146,7 @@ const insertIntoDB = async (data) => {
     throw new ApiError(400, "Quantity must be greater than 0");
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
-
-  // ✅ Approved হলে পুরোনো date-ও allow + save
-  const isApproved = String(status || "").trim() === "Approved";
-
-  // ✅ current date না হলে auto Pending
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
-      ? "Pending"
-      : note
-        ? "Pending"
-        : "Active";
+  const finalStatus = String(status || "").trim() || "Active";
 
   return await db.sequelize.transaction(async (t) => {
     const inventory = await findInventoryByRequestReference(rid, t);
@@ -205,7 +192,7 @@ const insertIntoDB = async (data) => {
         sale_price: inventory.sale_price * returnQty,
         productId: inventoryId,
         status: finalStatus || "---",
-        note: note || null,
+        note: finalStatus === "Approved" ? null : note || null,
         date: date,
       },
       { transaction: t },
@@ -559,7 +546,7 @@ const deleteIdFromDB = async (id) => {
 //         quantity: returnQty,
 //         purchase_price: deductPurchase,
 //         sale_price: deductSale,
-//         note: newNote || null,
+//         note: finalStatus === "Approved" ? null : newNote || null,
 //         status: finalStatus,
 //         date: inputDateStr || undefined,
 //       },
@@ -607,7 +594,7 @@ const deleteIdFromDB = async (id) => {
 //         Notification.create({
 //           userId: u.Id,
 //           message,
-//           url: `/shifa.digitalever.com.bd/damage-product`,
+//           url: `/kafelamart.digitalever.com.bd/damage-product`,
 //         }),
 //       ),
 //     );
@@ -732,7 +719,7 @@ const updateOneFromDB = async (id, payload) => {
       supplierId,
       warehouseId,
       productId: targetInv.Id,
-      note: newNote || null,
+      note: finalStatus === "Approved" ? null : newNote || null,
       status: finalStatus,
       date: inputDateStr || undefined,
     };
@@ -839,7 +826,7 @@ const updateOneFromDB = async (id, payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/shifa.digitalever.com.bd/purchase-product`,
+          url: `/kafelamart.digitalever.com.bd/purchase-product`,
         }),
       ),
     );

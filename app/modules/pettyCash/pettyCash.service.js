@@ -32,7 +32,6 @@ const insertIntoDB = async (data, options = {}) => {
     ? {
         ...data,
         paymentStatus: "CashIn",
-        status: "Pending",
       }
     : data;
   const result = await Model.create(payload);
@@ -227,6 +226,14 @@ const approveRequisition = async (id, actor = {}, updates = {}) => {
 
     if (!requisition) {
       throw new ApiError(404, "Petty cash requisition not found");
+    }
+
+    if (requisition.status === "Pending Delete") {
+      await PettyCashRequisition.destroy({
+        where: { Id: id },
+        transaction,
+      });
+      return { deleted: true, workflowAction: "deleted" };
     }
 
     if (requisition.status === "Approved" && requisition.pettyCashId) {

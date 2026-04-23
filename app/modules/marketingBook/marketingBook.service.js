@@ -104,7 +104,7 @@ const updateOneFromDB = async (id, payload) => {
   console.log("marketing book", payload);
   const data = {
     name,
-    note: status === "Approved" ? "---" : note,
+    note: status === "Approved" ? null : note,
     status: status ? status : "Pending",
   };
   const result = await MarketingBook.update(data, {

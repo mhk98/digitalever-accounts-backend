@@ -63,6 +63,11 @@ const insertIntoDB = catchAsync(async (req, res) => {
   // const file = req.file.path.replace(/\\/g, "/");
   const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
 
+  const shouldCreateRequisition =
+    isRequisitionMode(mode || req.query?.mode) || paymentStatus === "CashIn";
+
+  // Requisition: status comes from approval workflow middleware.
+  // Normal petty cash: keep existing behavior.
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
 
@@ -70,15 +75,17 @@ const insertIntoDB = catchAsync(async (req, res) => {
   const isApproved = inputStatus === "Approved";
   const isPending = inputStatus === "Pending";
 
-  const finalStatus = isApproved
-    ? "Approved"
-    : isPending
-      ? "Pending"
-      : inputDateStr !== todayStr
+  const finalStatus = shouldCreateRequisition
+    ? inputStatus || "Active"
+    : isApproved
+      ? "Approved"
+      : isPending
         ? "Pending"
-        : note
+        : inputDateStr !== todayStr
           ? "Pending"
-          : "Active";
+          : note
+            ? "Pending"
+            : "Active";
 
   const data = {
     name,
@@ -89,14 +96,12 @@ const insertIntoDB = catchAsync(async (req, res) => {
     remarks,
     file,
     status: finalStatus || "---",
-    note: note || null,
+    note: finalStatus === "Approved" ? null : note || null,
     date: date,
     category,
     requestedByUserId: req.user?.Id || userId || null,
   };
 
-  const shouldCreateRequisition =
-    isRequisitionMode(mode || req.query?.mode) || paymentStatus === "CashIn";
   const result = await PettyCashService.insertIntoDB(data, {
     mode: shouldCreateRequisition ? "requisition" : undefined,
   });
@@ -106,14 +111,14 @@ const insertIntoDB = catchAsync(async (req, res) => {
       userId,
       roles: ["superAdmin", "admin"],
       message: note || "Petty cash requisition request",
-      url: `/shifa.digitalever.com.bd/petty-cash-requisition`,
+      url: `/kafelamart.digitalever.com.bd/petty-cash-requisition`,
     });
   } else if (finalStatus === "Approved") {
     await notifyPettyCashUsers({
       userId,
       roles: ["accountant"],
       message: "Petty cash requisition request approved",
-      url: `/shifa.digitalever.com.bd/petty-cash`,
+      url: `/kafelamart.digitalever.com.bd/petty-cash`,
     });
   }
 
@@ -168,10 +173,6 @@ const updateOneFromDB = catchAsync(async (req, res) => {
   // const file = req.file.path.replace(/\\/g, "/");
   const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10);
-
-  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
   const shouldUpdateRequisition = isRequisitionMode(mode || req.query?.mode);
   const Model = shouldUpdateRequisition ? PettyCashRequisition : PettyCash;
   const existing = await Model.findOne({
@@ -183,39 +184,38 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     throw new ApiError(404, "Petty cash record not found");
   }
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10);
+
   const oldNote = String(existing.note || "").trim();
   const newNote = String(note || "").trim();
 
-  // ✅ newNote খালি না হলে + oldNote থেকে আলাদা হলে => pending trigger
   const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
-
-  // ✅ today না হলে pending trigger (date না পাঠালে trigger হবে না)
   const dateTriggersPending =
     Boolean(inputDateStr) && inputDateStr !== todayStr;
 
-  const inputStatus = String(status || "").trim();
-
-  let finalStatus = existing.status || "Pending";
-
   const isPrivileged = canApprovePettyCash(req.user?.role);
 
+  let finalStatus =
+    String(req.body?.status || "").trim() ||
+    String(status || "").trim() ||
+    String(existing.status || "").trim() ||
+    "Active";
+
   if (!shouldUpdateRequisition) {
-    finalStatus =
-      isPrivileged && inputStatus
-        ? inputStatus
-        : ["Pending", "Pending Delete"].includes(finalStatus)
-          ? "Active"
-          : finalStatus || "Active";
-  } else if (isPrivileged) {
-    // ✅ superAdmin/admin requisition status change করতে পারবে
-    finalStatus = inputStatus || finalStatus;
-  } else {
-    // ✅ others: today date না হলে বা new note হলে Pending override
-    if (dateTriggersPending || noteTriggersPending) {
-      finalStatus = "Pending";
-    } else {
-      // ✅ otherwise: status পাঠালে সেটাই, না পাঠালে আগেরটা
-      finalStatus = inputStatus || finalStatus;
+    // Keep existing behavior for pettyCash table updates
+    if (isPrivileged && finalStatus) {
+      // keep
+    } else if (["Pending", "Pending Delete"].includes(finalStatus)) {
+      finalStatus = "Active";
+    }
+  } else if (!isPrivileged) {
+    // For requisition updates by non-privileged users: always Pending.
+    // (Middleware also enforces this, but keep it consistent even if route changes.)
+    finalStatus = "Pending";
+    // Keep original trigger behavior for notifications.
+    if (!dateTriggersPending && !noteTriggersPending) {
+      // no-op
     }
   }
 
@@ -225,9 +225,14 @@ const updateOneFromDB = catchAsync(async (req, res) => {
     bankName,
     paymentStatus,
     amount,
-    note: note !== undefined ? newNote || null : undefined,
+    note:
+      note !== undefined
+        ? finalStatus === "Approved"
+          ? null
+          : newNote || null
+        : undefined,
     status: finalStatus,
-    date: inputDateStr || undefined,
+    date: date ? String(date).slice(0, 10) : undefined,
     remarks,
     category,
     file,
@@ -245,14 +250,14 @@ const updateOneFromDB = catchAsync(async (req, res) => {
       userId,
       roles: ["superAdmin", "admin"],
       message: newNote || "Petty cash requisition request",
-      url: `/shifa.digitalever.com.bd/petty-cash-requisition`,
+      url: `/kafelamart.digitalever.com.bd/petty-cash-requisition`,
     });
   } else if (finalStatus === "Approved") {
     await notifyPettyCashUsers({
       userId,
       roles: ["accountant"],
       message: "Petty cash requisition request approved",
-      url: `/shifa.digitalever.com.bd/petty-cash`,
+      url: `/kafelamart.digitalever.com.bd/petty-cash`,
     });
   }
 
@@ -282,17 +287,21 @@ const approveRequisition = catchAsync(async (req, res) => {
     req.user,
   );
 
-  await notifyPettyCashUsers({
-    userId: req.user?.Id,
-    roles: ["accountant"],
-    message: "Petty cash requisition request approved",
-    url: `/shifa.digitalever.com.bd/petty-cash`,
-  });
+  if (!result?.deleted) {
+    await notifyPettyCashUsers({
+      userId: req.user?.Id,
+      roles: ["accountant"],
+      message: "Petty cash requisition request approved",
+      url: `/kafelamart.digitalever.com.bd/petty-cash`,
+    });
+  }
 
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "Petty cash requisition approved successfully",
+    message: result?.deleted
+      ? "Petty cash requisition deleted successfully"
+      : "Petty cash requisition approved successfully",
     data: result,
   });
 });

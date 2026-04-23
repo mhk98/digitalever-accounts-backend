@@ -92,18 +92,7 @@ const insertIntoDB = async (payload) => {
     throw new ApiError(400, "unitValue must be greater than 0");
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10);
-
-  const isApproved = String(status || "").trim() === "Approved";
-
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
-      ? "Pending"
-      : note
-        ? "Pending"
-        : "Active";
+  const finalStatus = String(status || "").trim() || "Active";
 
   return db.sequelize.transaction(async (t) => {
     const StockAdjustmentData = {
@@ -114,7 +103,7 @@ const insertIntoDB = async (payload) => {
       date,
       supplierId,
       stock,
-      note: note || null,
+      note: finalStatus === "Approved" ? null : note || null,
       status: finalStatus,
     };
 
@@ -324,7 +313,7 @@ const updateOneFromDB = async (id, payload) => {
     //   totalUnitValue && totalUnitValue > 0 && totalCost != null
     //     ? totalCost / totalUnitValue
     //     : undefined,
-    note: newNote || null,
+    note: finalStatus === "Approved" ? null : newNote || null,
     status: finalStatus,
     date: inputDateStr || existing.date || undefined,
   };
@@ -374,7 +363,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: "/shifa.digitalever.com.bd/StockAdjustment",
+        url: "/kafelamart.digitalever.com.bd/StockAdjustment",
       }),
     ),
   );

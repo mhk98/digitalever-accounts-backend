@@ -176,20 +176,7 @@ const insertIntoDB = async (payload) => {
   //     ? "Pending"
   //     : null;
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
-
-  // ✅ Approved হলে পুরোনো date-ও allow + save
-  const isApproved = String(status || "").trim() === "Approved";
-
-  // ✅ current date না হলে auto Pending
-  const finalStatus = isApproved
-    ? "Approved"
-    : inputDateStr !== todayStr
-      ? "Pending"
-      : note
-        ? "Pending"
-        : "Active";
+  const finalStatus = String(status || "").trim() || "Active";
 
   return await db.sequelize.transaction(async (t) => {
     await applyInventoryDeltaMap(buildItemQuantityMap(items), t);
@@ -198,7 +185,7 @@ const insertIntoDB = async (payload) => {
     const result = await PosReport.create(
       {
         name,
-        note: note || null,
+        note: finalStatus === "Approved" ? null : note || null,
         date: date,
         mobile: mobile || null,
         address: address || null,
@@ -435,7 +422,7 @@ const deleteIdFromDB = async (id) => {
 //         supplier: received.supplier,
 //         quantity: returnQty,
 //         purchase_price: deductPurchase,
-//         note: status === "Approved" ? "---" : note,
+//         note: status === "Approved" ? null : note,
 //         status: status ? status : "Pending",
 //         sale_price: deductSale,
 //         productId: realProductId, // ✅ Products.Id (FK)
@@ -484,7 +471,7 @@ const deleteIdFromDB = async (id) => {
 //         Notification.create({
 //           userId: u.Id,
 //           message,
-//           url: `/shifa.digitalever.com.bd/intransit-product`,
+//           url: `/kafelamart.digitalever.com.bd/intransit-product`,
 //         }),
 //       ),
 //     );
@@ -562,7 +549,7 @@ const updateOneFromDB = async (id, data) => {
     return PosReport.update(
       {
         name,
-        note: newNote || null,
+        note: finalStatus === "Approved" ? null : newNote || null,
         status: finalStatus,
         date: inputDateStr || undefined,
         mobile,

@@ -117,7 +117,6 @@ const insertIntoDB = async (data) => {
     bookId,
     note,
     date,
-    status,
     procurement,
     supplierId,
     warehouseId,
@@ -125,23 +124,7 @@ const insertIntoDB = async (data) => {
 
   const incomingVariants = parseVariants(variants);
 
-  // const todayStr = new Date().toISOString().slice(0, 10);
-  // const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
-
-  // // ✅ Approved হলে পুরোনো date-ও allow + save
-  // const isApproved = String(status || "").trim() === "Approved";
-  // const isCompleted = String(status || "").trim() === "Completed";
-
-  // // ✅ current date না হলে auto Pending
-  // const finalStatus = isApproved
-  //   ? "Approved"
-  //   : isCompleted
-  //     ? "Completed"
-  //     : inputDateStr !== todayStr
-  //       ? "Pending"
-  //       : note
-  //         ? "Pending"
-  //         : "Active";
+  const finalStatus = "Pending";
 
   return db.sequelize.transaction(async (t) => {
     const item = await resolveRequisitionItem(
@@ -159,8 +142,8 @@ const insertIntoDB = async (data) => {
       quantity: Number(quantity),
       amount: Number(amount || 0),
       bookId: bookId || null,
-      status: "Pending", // সব নতুন রিকুয়েস্ট হবে Pending, পরে update route থেকে Approved/Completed করা যাবে
-      note: note || null,
+      status: finalStatus, // সব নতুন রিকুয়েস্ট হবে Pending, পরে update route থেকে Approved/Completed করা যাবে
+      note: finalStatus === "Approved" ? null : note || null,
       date: date,
       variants: incomingVariants,
       supplierId,
@@ -184,7 +167,7 @@ const insertIntoDB = async (data) => {
 
     if (users.length) {
       const message =
-        status === "Approved"
+        finalStatus === "Approved"
           ? "Product purchase requision request approved"
           : note || "Product purchase requisition request";
 
@@ -194,7 +177,7 @@ const insertIntoDB = async (data) => {
             {
               userId: u.Id,
               message,
-              url: `/shifa.digitalever.com.bd/purchase-requisition`,
+              url: `/kafelamart.digitalever.com.bd/purchase-requisition`,
             },
             { transaction: t },
           ),
@@ -403,7 +386,7 @@ const updateOneFromDB = async (id, payload) => {
     amount: Number(amount || 0),
     bookId: bookId || null,
     variants: incomingVariants,
-    note: newNote || null,
+    note: finalStatus === "Approved" ? null : newNote || null,
     status: finalStatus,
     date: inputDateStr || undefined,
     supplierId,
@@ -433,6 +416,7 @@ const updateOneFromDB = async (id, payload) => {
           amount: amount,
           bookId: bookId || null,
           paymentStatus: "CashInOut",
+          status: "Active",
           date: new Date(),
         },
         { transaction: t },
@@ -466,7 +450,7 @@ const updateOneFromDB = async (id, payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/shifa.digitalever.com.bd/purchase-product`,
+          url: `/kafelamart.digitalever.com.bd/purchase-product`,
         }),
       ),
     );
