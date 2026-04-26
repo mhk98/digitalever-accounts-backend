@@ -5,6 +5,9 @@ const ApiError = require("../../../error/ApiError");
 const {
   WarrantyProductSearchableFields,
 } = require("./warrantyProduct.constants");
+const {
+  resolveApprovalNotificationMessage,
+} = require("../../../shared/approvalNotification");
 
 const WarrantyProduct = db.warrantyProduct;
 const Product = db.product;
@@ -64,10 +67,13 @@ const insertIntoDB = async (data) => {
   });
 
   if (users.length) {
-    const message =
-      status === "Approved"
-        ? "Received product request approved"
-        : note || "Please approved my request";
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note,
+      date: inputDateStr,
+      approvedMessage: "Received product request approved",
+      fallbackMessage: "Please approved my request",
+    });
 
     await Promise.all(
       users.map((u) =>
@@ -289,10 +295,13 @@ const updateOneFromDB = async (id, data) => {
   console.log("users", users.length);
   if (!users.length) return updatedCount;
 
-  const message =
-    finalStatus === "Approved"
-      ? "Confirm order request approved"
-      : note || "Confirm order updated";
+  const message = resolveApprovalNotificationMessage({
+    status: finalStatus,
+    note: newNote,
+    date: inputDateStr,
+    approvedMessage: "Confirm order request approved",
+    fallbackMessage: "Confirm order updated",
+  });
 
   await Promise.all(
     users.map((u) =>

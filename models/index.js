@@ -234,6 +234,26 @@ db.dailyWorkReport =
     db.sequelize,
     DataTypes,
   );
+db.dailyWorkReportTask =
+  require("../app/modules/dailyWorkReport/dailyWorkReportTask.model")(
+    db.sequelize,
+    DataTypes,
+  );
+db.performanceEvaluation =
+  require("../app/modules/dailyWorkReport/performanceEvaluation.model")(
+    db.sequelize,
+    DataTypes,
+  );
+db.performanceScore =
+  require("../app/modules/dailyWorkReport/performanceScore.model")(
+    db.sequelize,
+    DataTypes,
+  );
+db.employeeWorkReport =
+  require("../app/modules/employeeWorkReport/employeeWorkReport.model")(
+    db.sequelize,
+    DataTypes,
+  );
 
 db.department = require("../app/modules/department/department.model")(
   db.sequelize,
@@ -305,6 +325,14 @@ db.notification = require("../app/modules/notification/notification.model")(
   db.sequelize,
   DataTypes,
 );
+db.notice = require("../app/modules/notice/notice.model")(
+  db.sequelize,
+  DataTypes,
+);
+db.task = require("../app/modules/task/task.model")(
+  db.sequelize,
+  DataTypes,
+);
 db.chatConversation =
   require("../app/modules/chat/chatConversation.model")(
     db.sequelize,
@@ -338,6 +366,15 @@ db.posReport = require("../app/modules/posReport/posReport.model")(
   db.sequelize,
   DataTypes,
 );
+
+db.task.belongsTo(db.user, {
+  foreignKey: "assignedToUserId",
+  as: "assignedTo",
+});
+db.task.belongsTo(db.user, {
+  foreignKey: "assignedByUserId",
+  as: "assignedBy",
+});
 
 // =====================
 // Associations
@@ -501,6 +538,83 @@ db.user.hasMany(db.dailyWorkReport, {
 db.dailyWorkReport.belongsTo(db.user, {
   foreignKey: "reviewedByUserId",
   as: "reviewedBy",
+});
+
+db.dailyWorkReport.hasMany(db.dailyWorkReportTask, {
+  foreignKey: "reportId",
+  as: "tasks",
+});
+db.dailyWorkReportTask.belongsTo(db.dailyWorkReport, {
+  foreignKey: "reportId",
+  as: "report",
+});
+db.task.hasMany(db.dailyWorkReportTask, {
+  foreignKey: "taskId",
+  as: "dailyReportUpdates",
+});
+db.dailyWorkReportTask.belongsTo(db.task, {
+  foreignKey: "taskId",
+  as: "linkedTask",
+});
+
+db.dailyWorkReport.hasOne(db.performanceEvaluation, {
+  foreignKey: "reportId",
+  as: "evaluation",
+});
+db.performanceEvaluation.belongsTo(db.dailyWorkReport, {
+  foreignKey: "reportId",
+  as: "report",
+});
+db.user.hasMany(db.performanceEvaluation, {
+  foreignKey: "reviewedByUserId",
+  as: "dailyWorkEvaluations",
+});
+db.performanceEvaluation.belongsTo(db.user, {
+  foreignKey: "reviewedByUserId",
+  as: "reviewedBy",
+});
+
+db.dailyWorkReport.hasOne(db.performanceScore, {
+  foreignKey: "reportId",
+  as: "performanceScore",
+});
+db.performanceScore.belongsTo(db.dailyWorkReport, {
+  foreignKey: "reportId",
+  as: "report",
+});
+db.employeeList.hasMany(db.performanceScore, {
+  foreignKey: "employeeId",
+  as: "performanceScores",
+});
+db.performanceScore.belongsTo(db.employeeList, {
+  foreignKey: "employeeId",
+  as: "employee",
+});
+db.user.hasMany(db.performanceScore, {
+  foreignKey: "userId",
+  as: "performanceScores",
+});
+db.performanceScore.belongsTo(db.user, {
+  foreignKey: "userId",
+  as: "user",
+});
+
+db.user.hasMany(db.employeeWorkReport, {
+  foreignKey: "userId",
+  as: "employeeWorkReports",
+});
+db.employeeWorkReport.belongsTo(db.user, {
+  foreignKey: "userId",
+  as: "user",
+});
+
+db.employeeList.hasMany(db.employeeWorkReport, {
+  foreignKey: "employeeId",
+  as: "employeeWorkReports",
+});
+db.employeeWorkReport.belongsTo(db.employeeList, {
+  foreignKey: "employeeId",
+  as: "employee",
 });
 
 db.user.hasMany(db.userLogHistory, {
@@ -1090,6 +1204,73 @@ const ensureEmployeeColumns = async () => {
   });
 };
 
+const ensureDailyWorkReportColumns = async () => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db.dailyWorkReport.getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  const maybeAddColumn = async (columnName, definition) => {
+    if (!tableDefinition[columnName]) {
+      await queryInterface.addColumn(tableName, columnName, definition);
+    }
+  };
+
+  await maybeAddColumn("workStartTime", {
+    type: DataTypes.TIME,
+    allowNull: true,
+  });
+  await maybeAddColumn("workEndTime", {
+    type: DataTypes.TIME,
+    allowNull: true,
+  });
+  await maybeAddColumn("totalWorkingHours", {
+    type: DataTypes.DECIMAL(8, 2),
+    allowNull: false,
+    defaultValue: 0,
+  });
+};
+
+const ensureDailyWorkReportTaskColumns = async () => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db.dailyWorkReportTask.getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  const maybeAddColumn = async (columnName, definition) => {
+    if (!tableDefinition[columnName]) {
+      await queryInterface.addColumn(tableName, columnName, definition);
+    }
+  };
+
+  await maybeAddColumn("taskId", {
+    type: DataTypes.INTEGER(10),
+    allowNull: true,
+  });
+  await maybeAddColumn("taskSource", {
+    type: DataTypes.STRING(32),
+    allowNull: false,
+    defaultValue: "Self-created",
+  });
+  await maybeAddColumn("progressPercent", {
+    type: DataTypes.DECIMAL(5, 2),
+    allowNull: false,
+    defaultValue: 0,
+  });
+  await maybeAddColumn("timeSpentMinutes", {
+    type: DataTypes.INTEGER(10),
+    allowNull: false,
+    defaultValue: 0,
+  });
+  await maybeAddColumn("dueDate", {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+  });
+  await maybeAddColumn("isDueToday", {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+  });
+};
+
 const ensureKPIColumns = async () => {
   const queryInterface = db.sequelize.getQueryInterface();
   const tableName = db.kpi.getTableName();
@@ -1494,6 +1675,8 @@ db.sequelize
     await ensureAttendanceDeviceApiKeyColumn();
     await ensureEmployeeListColumns();
     await ensureEmployeeColumns();
+    await ensureDailyWorkReportColumns();
+    await ensureDailyWorkReportTaskColumns();
     await ensureKPIColumns();
     await ensureUserStatusColumn();
     await ensureUserDocumentColumns();

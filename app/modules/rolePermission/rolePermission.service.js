@@ -39,6 +39,13 @@ const sanitizePermission = (permission) => {
 
 const normalizeMenuPermissions = (menuPermissions) => {
   if (Array.isArray(menuPermissions)) {
+    if (menuPermissions.length === 1 && typeof menuPermissions[0] === "string") {
+      const onlyValue = menuPermissions[0].trim();
+      if (onlyValue.startsWith("[") || onlyValue.startsWith("{")) {
+        return normalizeMenuPermissions(onlyValue);
+      }
+    }
+
     return menuPermissions;
   }
 
@@ -49,17 +56,14 @@ const normalizeMenuPermissions = (menuPermissions) => {
   if (typeof menuPermissions === "string") {
     try {
       const parsed = JSON.parse(menuPermissions);
-      return Array.isArray(parsed) ? parsed : [];
+      return normalizeMenuPermissions(parsed);
     } catch (error) {
       return [];
     }
   }
 
-  if (
-    typeof menuPermissions === "object" &&
-    Array.isArray(menuPermissions.menuPermissions)
-  ) {
-    return menuPermissions.menuPermissions;
+  if (typeof menuPermissions === "object") {
+    return normalizeMenuPermissions(menuPermissions.menuPermissions);
   }
 
   return [];
@@ -94,6 +98,32 @@ const validateMenuPermissions = (menuPermissions) => {
   return uniq(normalizedPermissions);
 };
 
+const includeNewSettingsChildren = (role, permissions = []) => {
+  const permissionSet = new Set(normalizeMenuPermissions(permissions));
+  const defaults = DEFAULT_ROLE_MENU_PERMISSIONS[role] || [];
+
+  if (
+    permissionSet.has("settings") &&
+    defaults.includes("notice") &&
+    !permissionSet.has("notice")
+  ) {
+    permissionSet.add("notice");
+  }
+
+  if (defaults.includes("tasks") && !permissionSet.has("tasks")) {
+    permissionSet.add("tasks");
+  }
+
+  if (
+    defaults.includes("employee_work_reports") &&
+    !permissionSet.has("employee_work_reports")
+  ) {
+    permissionSet.add("employee_work_reports");
+  }
+
+  return Array.from(permissionSet);
+};
+
 const getDefaultPermissionsForRole = (role) => {
   validateRole(role);
   return uniq(DEFAULT_ROLE_MENU_PERMISSIONS[role] || []);
@@ -112,7 +142,9 @@ const getEffectiveMenuPermissions = async (role) => {
     return validateMenuPermissions(getDefaultPermissionsForRole(role));
   }
 
-  return validateMenuPermissions(record.menuPermissions || []);
+  return validateMenuPermissions(
+    includeNewSettingsChildren(role, record.menuPermissions || []),
+  );
 };
 
 const getAllRolePermissions = async () => {

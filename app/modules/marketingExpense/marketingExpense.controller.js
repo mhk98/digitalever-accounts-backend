@@ -8,6 +8,9 @@ const {
   MarketingExpenseOverviewFilterAbleFileds,
 } = require("./marketingExpense.constants");
 const { Op } = require("sequelize");
+const {
+  resolveApprovalNotificationMessage,
+} = require("../../../shared/approvalNotification");
 const marketingExpenseOverview = require("./marketingExpenseOverview");
 const User = db.user;
 const MarketingExpense = db.marketingExpense;
@@ -85,10 +88,13 @@ const insertIntoDB = catchAsync(async (req, res) => {
   });
 
   if (users.length) {
-    const message =
-      finalStatus === "Approved"
-        ? "Cash in/out request approved"
-        : note || "Please approved my request";
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note,
+      date,
+      approvedMessage: "Cash in/out request approved",
+      fallbackMessage: "Please approved my request",
+    });
 
     await Promise.all(
       users.map((u) =>
@@ -290,10 +296,13 @@ const updateOneFromDB = catchAsync(async (req, res) => {
   });
 
   if (users.length) {
-    const message =
-      status === "Approved"
-        ? "Cash book request approved"
-        : note || "Please approved my request";
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note: newNote,
+      date: inputDateStr,
+      approvedMessage: "Cash book request approved",
+      fallbackMessage: "Please approved my request",
+    });
 
     await Promise.all(
       users.map((u) =>

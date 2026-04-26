@@ -5,6 +5,9 @@ const ApiError = require("../../../error/ApiError");
 const {
   AssetsPurchaseSearchableFields,
 } = require("./assetsPurchase.constants");
+const {
+  resolveApprovalNotificationMessage,
+} = require("../../../shared/approvalNotification");
 const AssetsPurchase = db.assetsPurchase;
 const AssetsStock = db.assetsStock;
 const Asset = db.asset;
@@ -368,10 +371,13 @@ const updateOneFromDB = async (id, payload) => {
 
   if (!users.length) return updatedCount;
 
-  const message =
-    finalStatus === "Approved"
-      ? "Assets purchase request approved"
-      : newNote || "Assets purchase updated";
+  const message = resolveApprovalNotificationMessage({
+    status: finalStatus,
+    note: newNote,
+    date: inputDateStr,
+    approvedMessage: "Assets purchase request approved",
+    fallbackMessage: "Assets purchase updated",
+  });
 
   await Promise.all(
     users.map((u) =>

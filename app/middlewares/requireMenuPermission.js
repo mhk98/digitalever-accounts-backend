@@ -7,21 +7,24 @@ const loadPermissions = async (req) => {
   }
 
   if (!req.menuPermissions) {
-    req.menuPermissions = await RolePermissionService.getEffectiveMenuPermissions(
-      req.user.role,
-    );
+    req.menuPermissions =
+      await RolePermissionService.getEffectiveMenuPermissions(req.user.role);
   }
 
   return req.menuPermissions;
 };
 
 const requireMenuPermission =
-  (requiredPermission) =>
-  async (req, res, next) => {
+  (requiredPermission) => async (req, res, next) => {
     try {
       const permissions = await loadPermissions(req);
 
-      if (!RolePermissionService.hasMenuPermission(permissions, requiredPermission)) {
+      if (
+        !RolePermissionService.hasMenuPermission(
+          permissions,
+          requiredPermission,
+        )
+      ) {
         return next(new ApiError(403, "Permission denied"));
       }
 

@@ -3,7 +3,7 @@ const path = require("path");
 
 const sendEmail = async ({ to, subject, htmlContent, filePath = null }) => {
   const transporter = nodemailer.createTransport({
-    host: "premium15.web-hosting.com",
+    host: "smtp.hostinger.com",
     port: 465,
     secure: true,
     auth: {

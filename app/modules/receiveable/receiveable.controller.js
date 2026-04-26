@@ -5,6 +5,9 @@ const ReceiveableService = require("./receiveable.service");
 const { ReceiveableFilterAbleFields } = require("./receiveable.constants");
 const db = require("../../../models");
 const { Op } = require("sequelize");
+const {
+  resolveApprovalNotificationMessage,
+} = require("../../../shared/approvalNotification");
 const User = db.user;
 const Receiveable = db.receiveable;
 const Notification = db.notification;
@@ -36,10 +39,13 @@ const insertIntoDB = catchAsync(async (req, res) => {
   });
 
   if (users.length) {
-    const message =
-      finalStatus === "Approved"
-        ? "Receiveable request approved"
-        : note || "Please approved my request";
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note,
+      date,
+      approvedMessage: "Receiveable request approved",
+      fallbackMessage: "Please approved my request",
+    });
 
     await Promise.all(
       users.map((u) =>
@@ -125,10 +131,13 @@ const updateOneFromDB = catchAsync(async (req, res) => {
   });
 
   if (users.length) {
-    const message =
-      finalStatus === "Approved"
-        ? "Receiveable request approved"
-        : newNote || "Please approved my request";
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note: newNote,
+      date: inputDateStr,
+      approvedMessage: "Receiveable request approved",
+      fallbackMessage: "Please approved my request",
+    });
 
     await Promise.all(
       users.map((u) =>

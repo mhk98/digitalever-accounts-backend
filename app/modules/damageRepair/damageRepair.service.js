@@ -3,6 +3,9 @@ const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { DamageRepairSearchableFields } = require("./damageRepair.constants");
+const {
+  resolveApprovalNotificationMessage,
+} = require("../../../shared/approvalNotification");
 const mergeVariants = require("../../../shared/mergeVariants");
 const parseVariants = require("../../../shared/parseVariants");
 const subtractVariants = require("../../../shared/subtractVariants");
@@ -221,10 +224,13 @@ const insertIntoDB = async (data) => {
     });
 
     if (users.length) {
-      const message =
-        status === "Approved"
-          ? "Received product request approved"
-          : note || "Please approved my request";
+      const message = resolveApprovalNotificationMessage({
+        status: finalStatus,
+        note,
+        date,
+        approvedMessage: "Received product request approved",
+        fallbackMessage: "Please approved my request",
+      });
 
       await Promise.all(
         users.map((u) =>
@@ -608,10 +614,13 @@ const updateOneFromDB = async (id, data) => {
     console.log("users", users.length);
     if (!users.length) return updatedCount;
 
-    const message =
-      finalStatus === "Approved"
-        ? "Damage product request approved"
-        : note || "Damage product updated";
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note: newNote,
+      date: inputDateStr,
+      approvedMessage: "Damage product request approved",
+      fallbackMessage: "Damage product updated",
+    });
 
     await Promise.all(
       users.map((u) =>

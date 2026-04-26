@@ -1,7 +1,7 @@
 const { ENUM_USER_ROLE } = require("../app/enums/user");
-const ApiError = require("../error/ApiError");
 
 const PRIVILEGED_ROLES = [ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN];
+const DEFAULT_DELETE_APPROVAL_NOTE = "Delete requested";
 
 const isPrivilegedRole = (role) => PRIVILEGED_ROLES.includes(role);
 
@@ -75,12 +75,7 @@ const applyUpdateWorkflow = (payload = {}, user = {}) => {
 
 const ensureDeleteNote = (note) => {
   const sanitized = sanitizeApprovalNote(note);
-
-  if (!sanitized) {
-    throw new ApiError(400, "A delete request note is required");
-  }
-
-  return sanitized;
+  return sanitized || DEFAULT_DELETE_APPROVAL_NOTE;
 };
 
 const buildDeleteWorkflowPayload = (note, user = {}) => ({

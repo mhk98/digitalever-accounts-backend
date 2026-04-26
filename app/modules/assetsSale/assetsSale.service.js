@@ -3,6 +3,9 @@ const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { AssetsSaleSearchableFields } = require("./assetsSale.constants");
+const {
+  resolveApprovalNotificationMessage,
+} = require("../../../shared/approvalNotification");
 const AssetsSale = db.assetsSale;
 const AssetsStock = db.assetsStock;
 const Notification = db.notification;
@@ -280,10 +283,13 @@ const updateOneFromDB = async (id, data) => {
     console.log("users", users.length);
     if (!users.length) return updatedCount;
 
-    const message =
-      finalStatus === "Approved"
-        ? "Assets sale request approved"
-        : note || "Assets sale updated";
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note: newNote,
+      date: inputDateStr,
+      approvedMessage: "Assets sale request approved",
+      fallbackMessage: "Assets sale updated",
+    });
 
     await Promise.all(
       users.map((u) =>

@@ -3,6 +3,9 @@ const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { MetaSearchableFields } = require("./meta.constants");
+const {
+  resolveApprovalNotificationMessage,
+} = require("../../../shared/approvalNotification");
 const Meta = db.meta;
 const Notification = db.notification;
 const User = db.user;
@@ -34,10 +37,13 @@ const insertIntoDB = async (data) => {
     : null;
 
   if (users.length) {
-    const message =
-      finalStatus === "Approved"
-        ? "Received product request approved"
-        : note || "Please approved my request";
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note,
+      date,
+      approvedMessage: "Received product request approved",
+      fallbackMessage: "Please approved my request",
+    });
 
     await Promise.all(
       users.map((u) =>
@@ -211,10 +217,13 @@ const updateOneFromDB = async (id, payload) => {
   console.log("users", users.length);
   if (!users.length) return updatedCount;
 
-  const message =
-    finalStatus === "Approved"
-      ? "Digital Expense request approved"
-      : note || "Digital Expense updated";
+  const message = resolveApprovalNotificationMessage({
+    status: finalStatus,
+    note: newNote,
+    date: inputDateStr,
+    approvedMessage: "Digital Expense request approved",
+    fallbackMessage: "Digital Expense updated",
+  });
 
   await Promise.all(
     users.map((u) =>

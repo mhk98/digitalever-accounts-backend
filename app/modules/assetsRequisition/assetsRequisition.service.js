@@ -5,6 +5,9 @@ const ApiError = require("../../../error/ApiError");
 const {
   AssetsRequisitionSearchableFields,
 } = require("./assetsRequisition.constants");
+const {
+  resolveApprovalNotificationMessage,
+} = require("../../../shared/approvalNotification");
 const AssetsRequisition = db.assetsRequisition;
 const Asset = db.asset;
 const Notification = db.notification;
@@ -90,7 +93,13 @@ const insertIntoDB = async (payload) => {
   });
 
   if (users.length) {
-    const message = note || "Assets requisition request";
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note,
+      date: inputDateStr,
+      approvedMessage: "Assets requisition request approved",
+      fallbackMessage: "Assets requisition request",
+    });
 
     await Promise.all(
       users.map((u) =>
@@ -367,10 +376,13 @@ const updateOneFromDB = async (id, payload) => {
 
   if (!users.length) return updatedCount;
 
-  const message =
-    finalStatus === "Approved"
-      ? "Assets requisition request approved"
-      : newNote || "Assets requisition request";
+  const message = resolveApprovalNotificationMessage({
+    status: finalStatus,
+    note: newNote,
+    date: inputDateStr,
+    approvedMessage: "Assets requisition request approved",
+    fallbackMessage: "Assets requisition request",
+  });
 
   await Promise.all(
     users.map((u) =>

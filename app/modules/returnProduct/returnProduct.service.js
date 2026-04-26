@@ -3,6 +3,9 @@ const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { ReturnProductSearchableFields } = require("./returnProduct.constants");
+const {
+  resolveApprovalNotificationMessage,
+} = require("../../../shared/approvalNotification");
 const mergeVariants = require("../../../shared/mergeVariants");
 const parseVariants = require("../../../shared/parseVariants");
 const subtractVariants = require("../../../shared/subtractVariants");
@@ -129,10 +132,13 @@ const insertIntoDB = async (data) => {
     });
 
     if (users.length) {
-      const message =
-        status === "Approved"
-          ? "Received product request approved"
-          : note || "Please approved my request";
+      const message = resolveApprovalNotificationMessage({
+        status: finalStatus,
+        note,
+        date,
+        approvedMessage: "Received product request approved",
+        fallbackMessage: "Please approved my request",
+      });
 
       await Promise.all(
         users.map((u) =>
@@ -545,10 +551,13 @@ const updateOneFromDB = async (id, payload) => {
       }
     }
 
-    const message =
-      finalStatus === "Approved"
-        ? "Purchase  product request approved"
-        : note || "Please approved my request";
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note: newNote,
+      date: inputDateStr,
+      approvedMessage: "Purchase  product request approved",
+      fallbackMessage: "Please approved my request",
+    });
 
     const oldInv = await InventoryMaster.findOne({
       where: { Id: oldProductId },

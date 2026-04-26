@@ -5,6 +5,9 @@ const ApiError = require("../../../error/ApiError");
 const {
   PurchaseRequisitionSearchableFields,
 } = require("./purchaseRequisition.constants");
+const {
+  resolveApprovalNotificationMessage,
+} = require("../../../shared/approvalNotification");
 const parseVariants = require("../../../shared/parseVariants");
 
 const PurchaseRequisition = db.purchaseRequisition;
@@ -166,10 +169,13 @@ const insertIntoDB = async (data) => {
     });
 
     if (users.length) {
-      const message =
-        finalStatus === "Approved"
-          ? "Product purchase requision request approved"
-          : note || "Product purchase requisition request";
+      const message = resolveApprovalNotificationMessage({
+        status: finalStatus,
+        note,
+        date,
+        approvedMessage: "Product purchase requision request approved",
+        fallbackMessage: "Product purchase requisition request",
+      });
 
       await Promise.all(
         users.map((u) =>
@@ -440,10 +446,13 @@ const updateOneFromDB = async (id, payload) => {
     console.log("users", users.length);
     if (!users.length) return updatedCount;
 
-    const message =
-      status === "Approved"
-        ? "Product purchase requision request approved"
-        : note || "Product purchase requisition request";
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note: newNote,
+      date: inputDateStr,
+      approvedMessage: "Product purchase requision request approved",
+      fallbackMessage: "Product purchase requisition request",
+    });
 
     await Promise.all(
       users.map((u) =>

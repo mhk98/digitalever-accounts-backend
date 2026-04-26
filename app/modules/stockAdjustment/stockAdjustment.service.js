@@ -10,6 +10,9 @@ const ApiError = require("../../../error/ApiError");
 const {
   StockAdjustmentSearchableFields,
 } = require("./stockAdjustment.constants");
+const {
+  resolveApprovalNotificationMessage,
+} = require("../../../shared/approvalNotification");
 const StockAdjustment = db.stockAdjustment;
 const Notification = db.notification;
 const User = db.user;
@@ -353,10 +356,13 @@ const updateOneFromDB = async (id, payload) => {
 
   if (!users.length) return updatedCount;
 
-  const message =
-    finalStatus === "Approved"
-      ? "StockAdjustment request approved"
-      : newNote || "StockAdjustment updated";
+  const message = resolveApprovalNotificationMessage({
+    status: finalStatus,
+    note: newNote,
+    date: inputDateStr,
+    approvedMessage: "StockAdjustment request approved",
+    fallbackMessage: "StockAdjustment updated",
+  });
 
   await Promise.all(
     users.map((u) =>

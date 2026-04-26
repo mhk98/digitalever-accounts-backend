@@ -25,6 +25,8 @@ const CategoryRoutes = require("../modules/category/category.routes");
 const DamageProductRoutes = require("../modules/damageProduct/damageProduct.routes");
 const EmployeeRoutes = require("../modules/employee/employee.routes");
 const NotificationRoutes = require("../modules/notification/notification.routes");
+const NoticeRoutes = require("../modules/notice/notice.routes");
+const TaskRoutes = require("../modules/task/task.routes");
 const WarehouseRoutes = require("../modules/warehouse/warehouse.routes");
 const LogoRoutes = require("../modules/logo/logo.routes");
 const SalaryRoutes = require("../modules/salary/salary.routes");
@@ -51,6 +53,7 @@ const VariationRoutes = require("../modules/variation/variation.routes");
 const DamageReparingStockRoutes = require("../modules/damageReparingStock/damageReparingStock.routes");
 const EmployeeListRoutes = require("../modules/employeeList/employeeList.routes");
 const DailyWorkReportRoutes = require("../modules/dailyWorkReport/dailyWorkReport.routes");
+const EmployeeWorkReportRoutes = require("../modules/employeeWorkReport/employeeWorkReport.routes");
 const DepartmentRoutes = require("../modules/department/department.routes");
 const DesignationRoutes = require("../modules/designation/designation.routes");
 const ShiftRoutes = require("../modules/shift/shift.routes");
@@ -80,6 +83,10 @@ const moduleRoutes = [
   {
     path: "/daily-work-reports",
     route: DailyWorkReportRoutes,
+  },
+  {
+    path: "/employee-work-reports",
+    route: EmployeeWorkReportRoutes,
   },
   {
     path: "/role-permissions",
@@ -353,6 +360,14 @@ const moduleRoutes = [
   {
     path: "/notification",
     route: NotificationRoutes,
+  },
+  {
+    path: "/notice",
+    route: NoticeRoutes,
+  },
+  {
+    path: "/task",
+    route: TaskRoutes,
   },
   {
     path: "/overview",

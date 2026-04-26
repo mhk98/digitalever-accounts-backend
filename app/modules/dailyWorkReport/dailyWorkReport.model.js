@@ -32,6 +32,19 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.TEXT("long"),
         allowNull: true,
       },
+      workStartTime: {
+        type: DataTypes.TIME,
+        allowNull: true,
+      },
+      workEndTime: {
+        type: DataTypes.TIME,
+        allowNull: true,
+      },
+      totalWorkingHours: {
+        type: DataTypes.DECIMAL(8, 2),
+        allowNull: false,
+        defaultValue: 0,
+      },
       submittedAt: {
         type: DataTypes.DATE,
         allowNull: false,

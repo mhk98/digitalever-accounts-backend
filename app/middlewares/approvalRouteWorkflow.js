@@ -14,6 +14,7 @@ const {
 
 const Notification = db.notification;
 const User = db.user;
+const ReceivedProductService = require("../modules/receivedProduct/receivedProduct.service");
 const PENDING_UPDATE_NOTE = "[Approval pending for update]";
 const UPDATE_APPROVED_NOTE = "[Update request approved]";
 
@@ -280,7 +281,11 @@ const approvePendingWorkflow =
         existing.pendingAction === "Delete" ||
         existing.status === "Pending Delete"
       ) {
-        await Model.destroy({ where: { Id: req.params.id } });
+        if (modelKey === "receivedProduct") {
+          await ReceivedProductService.deleteIdFromDB(req.params.id);
+        } else {
+          await Model.destroy({ where: { Id: req.params.id } });
+        }
         if (
           ["assetsPurchase", "assetsSale", "assetsDamage"].includes(modelKey)
         ) {

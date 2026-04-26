@@ -6,6 +6,9 @@ const db = require("../../../models");
 const CashInOutService = require("./cashInOut.service");
 const { CashInOutFilterAbleFields } = require("./cashInOut.constants");
 const { Op } = require("sequelize");
+const {
+  resolveApprovalNotificationMessage,
+} = require("../../../shared/approvalNotification");
 const User = db.user;
 const CashInOut = db.cashInOut;
 const Notification = db.notification;
@@ -21,7 +24,10 @@ const normalizeOptionalText = (value) => {
   return text;
 };
 
-const normalizeRole = (role) => String(role || "").trim().toLowerCase();
+const normalizeRole = (role) =>
+  String(role || "")
+    .trim()
+    .toLowerCase();
 
 const isPrivilegedRole = (role) => {
   const r = normalizeRole(role);
@@ -242,10 +248,13 @@ const insertIntoDB = catchAsync(async (req, res) => {
   });
 
   if (users.length) {
-    const message =
-      finalStatus === "Approved"
-        ? "Cash in/out request approved"
-        : normalizedNote || "Please approved my request";
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note: normalizedNote,
+      date: date,
+      approvedMessage: "Cash in/out request approved",
+      fallbackMessage: "Please approved my request",
+    });
 
     await Promise.all(
       users.map((u) =>
@@ -388,7 +397,9 @@ const updateOneFromDB = catchAsync(async (req, res) => {
   const newNote = normalizeOptionalText(note);
   const actor = req.user || {};
   const finalStatus =
-    String(status || "").trim() || String(existing.status || "").trim() || "Active";
+    String(status || "").trim() ||
+    String(existing.status || "").trim() ||
+    "Active";
 
   const data = {
     name: name ?? undefined,
@@ -424,10 +435,13 @@ const updateOneFromDB = catchAsync(async (req, res) => {
   });
 
   if (users.length) {
-    const message =
-      finalStatus === "Approved"
-        ? "Cash book request approved"
-        : newNote || "Please approved my request";
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note: newNote,
+      date: date,
+      approvedMessage: "Cash book request approved",
+      fallbackMessage: "Please approved my request",
+    });
 
     await Promise.all(
       users.map((u) =>

@@ -3,6 +3,9 @@ const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { MixerSearchableFields } = require("./mixer.constants");
+const {
+  resolveApprovalNotificationMessage,
+} = require("../../../shared/approvalNotification");
 const Mixer = db.mixer;
 const Notification = db.notification;
 const User = db.user;
@@ -431,10 +434,13 @@ const updateOneFromDB = async (id, payload) => {
 
   if (!users.length) return updatedCount;
 
-  const message =
-    finalStatus === "Approved"
-      ? "Mixer request approved"
-      : newNote || "Mixer updated";
+  const message = resolveApprovalNotificationMessage({
+    status: finalStatus,
+    note: newNote,
+    date: inputDateStr,
+    approvedMessage: "Mixer request approved",
+    fallbackMessage: "Mixer updated",
+  });
 
   await Promise.all(
     users.map((u) =>

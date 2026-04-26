@@ -5,6 +5,9 @@ const ApiError = require("../../../error/ApiError");
 const {
   ReceivedProductSearchableFields,
 } = require("./receivedProduct.constants");
+const {
+  resolveApprovalNotificationMessage,
+} = require("../../../shared/approvalNotification");
 const mergeVariants = require("../../../shared/mergeVariants");
 const parseVariants = require("../../../shared/parseVariants");
 const subtractVariants = require("../../../shared/subtractVariants");
@@ -204,10 +207,13 @@ const insertIntoDB = async (data, file) => {
     });
 
     if (users.length) {
-      const message =
-        status === "Approved"
-          ? "Received product request approved"
-          : note || "Please approve my request";
+      const message = resolveApprovalNotificationMessage({
+        status: finalStatus,
+        note,
+        date,
+        approvedMessage: "Received product request approved",
+        fallbackMessage: "Please approve my request",
+      });
 
       await Promise.all(
         users.map((u) =>
@@ -335,7 +341,9 @@ const getDataById = async (id) => {
 //   return result;
 // };
 
-const deleteIdFromDB = async (id) => {
+const deleteIdFromDB = async (id, options = {}) => {
+  const { skipInventoryAdjustment = false } = options;
+
   return db.sequelize.transaction(async (t) => {
     // ✅ 1) row খুঁজে বের করো
     const existing = await ReceivedProduct.findOne({
@@ -358,25 +366,32 @@ const deleteIdFromDB = async (id) => {
     const qty = toNumber(existing.quantity);
 
     // ✅ 2) InventoryMaster subtract
-    const inv = await InventoryMaster.findOne({
-      where: { productId },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
+    if (!skipInventoryAdjustment) {
+      const inv = await InventoryMaster.findOne({
+        where: { productId },
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
 
-    if (inv) {
-      const nextQty = Number(inv.quantity || 0) - qty;
-      const nextVariants = subtractVariants(inv.variants, existing.variants);
+      if (inv) {
+        const nextQty = Number(inv.quantity || 0) - qty;
+        const nextVariants = subtractVariants(inv.variants, existing.variants);
 
-      if (nextQty < 0) throw new ApiError(400, "Inventory cannot be negative");
+        if (nextQty < 0) {
+          throw new ApiError(
+            400,
+            "This received product cannot be deleted because some of its stock has already been used.",
+          );
+        }
 
-      await inv.update(
-        {
-          quantity: nextQty,
-          variants: nextVariants,
-        },
-        { transaction: t },
-      );
+        await inv.update(
+          {
+            quantity: nextQty,
+            variants: nextVariants,
+          },
+          { transaction: t },
+        );
+      }
     }
 
     // ✅ 3) ReceivedProduct delete (paranoid true হলে soft delete হবে)
@@ -467,10 +482,13 @@ const updateOneFromDB = async (id, payload) => {
       }
     }
 
-    const message =
-      finalStatus === "Approved"
-        ? "Purchase  product request approved"
-        : note || "Please approved my request";
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note: newNote,
+      date: inputDateStr,
+      approvedMessage: "Purchase  product request approved",
+      fallbackMessage: "Please approved my request",
+    });
 
     const data = {
       name: productData.name,

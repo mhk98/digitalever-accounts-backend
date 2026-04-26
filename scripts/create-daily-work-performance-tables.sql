@@ -1,0 +1,90 @@
+ALTER TABLE `DailyWorkReports`
+  ADD COLUMN IF NOT EXISTS `workStartTime` TIME NULL,
+  ADD COLUMN IF NOT EXISTS `workEndTime` TIME NULL,
+  ADD COLUMN IF NOT EXISTS `totalWorkingHours` DECIMAL(8, 2) NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS `DailyWorkReportTasks` (
+  `Id` INT(10) NOT NULL AUTO_INCREMENT,
+  `reportId` INT(10) NOT NULL,
+  `taskId` INT(10) NULL,
+  `taskSource` VARCHAR(32) NOT NULL DEFAULT 'Self-created',
+  `taskTitle` VARCHAR(255) NOT NULL,
+  `taskDescription` LONGTEXT NULL,
+  `taskCategory` VARCHAR(100) NULL,
+  `priority` VARCHAR(16) NOT NULL DEFAULT 'Medium',
+  `status` VARCHAR(16) NOT NULL DEFAULT 'Pending',
+  `startTime` TIME NULL,
+  `endTime` TIME NULL,
+  `outputResult` LONGTEXT NULL,
+  `proofLink` VARCHAR(500) NULL,
+  `proofFileUrl` VARCHAR(500) NULL,
+  `blockerProblem` LONGTEXT NULL,
+  `selfRating` INT(2) NOT NULL DEFAULT 3,
+  `progressPercent` DECIMAL(5, 2) NOT NULL DEFAULT 0,
+  `timeSpentMinutes` INT(10) NOT NULL DEFAULT 0,
+  `dueDate` DATE NULL,
+  `isDueToday` TINYINT(1) NOT NULL DEFAULT 0,
+  `createdAt` DATETIME NOT NULL,
+  `updatedAt` DATETIME NOT NULL,
+  `deletedAt` DATETIME NULL,
+  PRIMARY KEY (`Id`),
+  INDEX `idx_daily_work_report_tasks_report` (`reportId`),
+  INDEX `idx_daily_work_report_tasks_task` (`taskId`),
+  INDEX `idx_daily_work_report_tasks_status` (`status`)
+);
+
+ALTER TABLE `DailyWorkReportTasks`
+  ADD COLUMN IF NOT EXISTS `taskId` INT(10) NULL,
+  ADD COLUMN IF NOT EXISTS `taskSource` VARCHAR(32) NOT NULL DEFAULT 'Self-created',
+  ADD COLUMN IF NOT EXISTS `progressPercent` DECIMAL(5, 2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS `timeSpentMinutes` INT(10) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS `dueDate` DATE NULL,
+  ADD COLUMN IF NOT EXISTS `isDueToday` TINYINT(1) NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS `PerformanceEvaluations` (
+  `Id` INT(10) NOT NULL AUTO_INCREMENT,
+  `reportId` INT(10) NOT NULL,
+  `employeeId` INT(10) NULL,
+  `userId` INT(10) NOT NULL,
+  `qualityScore` DECIMAL(5, 2) NOT NULL DEFAULT 0,
+  `initiativeScore` DECIMAL(5, 2) NOT NULL DEFAULT 0,
+  `managerRemarks` TEXT NULL,
+  `status` VARCHAR(32) NOT NULL DEFAULT 'Pending',
+  `reviewedByUserId` INT(10) NULL,
+  `reviewedAt` DATETIME NULL,
+  `createdAt` DATETIME NOT NULL,
+  `updatedAt` DATETIME NOT NULL,
+  `deletedAt` DATETIME NULL,
+  PRIMARY KEY (`Id`),
+  UNIQUE KEY `uniq_performance_evaluations_report` (`reportId`),
+  INDEX `idx_performance_evaluations_employee` (`employeeId`),
+  INDEX `idx_performance_evaluations_user` (`userId`)
+);
+
+CREATE TABLE IF NOT EXISTS `PerformanceScores` (
+  `Id` INT(10) NOT NULL AUTO_INCREMENT,
+  `reportId` INT(10) NOT NULL,
+  `employeeId` INT(10) NULL,
+  `userId` INT(10) NOT NULL,
+  `reportDate` DATE NOT NULL,
+  `taskCompletionScore` DECIMAL(6, 2) NOT NULL DEFAULT 0,
+  `productivityScore` DECIMAL(6, 2) NOT NULL DEFAULT 0,
+  `qualityScore` DECIMAL(6, 2) NOT NULL DEFAULT 0,
+  `consistencyScore` DECIMAL(6, 2) NOT NULL DEFAULT 0,
+  `initiativeScore` DECIMAL(6, 2) NOT NULL DEFAULT 0,
+  `finalScore` DECIMAL(6, 2) NOT NULL DEFAULT 0,
+  `completedTasks` INT(10) NOT NULL DEFAULT 0,
+  `pendingTasks` INT(10) NOT NULL DEFAULT 0,
+  `failedTasks` INT(10) NOT NULL DEFAULT 0,
+  `holdTasks` INT(10) NOT NULL DEFAULT 0,
+  `totalTasks` INT(10) NOT NULL DEFAULT 0,
+  `totalWorkingHours` DECIMAL(8, 2) NOT NULL DEFAULT 0,
+  `createdAt` DATETIME NOT NULL,
+  `updatedAt` DATETIME NOT NULL,
+  `deletedAt` DATETIME NULL,
+  PRIMARY KEY (`Id`),
+  UNIQUE KEY `uniq_performance_scores_report` (`reportId`),
+  INDEX `idx_performance_scores_date` (`reportDate`),
+  INDEX `idx_performance_scores_employee` (`employeeId`),
+  INDEX `idx_performance_scores_user` (`userId`)
+);

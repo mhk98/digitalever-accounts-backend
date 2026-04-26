@@ -5,6 +5,9 @@ const PayableService = require("./payable.service");
 const { PayableFilterAbleFields } = require("./payable.constants");
 const db = require("../../../models");
 const { Op } = require("sequelize");
+const {
+  resolveApprovalNotificationMessage,
+} = require("../../../shared/approvalNotification");
 const User = db.user;
 const Payable = db.payable;
 const Notification = db.notification;
@@ -37,10 +40,13 @@ const insertIntoDB = catchAsync(async (req, res) => {
   });
 
   if (users.length) {
-    const message =
-      finalStatus === "Approved"
-        ? "Payable request approved"
-        : note || "Please approved my request";
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note,
+      date,
+      approvedMessage: "Payable request approved",
+      fallbackMessage: "Please approved my request",
+    });
 
     await Promise.all(
       users.map((u) =>
@@ -125,10 +131,13 @@ const updateOneFromDB = catchAsync(async (req, res) => {
   });
 
   if (users.length) {
-    const message =
-      finalStatus === "Approved"
-        ? "Payable request approved"
-        : newNote || "Please approved my request";
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note: newNote,
+      date: inputDateStr,
+      approvedMessage: "Payable request approved",
+      fallbackMessage: "Please approved my request",
+    });
 
     await Promise.all(
       users.map((u) =>

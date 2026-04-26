@@ -3,6 +3,9 @@ const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { PosReportSearchableFields } = require("./posReport.constants");
+const {
+  resolveApprovalNotificationMessage,
+} = require("../../../shared/approvalNotification");
 const PosReport = db.posReport;
 const Notification = db.notification;
 const User = db.user;
@@ -578,10 +581,13 @@ const updateOneFromDB = async (id, data) => {
   });
 
   if (users.length) {
-    const message =
-      status === "Approved"
-        ? "Received product request approved"
-        : note || "Please approved my request";
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note,
+      date,
+      approvedMessage: "Received product request approved",
+      fallbackMessage: "Please approved my request",
+    });
 
     await Promise.all(
       users.map((u) =>
