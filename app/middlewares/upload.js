@@ -12,7 +12,7 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  const fileTypes = /jpeg|jpg|png|gif|webp|pdf/;
+  const fileTypes = /jpeg|jpg|png|gif|webp|pdf|zip/;
 
   const mimeType = fileTypes.test(file.mimetype);
   const extname = fileTypes.test(path.extname(file.originalname));
@@ -21,7 +21,7 @@ const fileFilter = (req, file, cb) => {
   } else {
     cb(
       new Error(
-        "Invalid file format. Supported formats: jpeg, jpg, png, gif, webp",
+        "Invalid file format. Supported formats: jpeg, jpg, png, gif, webp, pdf, zip",
       ),
     );
   }

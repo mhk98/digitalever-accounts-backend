@@ -329,15 +329,11 @@ db.notice = require("../app/modules/notice/notice.model")(
   db.sequelize,
   DataTypes,
 );
-db.task = require("../app/modules/task/task.model")(
+db.task = require("../app/modules/task/task.model")(db.sequelize, DataTypes);
+db.chatConversation = require("../app/modules/chat/chatConversation.model")(
   db.sequelize,
   DataTypes,
 );
-db.chatConversation =
-  require("../app/modules/chat/chatConversation.model")(
-    db.sequelize,
-    DataTypes,
-  );
 db.chatMessage = require("../app/modules/chat/chatMessage.model")(
   db.sequelize,
   DataTypes,

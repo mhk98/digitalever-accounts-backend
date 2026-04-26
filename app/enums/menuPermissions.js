@@ -63,7 +63,7 @@ const MENU_PERMISSIONS = {
   ATTENDANCE_DEVICE: "attendance_device",
   LEAVE_MANAGEMENT: "leave_management",
   DAILY_WORK_REPORTS: "daily_work_reports",
-  EMPLOYEE_WORK_REPORTS: "employee_work_reports",
+  CS_WORK_REPORTS: "cs_work_reports",
   PAYROLL_MANAGEMENT: "payroll_management",
   PAYSLIP: "payslip",
   EMPLOYEE_PROFILE: "employee_profile",

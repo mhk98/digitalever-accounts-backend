@@ -1,6 +1,8 @@
 const ApiError = require("../../../error/ApiError");
 const db = require("../../../models");
-const { DEFAULT_ROLE_MENU_PERMISSIONS } = require("../../config/roleMenuPermissions");
+const {
+  DEFAULT_ROLE_MENU_PERMISSIONS,
+} = require("../../config/roleMenuPermissions");
 const { ALL_MENU_PERMISSIONS } = require("../../enums/menuPermissions");
 const { ENUM_USER_ROLE } = require("../../enums/user");
 
@@ -39,7 +41,10 @@ const sanitizePermission = (permission) => {
 
 const normalizeMenuPermissions = (menuPermissions) => {
   if (Array.isArray(menuPermissions)) {
-    if (menuPermissions.length === 1 && typeof menuPermissions[0] === "string") {
+    if (
+      menuPermissions.length === 1 &&
+      typeof menuPermissions[0] === "string"
+    ) {
       const onlyValue = menuPermissions[0].trim();
       if (onlyValue.startsWith("[") || onlyValue.startsWith("{")) {
         return normalizeMenuPermissions(onlyValue);
@@ -115,10 +120,10 @@ const includeNewSettingsChildren = (role, permissions = []) => {
   }
 
   if (
-    defaults.includes("employee_work_reports") &&
-    !permissionSet.has("employee_work_reports")
+    defaults.includes("CS_WORK_REPORTS") &&
+    !permissionSet.has("CS_WORK_REPORTS")
   ) {
-    permissionSet.add("employee_work_reports");
+    permissionSet.add("CS_WORK_REPORTS");
   }
 
   return Array.from(permissionSet);

@@ -7,13 +7,13 @@ const sendEmail = async ({ to, subject, htmlContent, filePath = null }) => {
     port: 465,
     secure: true,
     auth: {
-      user: "ceo@eaconsultancy.info",
-      pass: "EacEac2911%..",
+      user: "info@wporderplus.com",
+      pass: "Digitalglobal!2",
     },
   });
 
   const mailOptions = {
-    from: '"EA Consultancy" <ceo@eaconsultancy.info>',
+    from: '"EA Consultancy" <info@wporderplus.com>',
     to: to,
     subject: subject,
     html: htmlContent,

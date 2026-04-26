@@ -24,8 +24,8 @@ CREATE TABLE IF NOT EXISTS `EmployeeWorkReports` (
   `updatedAt` DATETIME NOT NULL,
   `deletedAt` DATETIME NULL,
   PRIMARY KEY (`Id`),
-  UNIQUE KEY `uniq_employee_work_report_user_date` (`userId`, `reportDate`),
-  INDEX `idx_employee_work_reports_report_date` (`reportDate`),
-  INDEX `idx_employee_work_reports_employee` (`employeeId`),
-  INDEX `idx_employee_work_reports_deleted_at` (`deletedAt`)
+  UNIQUE KEY `uniq_cs_work_reports_user_date` (`userId`, `reportDate`),
+  INDEX `idx_cs_work_reports_report_date` (`reportDate`),
+  INDEX `idx_cs_work_reports_employee` (`employeeId`),
+  INDEX `idx_cs_work_reports_deleted_at` (`deletedAt`)
 );

@@ -6,7 +6,7 @@ const {
 const EmployeeWorkReportController = require("./employeeWorkReport.controller");
 
 const reportPermissions = [
-  "employee_work_reports",
+  "cs_work_reports",
   "daily_work_reports",
   "employee_profile",
   "employee_list",
