@@ -1,0 +1,342 @@
+const { Op, where } = require("sequelize"); // Ensure Op is imported
+const paginationHelpers = require("../../../helpers/paginationHelper");
+const db = require("../../../models");
+const ApiError = require("../../../error/ApiError");
+const { EmployeeSearchableFields } = require("./employee.constants");
+const {
+  resolveApprovalNotificationMessage,
+} = require("../../../shared/approvalNotification");
+const Employee = db.employee;
+const Notification = db.notification;
+const User = db.user;
+const LedgerHistory = db.ledgerHistory;
+const CashInOut = db.cashInOut;
+
+const insertIntoDB = async (payload) => {
+  const {
+    name,
+    employee_id,
+    bookId,
+    basic_salary,
+    incentive,
+    holiday_payment,
+    total_salary,
+    advance,
+    late,
+    early_leave,
+    absent,
+    friday_absent,
+    unapproval_absent,
+    net_salary,
+    note,
+    remarks,
+    status,
+    userId,
+    employeeListId,
+    date,
+  } = payload;
+
+  console.log("employeeData", payload);
+  const finalStatus = String(status || "").trim() || "Active";
+
+  const data = {
+    name,
+    employee_id,
+    basic_salary,
+    incentive,
+    holiday_payment,
+    total_salary,
+    advance,
+    late,
+    early_leave,
+    absent,
+    friday_absent,
+    unapproval_absent,
+    net_salary,
+    note,
+    remarks,
+    status: finalStatus,
+    userId,
+    employeeListId,
+    date,
+  };
+
+  return db.sequelize.transaction(async (t) => {
+    const result = await Employee.create(data, { transaction: t });
+
+    if (!result) {
+      throw new ApiError(500, "Failed to create employee record");
+    }
+
+    if (result.employee_id && result.advance) {
+      await LedgerHistory.create(
+        {
+          employeeId: result.employee_id,
+          amount: result.advance,
+          status: "Paid",
+          date: result.date || new Date(),
+        },
+        { transaction: t },
+      );
+
+      await CashInOut.create(
+        {
+          employeeId: result.employee_id,
+          paymentStatus: "CashIn",
+          amount: result.advance,
+          bookId: bookId || null,
+          status: "Active",
+          date: result.date || new Date(),
+        },
+        { transaction: t },
+      );
+
+      await CashInOut.create(
+        {
+          employeeId: result.employee_id,
+          paymentStatus: "CashOut",
+          amount: result.total_salary,
+          bookId: bookId || null,
+          status: "Active",
+          date: result.date || new Date(),
+        },
+        { transaction: t },
+      );
+    }
+    return result;
+  });
+};
+
+const getAllFromDB = async (filters, options) => {
+  const { page, limit, skip } = paginationHelpers.calculatePagination(options);
+
+  const { searchTerm, startDate, endDate, ...otherFilters } = filters;
+
+  const andConditions = [];
+
+  // ✅ Search (ILIKE on searchable fields)
+  if (searchTerm && searchTerm.trim()) {
+    andConditions.push({
+      [Op.or]: EmployeeSearchableFields.map((field) => ({
+        [field]: { [Op.iLike]: `%${searchTerm.trim()}%` },
+      })),
+    });
+  }
+
+  // ✅ Exact filters (e.g. name)
+  if (Object.keys(otherFilters).length) {
+    andConditions.push(
+      ...Object.entries(otherFilters).map(([key, value]) => ({
+        [key]: { [Op.eq]: value },
+      })),
+    );
+  }
+
+  // ✅ Date range filter (createdAt)
+  if (startDate && endDate) {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    andConditions.push({
+      createdAt: { [Op.between]: [start, end] },
+    });
+  }
+
+  // ✅ Exclude soft deleted records
+  andConditions.push({
+    deletedAt: { [Op.is]: null }, // Only include records with deletedAt as null (not deleted)
+  });
+
+  const whereConditions = andConditions.length
+    ? { [Op.and]: andConditions }
+    : {};
+
+  const order =
+    options.sortBy && options.sortOrder
+      ? [[options.sortBy, options.sortOrder.toUpperCase()]]
+      : [["createdAt", "DESC"]];
+
+  const [result, count, totalSalary] = await Promise.all([
+    Employee.findAll({
+      where: whereConditions,
+      offset: skip,
+      limit,
+      paranoid: true,
+      order,
+    }),
+    Employee.count({ where: whereConditions }),
+    Employee.sum("net_salary", { where: whereConditions }),
+  ]);
+
+  return {
+    meta: { count, totalSalary: Number(totalSalary || 0), page, limit },
+    data: result,
+  };
+};
+
+const getDataById = async (id) => {
+  const result = await Employee.findOne({
+    where: {
+      Id: id,
+    },
+  });
+
+  return result;
+};
+
+const deleteIdFromDB = async (id) => {
+  const result = await Employee.destroy({
+    where: {
+      Id: id,
+    },
+  });
+
+  return result;
+};
+
+const updateOneFromDB = async (id, payload) => {
+  const {
+    name,
+    employee_id,
+    basic_salary,
+    incentive,
+    holiday_payment,
+    total_salary,
+    advance,
+    late,
+    early_leave,
+    absent,
+    friday_absent,
+    unapproval_absent,
+    net_salary,
+    note,
+    remarks,
+    status,
+    userId,
+    employeeListId,
+    date,
+    actorRole,
+  } = payload;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10);
+
+  // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
+  const existing = await Employee.findOne({
+    where: { Id: id },
+    attributes: ["Id", "note", "status"],
+  });
+
+  if (!existing) return 0;
+
+  const oldNote = String(existing.note || "").trim();
+  const newNote = String(note || "").trim();
+
+  // ✅ newNote খালি না হলে + oldNote থেকে আলাদা হলে => pending trigger
+  const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
+
+  // ✅ today না হলে pending trigger (date না পাঠালে trigger হবে না)
+  const dateTriggersPending =
+    Boolean(inputDateStr) && inputDateStr !== todayStr;
+
+  const inputStatus = String(status || "").trim();
+
+  let finalStatus = existing.status || "Pending";
+
+  const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
+
+  if (isPrivileged) {
+    // ✅ superAdmin/admin: যা পাঠাবে সেটাই
+    finalStatus = inputStatus || finalStatus;
+  } else {
+    // ✅ others: today date না হলে বা new note হলে Pending override
+    if (dateTriggersPending || noteTriggersPending) {
+      finalStatus = "Pending";
+    } else {
+      // ✅ otherwise: status পাঠালে সেটাই, না পাঠালে আগেরটা
+      finalStatus = inputStatus || finalStatus;
+    }
+  }
+
+  const data = {
+    name,
+    employee_id,
+    basic_salary,
+    incentive,
+    holiday_payment,
+    total_salary,
+    advance,
+    late,
+    early_leave,
+    absent,
+    friday_absent,
+    unapproval_absent,
+    net_salary,
+    note: finalStatus === "Approved" ? null : newNote || null,
+    date: inputDateStr || undefined,
+    remarks,
+    status: finalStatus,
+    userId,
+    employeeListId,
+  };
+
+  const [updatedCount] = await Employee.update(data, {
+    where: {
+      Id: id,
+    },
+  });
+
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId }, // sender বাদ
+      role: { [Op.in]: ["superAdmin", "admin", "accountant"] }, // তোমার DB অনুযায়ী ঠিক করো
+    },
+  });
+
+  console.log("users", users.length);
+  if (!users.length) return updatedCount;
+
+  const message = resolveApprovalNotificationMessage({
+    status: finalStatus,
+    note: newNote,
+    date: inputDateStr,
+    approvedMessage: "Employee salary calculation request approved",
+    fallbackMessage: "Employee salary calculation updated",
+  });
+
+  await Promise.all(
+    users.map((u) =>
+      Notification.create({
+        userId: u.Id,
+        message,
+        url: `/kafelamart.digitalever.com.bd/employee`,
+      }),
+    ),
+  );
+
+  return updatedCount;
+};
+
+const getAllFromDBWithoutQuery = async () => {
+  const result = await Employee.findAll({
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+  });
+
+  return result;
+};
+
+const EmployeeService = {
+  getAllFromDB,
+  insertIntoDB,
+  deleteIdFromDB,
+  updateOneFromDB,
+  getDataById,
+  getAllFromDBWithoutQuery,
+};
+
+module.exports = EmployeeService;

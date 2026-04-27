@@ -5,6 +5,8 @@ const ApiError = require("../../../error/ApiError");
 const { pettyCashSearchableFields } = require("./pettyCash.constants");
 const PettyCash = db.pettyCash;
 const PettyCashRequisition = db.pettyCashRequisition;
+const CashInOut = db.cashInOut;
+const Book = db.book;
 
 const isRequisitionMode = (mode) => String(mode || "").trim() === "requisition";
 
@@ -250,6 +252,7 @@ const approveRequisition = async (id, actor = {}, updates = {}) => {
       "file",
       "category",
       "date",
+      "bookId",
     ];
     const requisitionUpdates = allowedUpdateFields.reduce((acc, field) => {
       if (updates[field] !== undefined) {
@@ -264,6 +267,17 @@ const approveRequisition = async (id, actor = {}, updates = {}) => {
 
     const approvedNote = buildApprovedRequisitionNote(requisition.note);
 
+    // Get bookId from requisition or use default book
+    let bookId = requisition.bookId || updates.bookId;
+    if (!bookId) {
+      const defaultBook = await Book.findOne({
+        where: { status: "Active" },
+        order: [["Id", "ASC"]],
+        transaction,
+      });
+      bookId = defaultBook?.Id || null;
+    }
+
     const pettyCash = await PettyCash.create(
       {
         paymentMode: requisition.paymentMode,
@@ -276,9 +290,25 @@ const approveRequisition = async (id, actor = {}, updates = {}) => {
         file: requisition.file,
         category: requisition.category,
         date: requisition.date,
+        bookId: bookId,
       },
       { transaction },
     );
+
+    // Create CashOut entry in book when approved
+    if (bookId) {
+      await CashInOut.create(
+        {
+          bookId: bookId,
+          paymentStatus: "CashOut",
+          amount: requisition.amount,
+          status: "Active",
+          date: requisition.date || new Date(),
+          note: approvedNote || "Petty cash requisition approved",
+        },
+        { transaction },
+      );
+    }
 
     await requisition.update(
       {

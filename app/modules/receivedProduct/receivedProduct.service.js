@@ -98,6 +98,7 @@ const insertIntoDB = async (data, file) => {
         supplierId,
         bookId: normalizedBookId,
         amount: Number(purchase_price || 0) * Number(quantity || 0),
+        status: "Unpaid",
         date,
         file,
       },
@@ -107,18 +108,18 @@ const insertIntoDB = async (data, file) => {
     // =========================
     // CashInOut
     // =========================
-    await CashInOut.create(
-      {
-        supplierId,
-        bookId: normalizedBookId,
-        paymentStatus: "Unpaid",
-        amount: Number(purchase_price || 0) * Number(quantity || 0),
-        status: "Active",
-        date,
-        file,
-      },
-      { transaction: t },
-    );
+    // await CashInOut.create(
+    //   {
+    //     supplierId,
+    //     bookId: normalizedBookId,
+    //     paymentStatus: "Unpaid",
+    //     amount: Number(purchase_price || 0) * Number(quantity || 0),
+    //     status: "Active",
+    //     date,
+    //     file,
+    //   },
+    //   { transaction: t },
+    // );
 
     // =========================
     // InventoryMaster Update / Insert
@@ -605,18 +606,32 @@ const updateOneFromDB = async (id, payload) => {
       transaction: t,
     });
 
-    const supplierData = {
-      supplierId,
-      bookId: normalizedBookId,
-      amount: Number(purchase_price || 0) * Number(quantity || 0),
-      date,
-      file,
-    };
+    // ✅ SupplierHistory - Insert new record on update
+    await SupplierHistory.create(
+      {
+        supplierId,
+        bookId: normalizedBookId,
+        status: "Unpaid",
+        amount: Number(purchase_price || 0) * Number(quantity || 0),
+        date,
+        file,
+      },
+      { transaction: t },
+    );
 
-    await SupplierHistory.update(supplierData, {
-      where: { supplierId },
-      transaction: t,
-    });
+    // ✅ CashInOut - Insert new record on update
+    // await CashInOut.create(
+    //   {
+    //     supplierId,
+    //     bookId: normalizedBookId,
+    //     paymentStatus: "Unpaid",
+    //     amount: Number(purchase_price || 0) * Number(quantity || 0),
+    //     status: "Active",
+    //     date,
+    //     file,
+    //   },
+    //   { transaction: t },
+    // );
 
     const users = await User.findAll({
       attributes: ["Id", "role"],

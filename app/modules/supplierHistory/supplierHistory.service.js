@@ -249,12 +249,40 @@ const updateOneFromDB = async (id, payload) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
+  const andConditions = [];
+  const makeStatusWhere = (status) => ({
+    ...(andConditions.length
+      ? { [Op.and]: [...andConditions, { status }] }
+      : { status }),
+  });
   const result = await SupplierHistory.findAll({
     paranoid: true,
     order: [["createdAt", "DESC"]],
   });
 
-  return result;
+  const [totalCount, totalPaid, totalUnpaid] = await Promise.all([
+    SupplierHistory.count(),
+    SupplierHistory.sum("amount", {
+      where: makeStatusWhere("Paid"),
+    }),
+    SupplierHistory.sum("amount", {
+      where: makeStatusWhere("Unpaid"),
+    }),
+  ]);
+
+  const paid = Number(totalPaid || 0);
+  const unpaid = Number(totalUnpaid || 0);
+  const netBalance = paid - unpaid;
+
+  return {
+    meta: {
+      total: totalCount,
+      totalPaid: paid,
+      totalUnpaid: unpaid,
+      netBalance,
+    },
+    result,
+  };
 };
 
 const SupplierHistoryService = {
