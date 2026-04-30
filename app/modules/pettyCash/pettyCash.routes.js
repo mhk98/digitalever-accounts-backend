@@ -15,14 +15,12 @@ const pettyCashAccess = requireAnyPermission([
   "petty_cash_requisition",
 ]);
 
-const isRequisitionMode = (value) => String(value || "").trim() === "requisition";
+const isRequisitionMode = (value) =>
+  String(value || "").trim() === "requisition";
 
 const applyPettyCashApprovalWorkflow = (req, res, next) => {
   const mode = req.body?.mode || req.query?.mode;
-  const isReq =
-    isRequisitionMode(mode) ||
-    (req.method === "POST" &&
-      String(req.body?.paymentStatus || "").trim() === "CashIn");
+  const isReq = isRequisitionMode(mode);
 
   if (!isReq) {
     return next();
@@ -52,7 +50,7 @@ router.get(
 // router.get("/:id", PettyCashController.getDataById);
 router.delete(
   "/:id",
-  auth(),
+  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
   pettyCashAccess,
   applyPettyCashApprovalWorkflow,
   PettyCashController.deleteIdFromDB,
@@ -60,7 +58,11 @@ router.delete(
 router.put(
   "/:id",
   uploadFile,
-  auth(),
+  auth(
+    ENUM_USER_ROLE.SUPER_ADMIN,
+    ENUM_USER_ROLE.ADMIN,
+    ENUM_USER_ROLE.ACCOUNTANT,
+  ),
   pettyCashAccess,
   applyPettyCashApprovalWorkflow,
   PettyCashController.updateOneFromDB,

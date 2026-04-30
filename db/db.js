@@ -19,16 +19,17 @@ const sequelize = new Sequelize(
     //   acquire: 30000, // Add acquire timeout (default 60s)
     // },
     dialectOptions: {
-      connectTimeout: 60000,
+      connectTimeout: 30000,
     },
     retry: {
-      max: 5,
+      max: 1, // retry একবারই — বারবার retry = connection limit শেষ হয়
     },
     pool: {
-      max: 5,
+      max: 3,     // 5 থেকে কমিয়ে 3 — প্রতি restart-এ কম connection নেবে
       min: 0,
-      acquire: 60000,
-      idle: 10000,
+      acquire: 30000,
+      idle: 5000, // idle connection তাড়াতাড়ি ছেড়ে দেবে
+      evict: 5000,
     },
 
     // logging: process.env.NODE_ENV !== 'production',  // Enable logging only in non-prod
@@ -46,7 +47,11 @@ sequelize
   })
   .catch((error) => {
     console.error("Error connecting to the database:", error.message);
-    process.exit(1); // Exit the process if DB connection fails
+    console.error("DB_HOST:", process.env.DB_HOST || "NOT SET");
+    console.error("DB_NAME:", process.env.DB_NAME || "NOT SET");
+    console.error("DB_USER:", process.env.DB_USER || "NOT SET");
+    console.error("DB_PORT:", process.env.DB_PORT || "NOT SET");
+    process.exit(1);
   });
 
 const db = {};

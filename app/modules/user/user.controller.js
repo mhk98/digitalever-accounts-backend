@@ -128,7 +128,14 @@ const getUserById = catchAsync(async (req, res) => {
 
 const updateUserFromDB = catchAsync(async (req, res) => {
   const { id } = req.params;
-  console.log("userId", id);
+  const callerRole = req.user?.role;
+  const { ENUM_USER_ROLE } = require("../../enums/user");
+
+  const isAdmin = [
+    ENUM_USER_ROLE.SUPER_ADMIN,
+    ENUM_USER_ROLE.ADMIN,
+  ].includes(callerRole);
+
   const {
     FirstName,
     LastName,
@@ -143,14 +150,11 @@ const updateUserFromDB = catchAsync(async (req, res) => {
   } = req.body;
 
   let newPassword;
-
-  // ✅ শুধু তখনই hash করবে যদি newPassword থাকে
   if (Password && Password.trim() !== "") {
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12);
     newPassword = await bcrypt.hash(Password, salt);
   }
 
-  console.log(req.body);
   const data = {
     FirstName,
     LastName,
@@ -161,7 +165,8 @@ const updateUserFromDB = catchAsync(async (req, res) => {
     City,
     PostalCode,
     Country,
-    role,
+    // Only admins can change a user's role — prevent privilege escalation
+    ...(isAdmin && role ? { role } : {}),
     image: getUploadedDocumentPath(req.files, "image"),
     idCard: getUploadedDocumentPath(req.files, "idCard"),
     cv: getUploadedDocumentPath(req.files, "cv"),
@@ -169,9 +174,6 @@ const updateUserFromDB = catchAsync(async (req, res) => {
     guardianIdCard: getUploadedDocumentPath(req.files, "guardianIdCard"),
   };
 
-  // console.log('userData', data);
-
-  console.log(id);
   const result = await UserService.updateUserFromDB(id, data);
   sendResponse(res, {
     statusCode: 200,
@@ -220,11 +222,23 @@ const impersonateUser = catchAsync(async (req, res) => {
   });
 });
 
+const refreshToken = catchAsync(async (req, res) => {
+  const { refreshToken: token } = req.body;
+  const result = await UserService.refreshToken(token);
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Token refreshed successfully",
+    data: result,
+  });
+});
+
 const UserController = {
   getAllUserFromDB,
   login,
   logout,
   register,
+  refreshToken,
   getUserById,
   updateUserFromDB,
   deleteUserFromDB,

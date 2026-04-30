@@ -13,7 +13,7 @@ const sendEmail = async ({ to, subject, htmlContent, filePath = null }) => {
   });
 
   const mailOptions = {
-    from: '"EA Consultancy" <info@wporderplus.com>',
+    from: '"Business Solution" <info@wporderplus.com>',
     to: to,
     subject: subject,
     html: htmlContent,

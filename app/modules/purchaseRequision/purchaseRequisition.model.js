@@ -31,6 +31,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER(10),
         allowNull: true,
       },
+      bookId: {
+        type: DataTypes.INTEGER(10),
+        allowNull: true,
+      },
       quantity: {
         type: DataTypes.INTEGER(10),
         defaultValue: 0,
@@ -54,6 +58,10 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
       },
       status: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      file: {
         type: DataTypes.STRING,
         allowNull: true,
       },

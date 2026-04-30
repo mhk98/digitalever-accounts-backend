@@ -7,7 +7,13 @@ const PurchaseRequisitionFilterAbleFileds = [
   "productId",
 ];
 
-const PurchaseRequisitionSearchableFields = ["searchTerm"];
+const PurchaseRequisitionSearchableFields = [
+  "name",
+  "procurement",
+  "remarks",
+  "note",
+  "status",
+];
 
 module.exports = {
   PurchaseRequisitionFilterAbleFileds,

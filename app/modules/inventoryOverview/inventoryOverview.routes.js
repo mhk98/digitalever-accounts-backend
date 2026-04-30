@@ -1,6 +1,8 @@
 const router = require("express").Router();
 const auth = require("../../middlewares/auth");
-const { requireMenuPermission } = require("../../middlewares/requireMenuPermission");
+const {
+  requireMenuPermission,
+} = require("../../middlewares/requireMenuPermission");
 const InventoryOverviewController = require("./inventoryOverview.controller");
 
 // ✅ LIST (UI table এর জন্য)

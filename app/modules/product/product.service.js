@@ -86,10 +86,18 @@ const getAllFromDB = async (filters, options) => {
       },
     ],
     paranoid: true,
-    order:
-      options.sortBy && options.sortOrder
-        ? [[options.sortBy, options.sortOrder.toUpperCase()]]
-        : [["createdAt", "DESC"]],
+    order: (() => {
+      const ALLOWED_SORT_COLUMNS = new Set([
+        "createdAt", "updatedAt", "name", "price", "stock",
+      ]);
+      const ALLOWED_SORT_ORDERS = new Set(["ASC", "DESC"]);
+      const col = options.sortBy;
+      const ord = (options.sortOrder || "").toUpperCase();
+      if (col && ALLOWED_SORT_COLUMNS.has(col) && ALLOWED_SORT_ORDERS.has(ord)) {
+        return [[col, ord]];
+      }
+      return [["createdAt", "DESC"]];
+    })(),
   });
 
   const count = await Product.count({ where: whereConditions });

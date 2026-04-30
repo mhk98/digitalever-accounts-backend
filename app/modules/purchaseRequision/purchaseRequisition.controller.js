@@ -7,7 +7,14 @@ const {
 } = require("./purchaseRequisition.constants");
 
 const insertIntoDB = catchAsync(async (req, res) => {
-  const result = await PurchaseRequisitionService.insertIntoDB(req.body);
+  const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
+
+  const data = {
+    ...req.body,
+    file,
+  };
+
+  const result = await PurchaseRequisitionService.insertIntoDB(data);
 
   sendResponse(res, {
     statusCode: 200,
@@ -46,7 +53,13 @@ const getDataById = catchAsync(async (req, res) => {
 
 const updateOneFromDB = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const result = await PurchaseRequisitionService.updateOneFromDB(id, req.body);
+  const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
+  const data = {
+    ...req.body,
+    file,
+  };
+
+  const result = await PurchaseRequisitionService.updateOneFromDB(id, data);
   sendResponse(res, {
     statusCode: 200,
     success: true,

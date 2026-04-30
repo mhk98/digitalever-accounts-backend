@@ -7,6 +7,7 @@ const pettyCashFilterAbleFields = [
   "endDate",
   "category",
   "mode",
+  "bookId",
 ];
 
 const pettyCashSearchableFields = [

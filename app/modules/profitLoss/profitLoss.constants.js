@@ -1,4 +1,4 @@
-const ProfitLossFilterAbleFileds = ["startDate", "endDate", "searchTerm"];
+const ProfitLossFilterAbleFileds = ["startDate", "endDate", "searchTerm", "mode"];
 
 const ProfitLossSearchableFields = ["name", "salesType"];
 

@@ -4,6 +4,67 @@ const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { SupplierSearchableFields } = require("./supplier.constants");
 const Supplier = db.supplier;
+const SupplierHistory = db.supplierHistory;
+
+const addBalancesToSuppliers = async (suppliers) => {
+  const plainSuppliers = suppliers.map((supplier) =>
+    supplier.get ? supplier.get({ plain: true }) : supplier,
+  );
+  const supplierIds = plainSuppliers.map((supplier) => supplier.Id);
+
+  if (!supplierIds.length) {
+    return plainSuppliers;
+  }
+
+  const balanceRows = await SupplierHistory.findAll({
+    attributes: [
+      "supplierId",
+      [
+        db.Sequelize.fn(
+          "SUM",
+          db.Sequelize.literal(
+            "CASE WHEN status = 'Paid' THEN amount ELSE 0 END",
+          ),
+        ),
+        "totalPaid",
+      ],
+      [
+        db.Sequelize.fn(
+          "SUM",
+          db.Sequelize.literal(
+            "CASE WHEN status = 'Unpaid' THEN amount ELSE 0 END",
+          ),
+        ),
+        "totalUnpaid",
+      ],
+    ],
+    where: {
+      supplierId: { [Op.in]: supplierIds },
+    },
+    group: ["supplierId"],
+    raw: true,
+  });
+
+  const balanceMap = balanceRows.reduce((acc, row) => {
+    const totalPaid = Number(row.totalPaid || 0);
+    const totalUnpaid = Number(row.totalUnpaid || 0);
+
+    acc[row.supplierId] = {
+      totalPaid,
+      totalUnpaid,
+      netBalance: totalPaid - totalUnpaid,
+    };
+
+    return acc;
+  }, {});
+
+  return plainSuppliers.map((supplier) => ({
+    ...supplier,
+    totalPaid: balanceMap[supplier.Id]?.totalPaid || 0,
+    totalUnpaid: balanceMap[supplier.Id]?.totalUnpaid || 0,
+    netBalance: balanceMap[supplier.Id]?.netBalance || 0,
+  }));
+};
 
 const insertIntoDB = async (data) => {
   const result = await Supplier.create(data);
@@ -12,8 +73,6 @@ const insertIntoDB = async (data) => {
 
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
-
-  console.log(filters);
 
   const { searchTerm, ...filterData } = filters;
 
@@ -74,9 +133,11 @@ const getAllFromDB = async (filters, options) => {
 
   const count = await Supplier.count({ where: whereConditions });
 
+  const data = await addBalancesToSuppliers(result);
+
   return {
     meta: { count, page, limit },
-    data: result,
+    data,
   };
 };
 
@@ -116,7 +177,7 @@ const getAllFromDBWithoutQuery = async () => {
     order: [["createdAt", "DESC"]],
   });
 
-  return result;
+  return addBalancesToSuppliers(result);
 };
 
 const SupplierService = {

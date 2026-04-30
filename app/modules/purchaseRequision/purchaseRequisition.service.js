@@ -18,6 +18,7 @@ const User = db.user;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
 const CashInOut = db.cashInOut;
+const SupplierHistory = db.supplierHistory;
 
 const normalizeOptionalText = (value) => {
   if (value === undefined || value === null) return null;
@@ -106,7 +107,7 @@ const resolveRequisitionItem = async (
   throw new ApiError(400, "Product or asset is required");
 };
 
-const insertIntoDB = async (data) => {
+const insertIntoDB = async (data = {}) => {
   const {
     quantity,
     amount,
@@ -120,6 +121,7 @@ const insertIntoDB = async (data) => {
     bookId,
     note,
     date,
+    file,
     procurement,
     supplierId,
     warehouseId,
@@ -153,6 +155,7 @@ const insertIntoDB = async (data) => {
       warehouseId,
       productId: item.productId,
       assetId: item.assetId,
+      file: file || null,
     };
 
     const result = await PurchaseRequisition.create(payload, {
@@ -202,11 +205,11 @@ const getAllFromDB = async (filters, options) => {
 
   const andConditions = [];
 
-  // ✅ Search (ILIKE)
+  // Search by real table columns. MySQL uses LIKE rather than ILIKE.
   if (searchTerm && searchTerm.trim()) {
     andConditions.push({
       [Op.or]: PurchaseRequisitionSearchableFields.map((field) => ({
-        [field]: { [Op.iLike]: `%${searchTerm.trim()}%` },
+        [field]: { [Op.like]: `%${searchTerm.trim()}%` },
       })),
     });
   }
@@ -337,6 +340,8 @@ const updateOneFromDB = async (id, payload) => {
     note,
     date,
     status,
+    file,
+    procurement,
     userId,
     supplierId,
     warehouseId,
@@ -353,10 +358,20 @@ const updateOneFromDB = async (id, payload) => {
   // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
   const existing = await PurchaseRequisition.findOne({
     where: { Id: id },
-    attributes: ["Id", "note", "status", "name", "productId", "assetId"],
+    attributes: [
+      "Id",
+      "note",
+      "status",
+      "name",
+      "productId",
+      "assetId",
+      "bookId",
+    ],
   });
 
   if (!existing) return 0;
+
+  const finalBookId = normalizeOptionalId(bookId) || existing.bookId || null;
 
   const oldNote = String(existing.note || "").trim();
   const newNote = String(note || "").trim();
@@ -390,11 +405,13 @@ const updateOneFromDB = async (id, payload) => {
   const data = {
     quantity,
     amount: Number(amount || 0),
-    bookId: bookId || null,
+    bookId: finalBookId,
     variants: incomingVariants,
     note: finalStatus === "Approved" ? null : newNote || null,
     status: finalStatus,
     date: inputDateStr || undefined,
+    procurement,
+    file: file || null,
     supplierId,
     warehouseId,
   };
@@ -414,25 +431,49 @@ const updateOneFromDB = async (id, payload) => {
     data.productId = item.productId;
     data.assetId = item.assetId;
 
-    if (status === "Completed") {
-      // Handle completed status logic if needed
+    if (finalStatus === "Completed" && existing.status !== "Completed") {
+      const resolvedSupplierId = normalizeOptionalId(supplierId);
+      const resolvedAmount = Number(amount || 0);
+      const resolvedDate = String(date || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
+      const itemName = data.name || existing.name;
 
-      await CashInOut.create(
-        {
-          amount: amount,
-          bookId: bookId || null,
-          paymentStatus: "CashInOut",
-          status: "Active",
-          date: new Date(),
-        },
-        { transaction: t },
-      );
+      if (resolvedSupplierId && resolvedAmount > 0) {
+        // ১. SupplierHistory — মাল পেলাম এবং সাথে সাথে cash দিলাম (Paid)
+        await SupplierHistory.create(
+          {
+            supplierId: resolvedSupplierId,
+            bookId: finalBookId,
+            amount: resolvedAmount,
+            status: "Paid",
+            date: resolvedDate,
+            note: `Purchase requisition completed: ${itemName}`,
+            file: file || null,
+          },
+          { transaction: t },
+        );
+
+        // ২. CashInOut — book থেকে cash বের হলো (CashOut)
+        await CashInOut.create(
+          {
+            supplierId: resolvedSupplierId,
+            bookId: finalBookId,
+            paymentStatus: "CashOut",
+            amount: resolvedAmount,
+            status: "Active",
+            date: resolvedDate,
+            note: `Purchase requisition completed: ${itemName}`,
+            file: file || null,
+          },
+          { transaction: t },
+        );
+      }
     }
 
     const [updatedCount] = await PurchaseRequisition.update(data, {
       where: {
         Id: id,
       },
+      transaction: t,
     });
 
     const users = await User.findAll({
@@ -443,7 +484,6 @@ const updateOneFromDB = async (id, payload) => {
       },
     });
 
-    console.log("users", users.length);
     if (!users.length) return updatedCount;
 
     const message = resolveApprovalNotificationMessage({

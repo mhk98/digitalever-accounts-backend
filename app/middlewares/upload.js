@@ -1,54 +1,70 @@
 const multer = require("multer");
 const path = require("path");
+const { v4: uuidv4 } = require("uuid");
+
+// Allowed MIME types — zip removed (security risk)
+const ALLOWED_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "application/pdf",
+]);
+
+const ALLOWED_EXTENSIONS = new Set([
+  ".jpeg",
+  ".jpg",
+  ".png",
+  ".gif",
+  ".webp",
+  ".pdf",
+]);
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "images"); // Set destination folder
+    cb(null, "images");
   },
   filename: (req, file, cb) => {
-    const uniqueName = `${Date.now()}-${file.originalname}`; // Generate unique file name
-    cb(null, uniqueName);
+    // UUID filename — prevents path traversal and originalname injection
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${uuidv4()}${ext}`);
   },
 });
 
 const fileFilter = (req, file, cb) => {
-  const fileTypes = /jpeg|jpg|png|gif|webp|pdf|zip/;
+  const ext = path.extname(file.originalname).toLowerCase();
+  const mimeOk = ALLOWED_MIME_TYPES.has(file.mimetype);
+  const extOk = ALLOWED_EXTENSIONS.has(ext);
 
-  const mimeType = fileTypes.test(file.mimetype);
-  const extname = fileTypes.test(path.extname(file.originalname));
-  if (mimeType && extname) {
+  if (mimeOk && extOk) {
     cb(null, true);
   } else {
-    cb(
-      new Error(
-        "Invalid file format. Supported formats: jpeg, jpg, png, gif, webp, pdf, zip",
-      ),
-    );
+    cb(new Error("Invalid file format. Allowed: jpeg, jpg, png, gif, webp, pdf"));
   }
 };
 
 const uploadFile = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter,
-}).single("file"); // Use "file" as the field name for PDF uploads
+}).single("file");
 
 const uploadPdf = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter,
-}).single("file"); // Use "file" as the field name for PDF uploads
+}).single("file");
 
-// Configure upload for single and multiple file uploads
 const uploadSingle = multer({
-  storage: storage,
-  limits: { fileSize: 5000000 }, // 5 MB limit
-  fileFilter: fileFilter,
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter,
 }).single("image");
 
 const uploadUserDocuments = multer({
   storage,
-  limits: { fileSize: 5000000 },
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter,
 }).fields([
   { name: "image", maxCount: 1 },
@@ -59,13 +75,14 @@ const uploadUserDocuments = multer({
 ]);
 
 const uploadMultiple = multer({
-  storage: storage,
-  limits: { fileSize: 5000000 }, // 5 MB limit per file
-  fileFilter: fileFilter,
-}).array("gallery_images", 10); // Allow up to 10 files
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter,
+}).array("gallery_images", 10);
 
 module.exports = {
   uploadFile,
+  uploadPdf,
   uploadSingle,
   uploadUserDocuments,
   uploadMultiple,

@@ -184,6 +184,11 @@ db.category = require("../app/modules/category/category.model")(
   DataTypes,
 );
 
+db.bankAccount = require("../app/modules/bankAccount/bankAccount.model")(
+  db.sequelize,
+  DataTypes,
+);
+
 db.supplier = require("../app/modules/supplier/supplier.model")(
   db.sequelize,
   DataTypes,
@@ -496,6 +501,12 @@ db.product.hasMany(db.confirmOrder, {
 
 db.book.hasMany(db.cashInOut, { foreignKey: "bookId" });
 db.cashInOut.belongsTo(db.book, { foreignKey: "bookId" });
+
+db.book.hasMany(db.pettyCash, { foreignKey: "bookId" });
+db.pettyCash.belongsTo(db.book, { foreignKey: "bookId", as: "book" });
+
+db.book.hasMany(db.pettyCashRequisition, { foreignKey: "bookId" });
+db.pettyCashRequisition.belongsTo(db.book, { foreignKey: "bookId", as: "book" });
 
 db.supplier.hasMany(db.ledger, { foreignKey: "supplierId" });
 db.ledger.belongsTo(db.supplier, { foreignKey: "supplierId", as: "supplier" });
@@ -1391,6 +1402,20 @@ const ensureStatusAndNoteColumns = async (modelKey) => {
   }
 };
 
+const ensureProfitLossModeColumn = async () => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db.profitLoss.getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!tableDefinition.mode) {
+    await queryInterface.addColumn(tableName, "mode", {
+      type: DataTypes.STRING(16),
+      allowNull: false,
+      defaultValue: "product",
+    });
+  }
+};
+
 const ensureApprovalColumns = async (modelKey) => {
   const queryInterface = db.sequelize.getQueryInterface();
   const tableName = db[modelKey].getTableName();
@@ -1479,6 +1504,47 @@ const ensurePurchaseRequisitionAssetColumns = async () => {
 
   if (!tableDefinition.assetId) {
     await queryInterface.addColumn(tableName, "assetId", {
+      type: DataTypes.INTEGER(10),
+      allowNull: true,
+    });
+  }
+
+  if (!tableDefinition.bookId) {
+    await queryInterface.addColumn(tableName, "bookId", {
+      type: DataTypes.INTEGER(10),
+      allowNull: true,
+    });
+  }
+
+  if (!tableDefinition.file) {
+    await queryInterface.addColumn(tableName, "file", {
+      type: DataTypes.STRING,
+      allowNull: true,
+    });
+  }
+};
+
+const ensurePettyCashColumns = async (modelKey) => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db[modelKey].getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!tableDefinition.category) {
+    await queryInterface.addColumn(tableName, "category", {
+      type: DataTypes.STRING,
+      allowNull: true,
+    });
+  }
+
+  if (!tableDefinition.file) {
+    await queryInterface.addColumn(tableName, "file", {
+      type: DataTypes.STRING,
+      allowNull: true,
+    });
+  }
+
+  if (!tableDefinition.bookId) {
+    await queryInterface.addColumn(tableName, "bookId", {
       type: DataTypes.INTEGER(10),
       allowNull: true,
     });
@@ -1686,6 +1752,7 @@ db.sequelize
         (modelKey) => ensureStatusAndNoteColumns(modelKey),
       ),
     );
+    await ensureProfitLossModeColumn();
     await Promise.all(
       ["assetsPurchase", "assetsSale", "assetsDamage"].map((modelKey) =>
         ensureAssetMovementColumns(modelKey),
@@ -1693,6 +1760,11 @@ db.sequelize
     );
     await ensureAssetIdColumn("assetsRequisition");
     await ensurePurchaseRequisitionAssetColumns();
+    await Promise.all(
+      ["pettyCash", "pettyCashRequisition"].map((modelKey) =>
+        ensurePettyCashColumns(modelKey),
+      ),
+    );
     await ensureAssetsStockColumns();
     await Promise.all(
       ["damageStock", "damageReparingStock"].map((modelKey) =>

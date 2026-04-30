@@ -1,5 +1,9 @@
 const { where, Op } = require("sequelize");
-const { generateToken } = require("../../../helpers/jwtHelpers");
+const {
+  generateToken,
+  generateRefreshToken,
+  verifyRefreshToken,
+} = require("../../../helpers/jwtHelpers");
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const User = db.user;
@@ -30,47 +34,35 @@ const login = async (buyerData) => {
     throw new ApiError();
   }
 
-  // Find user by email
+  // Generic error to prevent user enumeration
   const user = await User.findOne({ where: { Email } });
   if (!user) {
-    throw new ApiError(
-      404,
-      "No user found with this email. Please create an account first.",
-    );
+    throw new ApiError(401, "Invalid email or password.");
   }
 
   if (user.status === "Inactive") {
-    throw new ApiError(403, "This account is deactivated. Please contact super admin.");
+    throw new ApiError(403, "This account is deactivated. Please contact the administrator.");
   }
 
-  // Validate password
   const isPasswordValid = bcrypt.compareSync(Password, user.Password);
   if (!isPasswordValid) {
-    throw new ApiError(401, "Incorrect password or email.");
+    throw new ApiError(401, "Invalid email or password.");
   }
 
-  // Generate JWT access token
   const accessToken = generateToken(user);
-
-  // Set access token in cookie
-  const cookieOptions = {
-    secure: process.env.NODE_ENV === "production", // Fixed environment check
-    httpOnly: true,
-  };
-  // res.cookie("accessToken", accessToken, cookieOptions);
+  const refreshToken = generateRefreshToken(user);
 
   const plainUser = sanitizeUser(user);
 
   const menuPermissions =
     await RolePermissionService.getEffectiveMenuPermissions(user.role);
 
-  const result = {
+  return {
     accessToken,
+    refreshToken,
     user: plainUser,
     menuPermissions,
   };
-
-  return result;
 };
 
 // const register = async (userData) => {
@@ -279,10 +271,28 @@ const impersonateUserSession = async (actor, id) => {
   };
 };
 
+const refreshToken = async (token) => {
+  if (!token) throw new ApiError(401, "Refresh token is required");
+
+  const decoded = verifyRefreshToken(token);
+
+  const user = await User.findOne({ where: { Id: decoded.Id } });
+  if (!user) throw new ApiError(401, "User not found");
+
+  if (user.status === "Inactive") {
+    throw new ApiError(403, "This account is deactivated");
+  }
+
+  const newAccessToken = generateToken(user);
+
+  return { accessToken: newAccessToken };
+};
+
 const UserService = {
   getAllUserFromDB,
   login,
   register,
+  refreshToken,
   deleteUserFromDB,
   updateUserFromDB,
   getUserById,

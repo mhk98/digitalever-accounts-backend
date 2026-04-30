@@ -8,6 +8,79 @@ const Notification = db.notification;
 const User = db.user;
 const SupplierHistory = db.supplierHistory;
 
+const buildLoanWhere = (filters = {}, extraConditions = []) => {
+  const { searchTerm, startDate, endDate, lender } = filters;
+  const conditions = [
+    db.Sequelize.where(db.Sequelize.fn("LOWER", db.Sequelize.col("category")), {
+      [Op.eq]: "loan",
+    }),
+    { lender: { [Op.ne]: null } },
+    { lender: { [Op.ne]: "" } },
+    ...extraConditions,
+  ];
+
+  if (lender) {
+    conditions.push({ lender: { [Op.eq]: lender } });
+  }
+
+  if (searchTerm && String(searchTerm).trim()) {
+    const term = String(searchTerm).trim();
+    conditions.push({
+      [Op.or]: [
+        { lender: { [Op.like]: `%${term}%` } },
+        { remarks: { [Op.like]: `%${term}%` } },
+        { paymentMode: { [Op.like]: `%${term}%` } },
+        { paymentStatus: { [Op.like]: `%${term}%` } },
+        db.Sequelize.where(
+          db.Sequelize.cast(db.Sequelize.col("amount"), "CHAR"),
+          { [Op.like]: `%${term}%` },
+        ),
+      ],
+    });
+  }
+
+  if (startDate && endDate) {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    conditions.push({ date: { [Op.between]: [start, end] } });
+  } else if (startDate) {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    conditions.push({ date: { [Op.gte]: start } });
+  } else if (endDate) {
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    conditions.push({ date: { [Op.lte]: end } });
+  }
+
+  return { [Op.and]: conditions };
+};
+
+const loanSumAttributes = [
+  [
+    db.Sequelize.fn(
+      "SUM",
+      db.Sequelize.literal(
+        "CASE WHEN paymentStatus = 'CashIn' THEN amount ELSE 0 END",
+      ),
+    ),
+    "totalLoanTaken",
+  ],
+  [
+    db.Sequelize.fn(
+      "SUM",
+      db.Sequelize.literal(
+        "CASE WHEN paymentStatus = 'CashOut' THEN amount ELSE 0 END",
+      ),
+    ),
+    "totalLoanGiven",
+  ],
+];
+
 const insertIntoDB = async (data) => {
   const { amount, date, bookId, supplierId, employeeId, file } = data;
   const hasSupplierId =
@@ -379,11 +452,110 @@ const getAllFromDB = async (filters, options) => {
   };
 };
 
+const getLoanSummaries = async (filters, options) => {
+  const { page, limit, skip } = paginationHelpers.calculatePagination(options);
+  const where = buildLoanWhere(filters);
+
+  const data = await CashInOut.findAll({
+    attributes: [
+      "lender",
+      ...loanSumAttributes,
+      [db.Sequelize.fn("MAX", db.Sequelize.col("date")), "lastDate"],
+    ],
+    where,
+    group: ["lender"],
+    order: [[db.Sequelize.fn("MAX", db.Sequelize.col("date")), "DESC"]],
+    offset: skip,
+    limit,
+    raw: true,
+  });
+
+  const [count, totals] = await Promise.all([
+    CashInOut.count({
+      where,
+      distinct: true,
+      col: "lender",
+    }),
+    CashInOut.findOne({
+      attributes: loanSumAttributes,
+      where,
+      raw: true,
+    }),
+  ]);
+
+  const totalLoanTaken = Number(totals?.totalLoanTaken || 0);
+  const totalLoanGiven = Number(totals?.totalLoanGiven || 0);
+
+  return {
+    meta: {
+      count,
+      totalLoanTaken,
+      totalLoanGiven,
+      netBalance: totalLoanTaken - totalLoanGiven,
+      page,
+      limit,
+    },
+    data: data.map((row) => {
+      const taken = Number(row.totalLoanTaken || 0);
+      const given = Number(row.totalLoanGiven || 0);
+
+      return {
+        lender: row.lender,
+        totalLoanTaken: taken,
+        totalLoanGiven: given,
+        netBalance: taken - given,
+        lastDate: row.lastDate,
+      };
+    }),
+  };
+};
+
+const getLoanHistory = async (lender, filters, options) => {
+  const { page, limit, skip } = paginationHelpers.calculatePagination(options);
+  const where = buildLoanWhere({ ...filters, lender });
+
+  const [data, count, totals] = await Promise.all([
+    CashInOut.findAll({
+      where,
+      offset: skip,
+      limit,
+      paranoid: true,
+      order:
+        options.sortBy && options.sortOrder
+          ? [[options.sortBy, options.sortOrder.toUpperCase()]]
+          : [["date", "DESC"]],
+    }),
+    CashInOut.count({ where }),
+    CashInOut.findOne({
+      attributes: loanSumAttributes,
+      where,
+      raw: true,
+    }),
+  ]);
+
+  const totalLoanTaken = Number(totals?.totalLoanTaken || 0);
+  const totalLoanGiven = Number(totals?.totalLoanGiven || 0);
+
+  return {
+    meta: {
+      count,
+      totalLoanTaken,
+      totalLoanGiven,
+      netBalance: totalLoanTaken - totalLoanGiven,
+      page,
+      limit,
+    },
+    data,
+  };
+};
+
 const getDataById = async (id) => {
   const result = await CashInOut.findAll({
     where: {
       bookId: id,
     },
+    paranoid: true,
+    order: [["date", "DESC"]],
   });
 
   return result;
@@ -473,6 +645,8 @@ const getAllFromDBWithoutQuery = async () => {
 
 const CashInOutService = {
   getAllFromDB,
+  getLoanSummaries,
+  getLoanHistory,
   insertIntoDB,
   deleteIdFromDB,
   updateOneFromDB,

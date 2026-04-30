@@ -10,6 +10,10 @@ const ConfirmOrder = db.confirmOrder;
 const DamageProduct = db.damageProduct;
 const DamageRepair = db.damageRepair;
 const DamageRepaired = db.damageRepaired;
+const Product = db.product;
+const InventoryMaster = db.inventoryMaster;
+const DamageStock = db.damageStock;
+const DamageReparingStock = db.damageReparingStock;
 
 const n = (v) => Number(v || 0);
 
@@ -18,41 +22,148 @@ const overviewSources = [
     key: "totalReceivedProduct",
     label: "Received Product",
     Model: ReceivedProduct,
+    include: () => [
+      {
+        model: Product,
+        attributes: [],
+        required: true,
+        where: { deletedAt: { [Op.is]: null } },
+      },
+    ],
   },
   {
     key: "totalPurchaseReturnProduct",
     label: "Purchase Return Product",
     Model: PurchaseReturnProduct,
+    include: () => [
+      {
+        model: InventoryMaster,
+        attributes: [],
+        required: true,
+        include: [
+          {
+            model: Product,
+            attributes: [],
+            required: true,
+            where: { deletedAt: { [Op.is]: null } },
+          },
+        ],
+      },
+    ],
   },
   {
     key: "totalIntransitProduct",
     label: "In Transit Product",
     Model: InTransitProduct,
+    include: () => [
+      {
+        model: InventoryMaster,
+        attributes: [],
+        required: true,
+        include: [
+          {
+            model: Product,
+            attributes: [],
+            required: true,
+            where: { deletedAt: { [Op.is]: null } },
+          },
+        ],
+      },
+    ],
   },
   {
     key: "totalSalesReturnProduct",
     label: "Sales Return Product",
     Model: ReturnProduct,
+    include: () => [
+      {
+        model: InventoryMaster,
+        attributes: [],
+        required: true,
+        include: [
+          {
+            model: Product,
+            attributes: [],
+            required: true,
+            where: { deletedAt: { [Op.is]: null } },
+          },
+        ],
+      },
+    ],
   },
   {
     key: "totalConfirmOrder",
     label: "Confirm Order",
     Model: ConfirmOrder,
+    include: () => [
+      {
+        model: Product,
+        as: "product",
+        attributes: [],
+        required: true,
+        where: { deletedAt: { [Op.is]: null } },
+      },
+    ],
   },
   {
     key: "totalDamageProduct",
     label: "Damage Product",
     Model: DamageProduct,
+    include: () => [
+      {
+        model: InventoryMaster,
+        attributes: [],
+        required: true,
+        include: [
+          {
+            model: Product,
+            attributes: [],
+            required: true,
+            where: { deletedAt: { [Op.is]: null } },
+          },
+        ],
+      },
+    ],
   },
   {
     key: "totalDamageRepair",
     label: "Damage Repair",
     Model: DamageRepair,
+    include: () => [
+      {
+        model: DamageStock,
+        attributes: [],
+        required: true,
+        include: [
+          {
+            model: Product,
+            attributes: [],
+            required: true,
+            where: { deletedAt: { [Op.is]: null } },
+          },
+        ],
+      },
+    ],
   },
   {
     key: "totalDamageRepaired",
     label: "Damage Repaired",
     Model: DamageRepaired,
+    include: () => [
+      {
+        model: DamageReparingStock,
+        attributes: [],
+        required: true,
+        include: [
+          {
+            model: Product,
+            attributes: [],
+            required: true,
+            where: { deletedAt: { [Op.is]: null } },
+          },
+        ],
+      },
+    ],
   },
 ];
 
@@ -118,9 +229,10 @@ const getSelectedSources = (source) => {
   );
 };
 
-const findRows = async (Model, where = {}, label) => {
+const findRows = async (Model, where = {}, label, include = []) => {
   const rows = await Model.findAll({
     where,
+    include,
     attributes: ["Id", "name", "quantity", "date"],
     order: [
       ["date", "DESC"],
@@ -153,7 +265,9 @@ const getInventoryOverviewListFromDB = async (filters) => {
   const selectedSources = getSelectedSources(source);
 
   const rowsBySource = await Promise.all(
-    selectedSources.map(({ Model, label }) => findRows(Model, where, label)),
+    selectedSources.map(({ Model, label, include }) =>
+      findRows(Model, where, label, include ? include() : []),
+    ),
   );
 
   const all = rowsBySource.flat().sort((a, b) => {

@@ -93,17 +93,17 @@ const insertIntoDB = async (data, file) => {
     // =========================
     const normalizedBookId = normalizeNullableId(bookId);
 
-    await SupplierHistory.create(
-      {
-        supplierId,
-        bookId: normalizedBookId,
-        amount: Number(purchase_price || 0) * Number(quantity || 0),
-        status: "Unpaid",
-        date,
-        file,
-      },
-      { transaction: t },
-    );
+    // await SupplierHistory.create(
+    //   {
+    //     supplierId,
+    //     bookId: normalizedBookId,
+    //     amount: Number(purchase_price || 0) * Number(quantity || 0),
+    //     status: "Unpaid",
+    //     date,
+    //     file,
+    //   },
+    //   { transaction: t },
+    // );
 
     // =========================
     // CashInOut
@@ -607,17 +607,17 @@ const updateOneFromDB = async (id, payload) => {
     });
 
     // ✅ SupplierHistory - Insert new record on update
-    await SupplierHistory.create(
-      {
-        supplierId,
-        bookId: normalizedBookId,
-        status: "Unpaid",
-        amount: Number(purchase_price || 0) * Number(quantity || 0),
-        date,
-        file,
-      },
-      { transaction: t },
-    );
+    // await SupplierHistory.create(
+    //   {
+    //     supplierId,
+    //     bookId: normalizedBookId,
+    //     status: "Unpaid",
+    //     amount: Number(purchase_price || 0) * Number(quantity || 0),
+    //     date,
+    //     file,
+    //   },
+    //   { transaction: t },
+    // );
 
     // ✅ CashInOut - Insert new record on update
     // await CashInOut.create(

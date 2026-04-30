@@ -119,6 +119,10 @@ const includeNewSettingsChildren = (role, permissions = []) => {
     permissionSet.add("tasks");
   }
 
+  if (defaults.includes("loan") && !permissionSet.has("loan")) {
+    permissionSet.add("loan");
+  }
+
   if (
     defaults.includes("CS_WORK_REPORTS") &&
     !permissionSet.has("CS_WORK_REPORTS")

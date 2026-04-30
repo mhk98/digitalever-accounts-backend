@@ -290,6 +290,38 @@ const getAllFromDB = catchAsync(async (req, res) => {
   });
 });
 
+const getLoanSummaries = catchAsync(async (req, res) => {
+  const filters = pick(req.query, ["searchTerm", "startDate", "endDate"]);
+  const options = pick(req.query, ["limit", "page", "sortBy", "sortOrder"]);
+
+  const result = await CashInOutService.getLoanSummaries(filters, options);
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Loan data fetched!!",
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
+const getLoanHistory = catchAsync(async (req, res) => {
+  const filters = pick(req.query, ["searchTerm", "startDate", "endDate"]);
+  const options = pick(req.query, ["limit", "page", "sortBy", "sortOrder"]);
+
+  const result = await CashInOutService.getLoanHistory(
+    req.params.lender,
+    filters,
+    options,
+  );
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Loan history fetched!!",
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
 const getDataById = catchAsync(async (req, res) => {
   const result = await CashInOutService.getDataById(req.params.id);
   sendResponse(res, {
@@ -484,6 +516,8 @@ const getAllFromDBWithoutQuery = catchAsync(async (req, res) => {
 
 const CashInOutController = {
   getAllFromDB,
+  getLoanSummaries,
+  getLoanHistory,
   insertIntoDB,
   getDataById,
   updateOneFromDB,

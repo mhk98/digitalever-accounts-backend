@@ -15,20 +15,35 @@ const insertIntoDB = async (payload) => {
 };
 
 const sendInvoiceEmail = async (payload) => {
-  const { clientEmail, invoiceNumber, companyName, reportTitle, reportDate } =
-    payload;
+  const {
+    clientEmail,
+    invoiceNumber,
+    companyName,
+    reportTitle,
+    reportDate,
+    salesType,
+    selectedProducts = [],
+    employeeReports = [],
+    calculationSummary = {},
+    savedHistory = [],
+  } = payload;
+
   const htmlContent = profitLossInvoiceTemplate({
     companyName: companyName || "",
     reportTitle: reportTitle || "Profit & Loss Invoice",
     reportDate: reportDate ? new Date(reportDate).toLocaleDateString() : "",
-    invoiceNumber: invoiceNumber,
-    message: "Attached PDF-এ আপনার profit and loss summary দেওয়া আছে।",
+    invoiceNumber,
+    salesType: salesType || "",
+    selectedProducts,
+    employeeReports,
+    calculationSummary,
+    savedHistory,
     supportEmail: "ceo@eaconsultancy.info",
   });
 
   const result = await sendEmail({
     to: clientEmail,
-    subject: "Your Profit & Loss Invoice PDF",
+    subject: `Your Profit & Loss Invoice - ${invoiceNumber || ""}`,
     htmlContent,
   });
   return result;
@@ -37,7 +52,7 @@ const sendInvoiceEmail = async (payload) => {
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
 
-  const { searchTerm, startDate, endDate, ...otherFilters } = filters;
+  const { searchTerm, startDate, endDate, mode, ...otherFilters } = filters;
 
   const andConditions = [];
 
@@ -58,6 +73,10 @@ const getAllFromDB = async (filters, options) => {
     });
   }
 
+  if (mode) {
+    andConditions.push({ mode: { [Op.eq]: mode } });
+  }
+
   // ✅ Exact filters (e.g. name)
   if (Object.keys(otherFilters).length) {
     andConditions.push(
@@ -76,7 +95,7 @@ const getAllFromDB = async (filters, options) => {
     end.setHours(23, 59, 59, 999);
 
     andConditions.push({
-      date: { [Op.between]: [start, end] },
+      createdAt: { [Op.between]: [start, end] },
     });
   }
 

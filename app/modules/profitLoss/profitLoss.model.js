@@ -9,6 +9,14 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
 
+      mode: {
+        type: DataTypes.STRING(16),
+        allowNull: false,
+        defaultValue: "product",
+        validate: {
+          isIn: [["product", "user"]],
+        },
+      },
       salesType: {
         type: DataTypes.STRING,
         allowNull: false,

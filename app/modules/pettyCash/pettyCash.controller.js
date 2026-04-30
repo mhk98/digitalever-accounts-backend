@@ -59,14 +59,14 @@ const insertIntoDB = catchAsync(async (req, res) => {
     category,
     userId,
     mode,
+    bookId,
   } = req.body;
   // const file = req.file.path.replace(/\\/g, "/");
   const file = req.file ? req.file.path.replace(/\\/g, "/") : undefined;
 
-  const shouldCreateRequisition =
-    isRequisitionMode(mode || req.query?.mode) || paymentStatus === "CashIn";
+  const shouldCreateRequisition = isRequisitionMode(mode || req.query?.mode);
 
-  // Requisition: status comes from approval workflow middleware.
+  // Requisition creates should always wait for approval, regardless of role/date.
   // Normal petty cash: keep existing behavior.
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10); // expects "YYYY-MM-DD"
@@ -76,7 +76,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
   const isPending = inputStatus === "Pending";
 
   const finalStatus = shouldCreateRequisition
-    ? inputStatus || "Active"
+    ? "Pending"
     : isApproved
       ? "Approved"
       : isPending
@@ -99,6 +99,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
     note: finalStatus === "Approved" ? null : note || null,
     date: date,
     category,
+    bookId: bookId || null,
     requestedByUserId: req.user?.Id || userId || null,
   };
 

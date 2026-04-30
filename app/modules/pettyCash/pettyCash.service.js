@@ -13,6 +13,13 @@ const isRequisitionMode = (mode) => String(mode || "").trim() === "requisition";
 const getModelByMode = (mode) =>
   isRequisitionMode(mode) ? PettyCashRequisition : PettyCash;
 
+const pickModelAttributes = (Model, payload) =>
+  Object.fromEntries(
+    Object.entries(payload).filter(([key, value]) => {
+      return Model.rawAttributes?.[key] && value !== undefined;
+    }),
+  );
+
 const stripWorkflowNote = (value) =>
   String(value || "")
     .replace(/\[Approval pending for update\]/g, "")
@@ -30,12 +37,13 @@ const buildApprovedRequisitionNote = (value) => {
 
 const insertIntoDB = async (data, options = {}) => {
   const Model = getModelByMode(options.mode);
-  const payload = isRequisitionMode(options.mode)
+  const rawPayload = isRequisitionMode(options.mode)
     ? {
         ...data,
         paymentStatus: "CashIn",
       }
     : data;
+  const payload = pickModelAttributes(Model, rawPayload);
   const result = await Model.create(payload);
   return result;
 };
@@ -137,6 +145,7 @@ const getAllFromDB = async (filters, options) => {
 
   const result = await Model.findAll({
     where: whereConditions,
+    include: [{ model: Book, as: "book", attributes: ["Id", "name"] }],
     offset: skip,
     limit,
     paranoid: true,

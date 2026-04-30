@@ -83,7 +83,7 @@ const insertIntoDB = async (payload) => {
     }
 
       if (supplierId) {
-        // SupplierHistory
+        // SupplierHistory — বাকি যোগ = Unpaid, পরিশোধ = Paid
         await SupplierHistory.create(
           {
             supplierId,
@@ -95,33 +95,38 @@ const insertIntoDB = async (payload) => {
           },
           { transaction: t },
         );
-        // CashInOut
-        await CashInOut.create(
-          {
-            supplierId,
-            bookId,
-            paymentStatus: cashType === "Paid" ? "CashIn" : "Unpaid",
-            amount: cashType === "Paid" ? paidAmount : unpaidAmount,
-            status: "Active",
-            date,
-          },
-          { transaction: t },
-        );
+
+        // CashInOut — শুধু পরিশোধ (Paid) হলে CashOut। বাকি যোগ (Unpaid) হলে কোনো cash movement নেই।
+        if (cashType === "Paid") {
+          await CashInOut.create(
+            {
+              supplierId,
+              bookId,
+              paymentStatus: "CashOut",
+              amount: paidAmount,
+              status: "Active",
+              date,
+            },
+            { transaction: t },
+          );
+        }
       }
 
       if (employeeId) {
-        // CashInOut
-        await CashInOut.create(
-          {
-            employeeId,
-            bookId,
-            paymentStatus: cashType === "Paid" ? "CashIn" : "Unpaid",
-            amount: cashType === "Paid" ? paidAmount : unpaidAmount,
-            status: "Active",
-            date,
-          },
-          { transaction: t },
-        );
+        // CashInOut — শুধু পরিশোধ (Paid) হলে CashOut। বাকি যোগ (Unpaid) হলে কোনো cash movement নেই।
+        if (cashType === "Paid") {
+          await CashInOut.create(
+            {
+              employeeId,
+              bookId,
+              paymentStatus: "CashOut",
+              amount: paidAmount,
+              status: "Active",
+              date,
+            },
+            { transaction: t },
+          );
+        }
       }
 
     const result = await LedgerHistory.create(data, { transaction: t });

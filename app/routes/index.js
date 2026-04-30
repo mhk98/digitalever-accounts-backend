@@ -22,6 +22,7 @@ const OverviewRoutes = require("../modules/overview/overview.routes");
 const AssetsDamageRoutes = require("../modules/assetsDamage/assetsDamage.routes");
 const SupplierRoutes = require("../modules/supplier/supplier.routes");
 const CategoryRoutes = require("../modules/category/category.routes");
+const BankAccountRoutes = require("../modules/bankAccount/bankAccount.routes");
 const DamageProductRoutes = require("../modules/damageProduct/damageProduct.routes");
 const EmployeeRoutes = require("../modules/employee/employee.routes");
 const NotificationRoutes = require("../modules/notification/notification.routes");
@@ -244,6 +245,10 @@ const moduleRoutes = [
   {
     path: "/category",
     route: CategoryRoutes,
+  },
+  {
+    path: "/bank-account",
+    route: BankAccountRoutes,
   },
   {
     path: "/supplier",

@@ -4,6 +4,7 @@ const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
 const { BookSearchableFields } = require("./book.constants");
 const Book = db.book;
+const CashInOut = db.cashInOut;
 
 const insertIntoDB = async (data) => {
   const result = await Book.create(data);
@@ -85,6 +86,15 @@ const getDataById = async (id) => {
     where: {
       Id: id,
     },
+    include: [
+      {
+        model: CashInOut,
+        required: false,
+        where: {
+          deletedAt: { [Op.is]: null },
+        },
+      },
+    ],
   });
 
   return result;
