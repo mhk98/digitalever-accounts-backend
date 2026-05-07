@@ -297,7 +297,7 @@ const updateOneFromDB = async (id, data) => {
           {
             userId: u.Id,
             message,
-            url: `/kafelamart.digitalever.com.bd/assets-sale`,
+            url: `/${process.env.APP_BASE_URL}/assets-sale`,
           },
           {
             transaction: t,

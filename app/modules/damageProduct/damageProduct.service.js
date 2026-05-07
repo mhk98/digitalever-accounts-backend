@@ -270,7 +270,7 @@ const insertIntoDB = async (data) => {
           Notification.create({
             userId: u.Id,
             message,
-            url: "/purchase-requisition",
+            url: `/${process.env.APP_BASE_URL}/purchase-requisition`,
           }),
         ),
       );
@@ -600,7 +600,7 @@ const deleteIdFromDB = async (id) => {
 //         Notification.create({
 //           userId: u.Id,
 //           message,
-//           url: `/kafelamart.digitalever.com.bd/damage-product`,
+//           url: `/${process.env.APP_BASE_URL}/damage-product`,
 //         }),
 //       ),
 //     );
@@ -835,7 +835,7 @@ const updateOneFromDB = async (id, payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/kafelamart.digitalever.com.bd/purchase-product`,
+          url: `/${process.env.APP_BASE_URL}/purchase-product`,
         }),
       ),
     );

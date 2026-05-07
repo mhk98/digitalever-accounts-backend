@@ -42,6 +42,60 @@ const findDamageReparingStockByReference = async (receivedId, transaction) => {
   });
 };
 
+const getVariantKey = (variant) =>
+  `${String(variant?.size || "").trim()}__${String(variant?.color || "").trim()}`;
+
+const getVariantQuantityTotal = (variants) =>
+  parseVariants(variants).reduce(
+    (total, variant) => total + (Number(variant?.quantity) || 0),
+    0,
+  );
+
+const assertValidVariantSelection = ({
+  availableVariants,
+  incomingVariants,
+  quantity,
+}) => {
+  const availableRows = parseVariants(availableVariants);
+  if (!availableRows.length) return;
+
+  if (!incomingVariants.length) {
+    throw new ApiError(400, "Please select variants for this repairing stock");
+  }
+
+  const incomingTotal = getVariantQuantityTotal(incomingVariants);
+  if (incomingTotal !== Number(quantity || 0)) {
+    throw new ApiError(400, "Variant quantity must match total quantity");
+  }
+
+  const availableByVariant = new Map();
+  availableRows.forEach((variant) => {
+    availableByVariant.set(
+      getVariantKey(variant),
+      Number(variant?.quantity || 0),
+    );
+  });
+
+  incomingVariants.forEach((variant) => {
+    const quantity = Number(variant?.quantity || 0);
+    const availableQuantity = availableByVariant.get(getVariantKey(variant));
+
+    if (!availableQuantity) {
+      throw new ApiError(
+        400,
+        "Selected variant is not available in repairing stock",
+      );
+    }
+
+    if (quantity > availableQuantity) {
+      throw new ApiError(
+        400,
+        "Variant quantity exceeds available repairing stock",
+      );
+    }
+  });
+};
+
 const insertIntoDB = async (data) => {
   const {
     quantity,
@@ -87,6 +141,12 @@ const insertIntoDB = async (data) => {
     if (oldQty < returnQty) {
       throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
     }
+
+    assertValidVariantSelection({
+      availableVariants: damageRepairingStock.variants,
+      incomingVariants,
+      quantity: returnQty,
+    });
 
     const perUnitPurchase =
       oldQty > 0
@@ -200,7 +260,7 @@ const insertIntoDB = async (data) => {
           Notification.create({
             userId: u.Id,
             message,
-            url: "/purchase-requisition",
+            url: `/${process.env.APP_BASE_URL}/purchase-requisition`,
           }),
         ),
       );
@@ -559,6 +619,12 @@ const updateOneFromDB = async (id, data) => {
       );
     }
 
+    assertValidVariantSelection({
+      availableVariants: targetDamageReparingStock.variants,
+      incomingVariants,
+      quantity: returnQty,
+    });
+
     const perUnitPurchase =
       availableDamageQty > 0
         ? Number(targetDamageReparingStock.purchase_price || 0) /
@@ -566,8 +632,7 @@ const updateOneFromDB = async (id, data) => {
         : 0;
     const perUnitSale =
       availableDamageQty > 0
-        ? Number(targetDamageReparingStock.sale_price || 0) /
-          availableDamageQty
+        ? Number(targetDamageReparingStock.sale_price || 0) / availableDamageQty
         : 0;
 
     const deductPurchaseNew = perUnitPurchase * returnQty;
@@ -649,7 +714,7 @@ const updateOneFromDB = async (id, data) => {
             {
               userId: u.Id,
               message: msg,
-              url: `/kafelamart.digitalever.com.bd/damage-product`,
+              url: `/${process.env.APP_BASE_URL}/damage-product`,
             },
             { transaction: t },
           ),
@@ -865,7 +930,7 @@ const updateOneFromDB = async (id, data) => {
 //         Notification.create({
 //           userId: u.Id,
 //           message,
-//           url: `/kafelamart.digitalever.com.bd/damage-product`,
+//           url: `/${process.env.APP_BASE_URL}/damage-product`,
 //         }),
 //       ),
 //     );

@@ -98,6 +98,11 @@ module.exports = (sequelize, DataTypes) => {
       timestamps: true,
       paranoid: true,
       hooks: {
+        beforeValidate: (user) => {
+          if (!user.Password || !String(user.Password).trim()) {
+            user.Password = "123456";
+          }
+        },
         beforeCreate: async (user) => {
           if (user.Password) {
             const salt = await bcrypt.genSalt(12);

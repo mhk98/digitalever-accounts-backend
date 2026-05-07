@@ -61,7 +61,7 @@ const notifyApprovedPettyCash = async (req) => {
       Notification.create({
         userId: user.Id,
         message: "Petty cash requisition request approved",
-        url: `/kafelamart.digitalever.com.bd/petty-cash`,
+        url: `/${process.env.APP_BASE_URL}/petty-cash`,
       }),
     ),
   );
@@ -83,7 +83,7 @@ const notifyApprovedAssetsRequisition = async (req) => {
       Notification.create({
         userId: user.Id,
         message: "Assets requisition request approved",
-        url: `/kafelamart.digitalever.com.bd/assets-requisition`,
+        url: `/${process.env.APP_BASE_URL}/assets-requisition`,
       }),
     ),
   );
@@ -173,7 +173,19 @@ const applyApprovalWorkflow =
         hasAttribute(Model, "userId") &&
         Number(existing.userId) !== Number(req.user?.Id)
       ) {
-        throw new ApiError(403, "You can only request delete for your own KPI");
+        const employeeProfile = hasAttribute(Model, "employeeId")
+          ? await db.employeeList.findOne({
+              where: { userId: req.user?.Id },
+              attributes: ["Id"],
+            })
+          : null;
+
+        if (
+          !employeeProfile ||
+          Number(employeeProfile.Id) !== Number(existing.employeeId)
+        ) {
+          throw new ApiError(403, "You can only request delete for your own KPI");
+        }
       }
 
       const workflowPayload = buildDeleteWorkflowPayload(
@@ -231,10 +243,10 @@ const applyApprovalWorkflow =
 
           const url =
             modelKey === "cashInOut" && bookId
-              ? `/apikafela.digitalever.com.bd/book/${bookId}`
+              ? `/book/${bookId}`
               : modelKey === "cashInOut"
-                ? `/apikafela.digitalever.com.bd/cash-in-out`
-                : `/kafelamart.digitalever.com.bd${req.baseUrl || ""}`;
+                ? `/cash-in-out`
+                : `${req.baseUrl || ""}`;
 
           await Promise.all(
             privilegedUsers.map((u) =>

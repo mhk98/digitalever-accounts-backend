@@ -112,14 +112,14 @@ const insertIntoDB = catchAsync(async (req, res) => {
       userId,
       roles: ["superAdmin", "admin"],
       message: note || "Petty cash requisition request",
-      url: `/kafelamart.digitalever.com.bd/petty-cash-requisition`,
+      url: `/${process.env.APP_BASE_URL}/petty-cash-requisition`,
     });
   } else if (finalStatus === "Approved") {
     await notifyPettyCashUsers({
       userId,
       roles: ["accountant"],
       message: "Petty cash requisition request approved",
-      url: `/kafelamart.digitalever.com.bd/petty-cash`,
+      url: `/${process.env.APP_BASE_URL}/petty-cash`,
     });
   }
 
@@ -251,14 +251,14 @@ const updateOneFromDB = catchAsync(async (req, res) => {
       userId,
       roles: ["superAdmin", "admin"],
       message: newNote || "Petty cash requisition request",
-      url: `/kafelamart.digitalever.com.bd/petty-cash-requisition`,
+      url: `/${process.env.APP_BASE_URL}/petty-cash-requisition`,
     });
   } else if (finalStatus === "Approved") {
     await notifyPettyCashUsers({
       userId,
       roles: ["accountant"],
       message: "Petty cash requisition request approved",
-      url: `/kafelamart.digitalever.com.bd/petty-cash`,
+      url: `/${process.env.APP_BASE_URL}/petty-cash`,
     });
   }
 
@@ -293,7 +293,7 @@ const approveRequisition = catchAsync(async (req, res) => {
       userId: req.user?.Id,
       roles: ["accountant"],
       message: "Petty cash requisition request approved",
-      url: `/kafelamart.digitalever.com.bd/petty-cash`,
+      url: `/${process.env.APP_BASE_URL}/petty-cash`,
     });
   }
 

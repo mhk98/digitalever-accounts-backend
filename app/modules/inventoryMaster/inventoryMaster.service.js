@@ -5,10 +5,16 @@ const ApiError = require("../../../error/ApiError");
 const {
   InventoryMasterSearchableFields,
 } = require("./inventoryMaster.constants");
+const {
+  getInventoryDisplayQuantity,
+  normalizeInventoryQuantityForDisplay,
+} = require("../../../shared/variantQuantity");
 
 const InventoryMaster = db.inventoryMaster;
 const Supplier = db.supplier;
 const Warehouse = db.warehouse;
+
+const n = (value) => Number(value || 0);
 
 const insertIntoDB = async (data) => {
   const result = await InventoryMaster.create(data);
@@ -27,7 +33,7 @@ const getAllFromDB = async (filters, options) => {
   if (searchTerm && searchTerm.trim()) {
     andConditions.push({
       [Op.or]: InventoryMasterSearchableFields.map((field) => ({
-        [field]: { [Op.iLike]: `%${searchTerm.trim()}%` },
+        [field]: { [Op.like]: `%${searchTerm.trim()}%` },
       })),
     });
   }
@@ -63,23 +69,29 @@ const getAllFromDB = async (filters, options) => {
     ? { [Op.and]: andConditions }
     : {};
 
-  // ✅ paginated data
-  const data = await InventoryMaster.findAll({
-    where: whereConditions,
-    offset: skip,
-    limit,
-    paranoid: true,
-    order:
-      options.sortBy && options.sortOrder
-        ? [[options.sortBy, options.sortOrder.toUpperCase()]]
-        : [["createdAt", "DESC"]],
-  });
-
   // ✅ total count + total quantity (same filters)
-  const [count, totalQuantity] = await Promise.all([
+  const [data, count, quantityRows] = await Promise.all([
+    InventoryMaster.findAll({
+      where: whereConditions,
+      offset: skip,
+      limit,
+      paranoid: true,
+      order:
+        options.sortBy && options.sortOrder
+          ? [[options.sortBy, options.sortOrder.toUpperCase()]]
+          : [["createdAt", "DESC"]],
+    }),
     InventoryMaster.count({ where: whereConditions }),
-    InventoryMaster.sum("quantity", { where: whereConditions }),
+    InventoryMaster.findAll({
+      where: whereConditions,
+      attributes: ["quantity", "variants"],
+      paranoid: true,
+    }),
   ]);
+  const totalQuantity = quantityRows.reduce(
+    (sum, row) => sum + getInventoryDisplayQuantity(row),
+    0,
+  );
 
   return {
     meta: {
@@ -88,7 +100,7 @@ const getAllFromDB = async (filters, options) => {
       page,
       limit,
     },
-    data,
+    data: data.map(normalizeInventoryQuantityForDisplay),
   };
 };
 
@@ -99,7 +111,7 @@ const getDataById = async (id) => {
     },
   });
 
-  return result;
+  return normalizeInventoryQuantityForDisplay(result);
 };
 
 const deleteIdFromDB = async (id) => {
@@ -128,18 +140,12 @@ const getAllFromDBWithoutQuery = async () => {
     order: [["createdAt", "DESC"]],
   });
 
-  return result;
+  return result.map(normalizeInventoryQuantityForDisplay);
 };
 
-const getLowStockProductsFromDB = async (threshold = 10) => {
-  const parsedThreshold = Number(threshold);
-  const safeThreshold = Number.isNaN(parsedThreshold) ? 10 : parsedThreshold;
-
+const getLowStockProductsFromDB = async () => {
   const result = await InventoryMaster.findAll({
     where: {
-      quantity: {
-        [Op.lt]: safeThreshold,
-      },
       deletedAt: {
         [Op.is]: null,
       },
@@ -151,7 +157,12 @@ const getLowStockProductsFromDB = async (threshold = 10) => {
     ],
   });
 
-  return result;
+  return result
+    .map((row) => ({
+      ...normalizeInventoryQuantityForDisplay(row),
+      minimumStock: n(row.minimumStock),
+    }))
+    .filter((row) => n(row.quantity) <= n(row.minimumStock));
 };
 
 const InventoryMasterService = {

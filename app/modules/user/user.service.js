@@ -102,7 +102,8 @@ const register = async (userData) => {
     name: Name || "User",
     email: Email,
     password: plainPassword,
-    loginUrl: "https://accounts.digitalever.com.bd/login", // চাইলে পরিবর্তন করো
+    loginUrl: process.env.APP_LOGIN_URL,
+    brandName: process.env.MAIL_BRAND_NAME,
   });
 
   const sent = await sendEmail({

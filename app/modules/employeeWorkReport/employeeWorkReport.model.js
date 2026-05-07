@@ -24,6 +24,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING(180),
         allowNull: false,
       },
+      saleType: {
+        type: DataTypes.STRING(40),
+        allowNull: true,
+      },
       failedGiven: {
         type: DataTypes.INTEGER(10),
         allowNull: false,
@@ -45,6 +49,21 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 0,
       },
       pendingReturnReceived: {
+        type: DataTypes.INTEGER(10),
+        allowNull: false,
+        defaultValue: 0,
+      },
+      leadGiven: {
+        type: DataTypes.INTEGER(10),
+        allowNull: false,
+        defaultValue: 0,
+      },
+      leadReceived: {
+        type: DataTypes.INTEGER(10),
+        allowNull: false,
+        defaultValue: 0,
+      },
+      crossReceived: {
         type: DataTypes.INTEGER(10),
         allowNull: false,
         defaultValue: 0,

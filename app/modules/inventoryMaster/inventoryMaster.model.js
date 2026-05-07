@@ -33,6 +33,11 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 0,
         allowNull: true,
       },
+      minimumStock: {
+        type: DataTypes.INTEGER(10),
+        defaultValue: 0,
+        allowNull: true,
+      },
       variants: {
         type: DataTypes.JSON,
         defaultValue: [],

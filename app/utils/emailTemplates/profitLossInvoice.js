@@ -8,7 +8,13 @@ const esc = (value = "") =>
 
 const fmtCurrency = (value) => {
   const n = Number(value) || 0;
-  return "৳" + n.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (
+    "৳" +
+    n.toLocaleString("en", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+  );
 };
 
 const fmtNum = (value) => (Number(value) || 0).toLocaleString();
@@ -20,7 +26,7 @@ const sectionTitle = (title) =>
   `<h3 style="margin:0 0 10px;font-size:14px;font-weight:700;color:#1e293b;border-bottom:2px solid #e2e8f0;padding-bottom:6px;">${esc(title)}</h3>`;
 
 const profitLossInvoiceTemplate = ({
-  companyName = "EA Consultancy",
+  companyName = process.env.MAIL_BRAND_NAME || "Business Solution",
   reportTitle = "Profit & Loss Invoice",
   reportDate = "",
   invoiceNumber = "",
@@ -29,7 +35,7 @@ const profitLossInvoiceTemplate = ({
   employeeReports = [],
   calculationSummary = {},
   savedHistory = [],
-  supportEmail = "ceo@eaconsultancy.info",
+  supportEmail = process.env.MAIL_SUPPORT_EMAIL || process.env.MAIL_FROM_EMAIL || "",
 }) => {
   const {
     totalCost = 0,
@@ -43,7 +49,8 @@ const profitLossInvoiceTemplate = ({
     finalProfit = 0,
   } = calculationSummary;
 
-  const finalProfitColor = (Number(finalProfit) || 0) >= 0 ? "#059669" : "#dc2626";
+  const finalProfitColor =
+    (Number(finalProfit) || 0) >= 0 ? "#059669" : "#dc2626";
 
   // ── Product variants section (used by Daily Profit & Loss By Product) ───
   const productSection =
@@ -51,7 +58,8 @@ const profitLossInvoiceTemplate = ({
       ? (() => {
           const rows = selectedProducts
             .map((p) => {
-              const profitColor = (Number(p.profit) || 0) >= 0 ? "#059669" : "#dc2626";
+              const profitColor =
+                (Number(p.profit) || 0) >= 0 ? "#059669" : "#dc2626";
               return `<tr>
                 <td style="padding:9px 12px;border-bottom:1px solid #f1f5f9;">${esc(p.name)}</td>
                 <td style="padding:9px 12px;border-bottom:1px solid #f1f5f9;color:#64748b;">${esc(p.sku)}</td>
@@ -139,17 +147,21 @@ const profitLossInvoiceTemplate = ({
           <td style="padding:8px 12px;border:1px solid #e2e8f0;color:#475569;font-size:13px;">Other Expenses</td>
           <td style="padding:8px 12px;border:1px solid #e2e8f0;font-weight:700;font-size:13px;">${fmtCurrency(otherCost)}</td>
         </tr>
-        ${Number(totalCost) > 0 ? `
+        ${
+          Number(totalCost) > 0
+            ? `
         <tr>
           <td style="padding:8px 12px;border:1px solid #e2e8f0;color:#475569;font-size:13px;">Total Purchase</td>
           <td style="padding:8px 12px;border:1px solid #e2e8f0;font-weight:700;font-size:13px;">${fmtCurrency(totalCost)}</td>
           <td style="padding:8px 12px;border:1px solid #e2e8f0;color:#475569;font-size:13px;">Total Sale</td>
           <td style="padding:8px 12px;border:1px solid #e2e8f0;font-weight:700;font-size:13px;">${fmtCurrency(effectiveTotalRevenue)}</td>
-        </tr>` : `
+        </tr>`
+            : `
         <tr>
           <td style="padding:8px 12px;border:1px solid #e2e8f0;color:#475569;font-size:13px;">Total Revenue</td>
           <td style="padding:8px 12px;border:1px solid #e2e8f0;font-weight:700;font-size:13px;" colspan="3">${fmtCurrency(effectiveTotalRevenue)}</td>
-        </tr>`}
+        </tr>`
+        }
         <tr style="background:#f8fafc;">
           <td style="padding:10px 12px;border:1px solid #e2e8f0;font-weight:700;font-size:13px;" colspan="2">Net Profit / Loss</td>
           <td style="padding:10px 12px;border:1px solid #e2e8f0;font-weight:700;font-size:15px;color:${finalProfitColor};" colspan="2">${fmtCurrency(finalProfit)}</td>
@@ -157,12 +169,14 @@ const profitLossInvoiceTemplate = ({
       </table>`;
 
   // ── Saved history table ──────────────────────────────────────────────────
-  const isUserMode = savedHistory.length > 0 && savedHistory[0].purchase === undefined;
+  const isUserMode =
+    savedHistory.length > 0 && savedHistory[0].purchase === undefined;
   const historyRows =
     savedHistory.length > 0
       ? savedHistory
           .map((hr) => {
-            const plColor = (Number(hr.profitLoss) || 0) >= 0 ? "#059669" : "#dc2626";
+            const plColor =
+              (Number(hr.profitLoss) || 0) >= 0 ? "#059669" : "#dc2626";
             if (isUserMode) {
               return `<tr>
                 <td style="padding:9px 12px;border-bottom:1px solid #f1f5f9;">${esc(hr.date)}</td>

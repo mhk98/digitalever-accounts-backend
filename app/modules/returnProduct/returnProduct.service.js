@@ -47,6 +47,7 @@ const findInventoryByRequestReference = async (receivedId, transaction) => {
 const insertIntoDB = async (data) => {
   const {
     quantity,
+    sale_price,
     receivedId,
     variants,
     date,
@@ -60,12 +61,19 @@ const insertIntoDB = async (data) => {
   console.log("Return", data);
 
   const returnQty = Number(quantity);
+  const customSalePrice =
+    sale_price === undefined || sale_price === null || sale_price === ""
+      ? null
+      : Number(sale_price);
   const rid = Number(receivedId);
   const incomingVariants = parseVariants(variants);
 
   if (!rid) throw new ApiError(400, "receivedId is required");
   if (!returnQty || returnQty <= 0) {
     throw new ApiError(400, "Quantity must be greater than 0");
+  }
+  if (customSalePrice !== null && (!Number.isFinite(customSalePrice) || customSalePrice < 0)) {
+    throw new ApiError(400, "Sales price must be a positive number");
   }
 
   const finalStatus = String(status || "").trim() || "Active";
@@ -102,7 +110,10 @@ const insertIntoDB = async (data) => {
         variants: incomingVariants,
         source: "Sales Return Product",
         purchase_price: inventory.purchase_price * returnQty,
-        sale_price: inventory.sale_price * returnQty,
+        sale_price:
+          customSalePrice !== null
+            ? customSalePrice
+            : inventory.sale_price * returnQty,
         productId: inventoryId,
         status: finalStatus || "---",
         note: finalStatus === "Approved" ? null : note || null,
@@ -145,7 +156,7 @@ const insertIntoDB = async (data) => {
           Notification.create({
             userId: u.Id,
             message,
-            url: "/purchase-requisition",
+            url: `/${process.env.APP_BASE_URL}/purchase-requisition`,
           }),
         ),
       );
@@ -478,7 +489,7 @@ const deleteIdFromDB = async (id) => {
 //           {
 //             userId: u.Id,
 //             message,
-//             url: `/kafelamart.digitalever.com.bd/purchase-return`,
+//             url: `/${process.env.APP_BASE_URL}/purchase-return`,
 //           },
 //           { transaction: t },
 //         ),
@@ -492,6 +503,7 @@ const deleteIdFromDB = async (id) => {
 const updateOneFromDB = async (id, payload) => {
   const {
     quantity,
+    sale_price,
     receivedId,
     variants,
     note,
@@ -507,12 +519,27 @@ const updateOneFromDB = async (id, payload) => {
   const inputDateStr = String(date || "").slice(0, 10);
   const incomingVariants = parseVariants(variants);
   const nextQty = Number(quantity || 0);
+  const customSalePrice =
+    sale_price === undefined || sale_price === null || sale_price === ""
+      ? null
+      : Number(sale_price);
+  if (customSalePrice !== null && (!Number.isFinite(customSalePrice) || customSalePrice < 0)) {
+    throw new ApiError(400, "Sales price must be a positive number");
+  }
 
   return db.sequelize.transaction(async (t) => {
     // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
     const existing = await ReturnProduct.findOne({
       where: { Id: id },
-      attributes: ["Id", "note", "status", "quantity", "variants", "productId"],
+      attributes: [
+        "Id",
+        "note",
+        "status",
+        "quantity",
+        "sale_price",
+        "variants",
+        "productId",
+      ],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -595,7 +622,10 @@ const updateOneFromDB = async (id, payload) => {
       quantity: nextQty,
       variants: incomingVariants,
       purchase_price: Number(targetInv.purchase_price || 0) * nextQty,
-      sale_price: Number(targetInv.sale_price || 0) * nextQty,
+      sale_price:
+        customSalePrice !== null
+          ? customSalePrice
+          : Number(existing.sale_price || 0),
       supplierId,
       warehouseId,
       productId: targetInv.Id,
@@ -635,7 +665,7 @@ const updateOneFromDB = async (id, payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/kafelamart.digitalever.com.bd/purchase-product`,
+          url: `/${process.env.APP_BASE_URL}/purchase-product`,
         }),
       ),
     );

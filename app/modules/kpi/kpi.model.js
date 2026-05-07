@@ -60,6 +60,18 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DECIMAL(12, 2),
         allowNull: true,
       },
+      qcRaw: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+      },
+      overallBaviourRaw: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+      },
+      totalSaleAmountRaw: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+      },
       confirm: {
         type: DataTypes.STRING,
         defaultValue: 0,

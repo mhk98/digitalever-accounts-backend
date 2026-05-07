@@ -31,6 +31,18 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATEONLY,
         allowNull: true,
       },
+      bookId: {
+        type: DataTypes.INTEGER(10),
+        allowNull: true,
+      },
+      supplierHistoryId: {
+        type: DataTypes.INTEGER(10),
+        allowNull: true,
+      },
+      cashInOutId: {
+        type: DataTypes.INTEGER(10),
+        allowNull: true,
+      },
       note: {
         type: DataTypes.TEXT,
         allowNull: true,

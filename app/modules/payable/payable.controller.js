@@ -53,7 +53,7 @@ const insertIntoDB = catchAsync(async (req, res) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: "/payable",
+          url: `/${process.env.APP_BASE_URL}/payable`,
         }),
       ),
     );
@@ -144,7 +144,7 @@ const updateOneFromDB = catchAsync(async (req, res) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: "/payable",
+          url: `/${process.env.APP_BASE_URL}/payable`,
         }),
       ),
     );

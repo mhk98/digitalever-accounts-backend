@@ -31,7 +31,10 @@ const updateMyReport = catchAsync(async (req, res) => {
 });
 
 const deleteReport = catchAsync(async (req, res) => {
-  const result = await DailyWorkReportService.deleteReport(req.params.id, req.user);
+  const result = await DailyWorkReportService.deleteReport(
+    req.params.id,
+    req.user,
+  );
   sendResponse(res, {
     statusCode: 200,
     success: true,
@@ -43,7 +46,11 @@ const deleteReport = catchAsync(async (req, res) => {
 const getMyReports = catchAsync(async (req, res) => {
   const filters = pick(req.query, DailyWorkReportFilterableFields);
   const options = pick(req.query, ["limit", "page", "sortBy", "sortOrder"]);
-  const result = await DailyWorkReportService.getMyReports(req.user, filters, options);
+  const result = await DailyWorkReportService.getMyReports(
+    req.user,
+    filters,
+    options,
+  );
   sendResponse(res, {
     statusCode: 200,
     success: true,
@@ -56,7 +63,11 @@ const getMyReports = catchAsync(async (req, res) => {
 const getAllReports = catchAsync(async (req, res) => {
   const filters = pick(req.query, DailyWorkReportFilterableFields);
   const options = pick(req.query, ["limit", "page", "sortBy", "sortOrder"]);
-  const result = await DailyWorkReportService.getAllReports(filters, options, req.user);
+  const result = await DailyWorkReportService.getAllReports(
+    filters,
+    options,
+    req.user,
+  );
   sendResponse(res, {
     statusCode: 200,
     success: true,
@@ -67,7 +78,10 @@ const getAllReports = catchAsync(async (req, res) => {
 });
 
 const getDataById = catchAsync(async (req, res) => {
-  const result = await DailyWorkReportService.getDataById(req.params.id, req.user);
+  const result = await DailyWorkReportService.getDataById(
+    req.params.id,
+    req.user,
+  );
   sendResponse(res, {
     statusCode: 200,
     success: true,
@@ -103,7 +117,10 @@ const recalculatePerformanceScore = catchAsync(async (req, res) => {
 });
 
 const getLeaderboard = catchAsync(async (req, res) => {
-  const result = await DailyWorkReportService.getLeaderboard(req.query, req.user);
+  const result = await DailyWorkReportService.getLeaderboard(
+    req.query,
+    req.user,
+  );
   sendResponse(res, {
     statusCode: 200,
     success: true,
@@ -123,11 +140,24 @@ const getEmployeeDashboard = catchAsync(async (req, res) => {
 });
 
 const getAdminDashboard = catchAsync(async (req, res) => {
-  const result = await DailyWorkReportService.getAdminDashboard(req.query, req.user);
+  const result = await DailyWorkReportService.getAdminDashboard(
+    req.query,
+    req.user,
+  );
   sendResponse(res, {
     statusCode: 200,
     success: true,
     message: "Admin performance dashboard fetched successfully!!",
+    data: result,
+  });
+});
+
+const getEligibleSubmitters = catchAsync(async (req, res) => {
+  const result = await DailyWorkReportService.getEligibleSubmitters(req.user);
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Daily work report submitters fetched successfully!!",
     data: result,
   });
 });
@@ -161,13 +191,13 @@ const uploadProof = catchAsync(async (req, res) => {
     message: "Proof uploaded successfully!!",
     data: {
       fileName: req.file.filename,
-      url: `/images/${req.file.filename}`,
+      url: `/${process.env.APP_BASE_URL}/images/${req.file.filename}`,
     },
   });
 });
 
 const sendPendingReminders = catchAsync(async (req, res) => {
-  const result = await DailyWorkReportService.sendPendingReminders(req.body);
+  const result = await DailyWorkReportService.sendPendingReminders(req.body, req.user);
   sendResponse(res, {
     statusCode: 200,
     success: true,
@@ -188,6 +218,7 @@ module.exports = {
   getLeaderboard,
   getEmployeeDashboard,
   getAdminDashboard,
+  getEligibleSubmitters,
   getAssignedTasksForReport,
   uploadProof,
   sendPendingReminders,

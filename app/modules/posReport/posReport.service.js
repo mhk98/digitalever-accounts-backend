@@ -474,7 +474,7 @@ const deleteIdFromDB = async (id) => {
 //         Notification.create({
 //           userId: u.Id,
 //           message,
-//           url: `/kafelamart.digitalever.com.bd/intransit-product`,
+//           url: `/${process.env.APP_BASE_URL}/intransit-product`,
 //         }),
 //       ),
 //     );
@@ -594,7 +594,7 @@ const updateOneFromDB = async (id, data) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: "/purchase-requisition",
+          url: `/${process.env.APP_BASE_URL}/purchase-requisition`,
         }),
       ),
     );

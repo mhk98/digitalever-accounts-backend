@@ -29,7 +29,7 @@ const sendInvoiceEmail = async (payload) => {
   } = payload;
 
   const htmlContent = profitLossInvoiceTemplate({
-    companyName: companyName || "",
+    companyName: companyName || process.env.MAIL_BRAND_NAME,
     reportTitle: reportTitle || "Profit & Loss Invoice",
     reportDate: reportDate ? new Date(reportDate).toLocaleDateString() : "",
     invoiceNumber,
@@ -38,7 +38,7 @@ const sendInvoiceEmail = async (payload) => {
     employeeReports,
     calculationSummary,
     savedHistory,
-    supportEmail: "ceo@eaconsultancy.info",
+    supportEmail: process.env.MAIL_SUPPORT_EMAIL,
   });
 
   const result = await sendEmail({
@@ -86,7 +86,7 @@ const getAllFromDB = async (filters, options) => {
     );
   }
 
-  // ✅ Date range filter (createdAt)
+  // ✅ Date range filter (saved date, with createdAt fallback for old rows)
   if (startDate && endDate) {
     const start = new Date(startDate);
     start.setHours(0, 0, 0, 0);
@@ -95,7 +95,15 @@ const getAllFromDB = async (filters, options) => {
     end.setHours(23, 59, 59, 999);
 
     andConditions.push({
-      createdAt: { [Op.between]: [start, end] },
+      [Op.or]: [
+        { date: { [Op.between]: [startDate, endDate] } },
+        {
+          [Op.and]: [
+            { date: { [Op.is]: null } },
+            { createdAt: { [Op.between]: [start, end] } },
+          ],
+        },
+      ],
     });
   }
 
@@ -216,7 +224,7 @@ const deleteIdFromDB = async (id) => {
 //         {
 //           userId: u.Id,
 //           message,
-//           url: `/kafelamart.digitalever.com.bd/assets-purchase`,
+//           url: `/${process.env.APP_BASE_URL}/assets-purchase`,
 //         },
 //         {
 //           transaction: t,
@@ -253,7 +261,7 @@ const updateOneFromDB = async (id, payload) => {
   //     Notification.create({
   //       userId: u.Id,
   //       message,
-  //       url: `/kafelamart.digitalever.com.bd/assets-purchase`,
+  //       url: `/${process.env.APP_BASE_URL}/assets-purchase`,
   //     }),
   //   ),
   // );

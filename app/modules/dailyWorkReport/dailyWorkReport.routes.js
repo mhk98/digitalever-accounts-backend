@@ -103,6 +103,12 @@ router.get(
   requireAnyPermission(["daily_work_reports", "employee_list", "employee_management"]),
   DailyWorkReportController.getAdminDashboard,
 );
+router.get(
+  "/eligible-submitters",
+  auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),
+  requireAnyPermission(["daily_work_reports", "employee_list", "employee_management"]),
+  DailyWorkReportController.getEligibleSubmitters,
+);
 router.post(
   "/:id/calculate-score",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),

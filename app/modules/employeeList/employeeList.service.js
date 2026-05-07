@@ -15,6 +15,7 @@ const User = db.user;
 const Department = db.department;
 const Designation = db.designation;
 const Shift = db.shift;
+const LedgerHistory = db.ledgerHistory;
 
 const normalizeOptionalForeignKey = (value) => {
   if (value === undefined || value === null || value === "") {
@@ -57,6 +58,145 @@ const employeeIncludes = [
     required: false,
   },
 ];
+
+const getSafeAmount = (value) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+};
+
+const getEmployeeLedgerIds = (employee = {}) => {
+  const ids = [employee.Id, employee.employee_id]
+    .map((value) => {
+      if (value === undefined || value === null || value === "") return null;
+
+      const numericValue = Number(value);
+      return Number.isFinite(numericValue) ? numericValue : null;
+    })
+    .filter((value) => value !== null);
+
+  return [...new Set(ids)];
+};
+
+const getEmployeeAdvanceSummary = async (employee, transaction) => {
+  const employeeIds = getEmployeeLedgerIds(employee);
+
+  if (!employeeIds.length) {
+    return {
+      advance: 0,
+      advanceBalance: 0,
+      ledgerPaidAmount: 0,
+      ledgerUnpaidAmount: 0,
+    };
+  }
+
+  const where = {
+    employeeId:
+      employeeIds.length === 1 ? employeeIds[0] : { [Op.in]: employeeIds },
+  };
+
+  const [paidAmount, unpaidAmount] = await Promise.all([
+    LedgerHistory.sum("paidAmount", { where, transaction }),
+    LedgerHistory.sum("unpaidAmount", { where, transaction }),
+  ]);
+
+  const paid = getSafeAmount(paidAmount);
+  const unpaid = getSafeAmount(unpaidAmount);
+  const advanceBalance = Math.max(unpaid - paid, 0);
+
+  return {
+    advance: advanceBalance,
+    advanceBalance,
+    ledgerPaidAmount: paid,
+    ledgerUnpaidAmount: unpaid,
+  };
+};
+
+const buildAdvanceSummary = ({ paid, unpaid }) => {
+  const safePaid = getSafeAmount(paid);
+  const safeUnpaid = getSafeAmount(unpaid);
+  const advanceBalance = Math.max(safeUnpaid - safePaid, 0);
+
+  return {
+    advance: advanceBalance,
+    advanceBalance,
+    ledgerPaidAmount: safePaid,
+    ledgerUnpaidAmount: safeUnpaid,
+  };
+};
+
+const attachAdvanceSummary = async (employee, transaction) => {
+  if (!employee) return employee;
+
+  const plainEmployee =
+    typeof employee.get === "function" ? employee.get({ plain: true }) : employee;
+  const advanceSummary = await getEmployeeAdvanceSummary(
+    plainEmployee,
+    transaction,
+  );
+
+  return {
+    ...plainEmployee,
+    ...advanceSummary,
+  };
+};
+
+const attachAdvanceSummaries = async (employees, transaction) => {
+  const plainEmployees = employees.map((employee) =>
+    typeof employee.get === "function" ? employee.get({ plain: true }) : employee,
+  );
+  const allEmployeeIds = [
+    ...new Set(plainEmployees.flatMap((employee) => getEmployeeLedgerIds(employee))),
+  ];
+
+  if (!allEmployeeIds.length) {
+    return plainEmployees.map((employee) => ({
+      ...employee,
+      ...buildAdvanceSummary({ paid: 0, unpaid: 0 }),
+    }));
+  }
+
+  const ledgerRows = await LedgerHistory.findAll({
+    attributes: [
+      "employeeId",
+      [db.sequelize.fn("SUM", db.sequelize.col("paidAmount")), "paidAmount"],
+      [
+        db.sequelize.fn("SUM", db.sequelize.col("unpaidAmount")),
+        "unpaidAmount",
+      ],
+    ],
+    where: { employeeId: { [Op.in]: allEmployeeIds } },
+    group: ["employeeId"],
+    raw: true,
+    transaction,
+  });
+
+  const totalsByEmployeeId = ledgerRows.reduce((acc, row) => {
+    acc[String(row.employeeId)] = {
+      paid: getSafeAmount(row.paidAmount),
+      unpaid: getSafeAmount(row.unpaidAmount),
+    };
+    return acc;
+  }, {});
+
+  return plainEmployees.map((employee) => {
+    const totals = getEmployeeLedgerIds(employee).reduce(
+      (acc, employeeId) => {
+        const rowTotal = totalsByEmployeeId[String(employeeId)];
+        if (!rowTotal) return acc;
+
+        acc.paid += rowTotal.paid;
+        acc.unpaid += rowTotal.unpaid;
+        return acc;
+      },
+      { paid: 0, unpaid: 0 },
+    );
+
+    return {
+      ...employee,
+      ...buildAdvanceSummary(totals),
+    };
+  });
+};
 
 const buildEmployeeData = (payload = {}, currentStatus) => {
   const inputStatus = String(payload.status || "").trim();
@@ -116,11 +256,13 @@ const insertIntoDB = async (payload, user) => {
   return db.sequelize.transaction(async (t) => {
     const result = await EmployeeList.create(data, { transaction: t });
 
-    return EmployeeList.findOne({
+    const createdEmployee = await EmployeeList.findOne({
       where: { Id: result.Id },
       include: employeeIncludes,
       transaction: t,
     });
+
+    return attachAdvanceSummary(createdEmployee, t);
   });
 };
 
@@ -183,15 +325,17 @@ const getAllFromDB = async (filters, options) => {
 
   return {
     meta: { count, page, limit },
-    data: result,
+    data: await attachAdvanceSummaries(result),
   };
 };
 
 const getDataById = async (id) => {
-  return EmployeeList.findOne({
+  const result = await EmployeeList.findOne({
     where: { Id: id },
     include: employeeIncludes,
   });
+
+  return attachAdvanceSummary(result);
 };
 
 const getProfileByUserId = async (userId) => {
@@ -204,7 +348,7 @@ const getProfileByUserId = async (userId) => {
     throw new ApiError(404, "Employee profile was not found for this user");
   }
 
-  return result;
+  return attachAdvanceSummary(result);
 };
 
 const deleteIdFromDB = async (id, user, note) => {
@@ -230,7 +374,7 @@ const deleteIdFromDB = async (id, user, note) => {
   });
 
   return {
-    ...(await getDataById(id))?.get({ plain: true }),
+    ...(await getDataById(id)),
     workflowAction: "delete_requested",
   };
 };
@@ -285,17 +429,19 @@ const approveOneFromDB = async (id) => {
   );
 
   return {
-    ...(await getDataById(id))?.get({ plain: true }),
+    ...(await getDataById(id)),
     workflowAction: "approved",
   };
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  return EmployeeList.findAll({
+  const result = await EmployeeList.findAll({
     include: employeeIncludes,
     paranoid: true,
     order: [["createdAt", "DESC"]],
   });
+
+  return attachAdvanceSummaries(result);
 };
 
 const EmployeeListService = {

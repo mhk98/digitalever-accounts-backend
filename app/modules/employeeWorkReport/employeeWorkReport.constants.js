@@ -9,12 +9,23 @@ const EmployeeWorkReportFilterableFields = [
 
 const EmployeeWorkReportSearchableFields = ["name"];
 
+const EmployeeWorkReportSaleTypes = [
+  "Regular Sale",
+  "Up Sale",
+  "Cross Sale",
+  "Organic Sale",
+  "Office Sale",
+];
+
 const EmployeeWorkReportNumericFields = [
   "failedGiven",
   "failedReceived",
   "pendingGiven",
   "pendingReceived",
   "pendingReturnReceived",
+  "leadGiven",
+  "leadReceived",
+  "crossReceived",
   "canceledReceived",
   "holdReceived",
   "ideskGiven",
@@ -32,4 +43,5 @@ module.exports = {
   EmployeeWorkReportFilterableFields,
   EmployeeWorkReportSearchableFields,
   EmployeeWorkReportNumericFields,
+  EmployeeWorkReportSaleTypes,
 };

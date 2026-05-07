@@ -2,6 +2,7 @@ const DailyWorkReportFilterableFields = [
   "searchTerm",
   "reportDate",
   "status",
+  "taskStatus",
   "userId",
   "employeeId",
   "departmentId",

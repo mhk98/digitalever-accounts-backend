@@ -3,36 +3,15 @@ const paginationHelpers = require("../../../helpers/paginationHelper");
 const ApiError = require("../../../error/ApiError");
 const db = require("../../../models");
 const {
-  EmployeeWorkReportNumericFields,
-  EmployeeWorkReportSaleTypes,
-  EmployeeWorkReportSearchableFields,
-} = require("./employeeWorkReport.constants");
+  LogisticWorkReportNumericFields,
+  LogisticWorkReportSearchableFields,
+} = require("./logisticWorkReport.constants");
 
-const EmployeeWorkReport = db.employeeWorkReport;
+const LogisticWorkReport = db.logisticWorkReport;
 const User = db.user;
 const EmployeeList = db.employeeList;
 
 const PRIVILEGED_ROLES = new Set(["superAdmin", "admin"]);
-const TOTAL_ASSIGN_SOURCE_FIELDS = [
-  "failedGiven",
-  "pendingGiven",
-  "leadGiven",
-  "ideskGiven",
-  "callDone",
-  "whatsappDone",
-];
-const TOTAL_ORDER_SOURCE_FIELDS = [
-  "failedReceived",
-  "pendingReceived",
-  "pendingReturnReceived",
-  "leadReceived",
-  "crossReceived",
-  "canceledReceived",
-  "holdReceived",
-  "ideskReceived",
-  "callReceived",
-  "whatsappReceived",
-];
 
 const reportIncludes = [
   {
@@ -79,33 +58,15 @@ const normalizeNumber = (value, fieldName) => {
   return numberValue;
 };
 
-const normalizeSaleType = (value) => {
-  const saleType = String(value || "").trim();
-  if (!saleType) return null;
-
-  if (!EmployeeWorkReportSaleTypes.includes(saleType)) {
-    throw new ApiError(400, "Invalid sale type");
-  }
-
-  return saleType;
-};
-
-const sumReportFields = (data, fields) =>
-  fields.reduce((total, field) => total + normalizeNumber(data[field], field), 0);
-
 const buildPayload = (payload = {}, fallbackDate, fallbackName) => {
   const data = {
     reportDate: normalizeDate(payload.reportDate, fallbackDate),
     name: normalizeName(payload.name || fallbackName),
-    saleType: normalizeSaleType(payload.saleType),
   };
 
-  EmployeeWorkReportNumericFields.forEach((field) => {
+  LogisticWorkReportNumericFields.forEach((field) => {
     data[field] = normalizeNumber(payload[field], field);
   });
-
-  data.totalAssign = sumReportFields(data, TOTAL_ASSIGN_SOURCE_FIELDS);
-  data.totalOrder = sumReportFields(data, TOTAL_ORDER_SOURCE_FIELDS);
 
   if (!data.reportDate) {
     throw new ApiError(400, "reportDate is required");
@@ -128,13 +89,13 @@ const getDataById = async (id, actor) => {
     where.userId = actor.Id;
   }
 
-  const result = await EmployeeWorkReport.findOne({
+  const result = await LogisticWorkReport.findOne({
     where,
     include: reportIncludes,
   });
 
   if (!result) {
-    throw new ApiError(404, "Employee work report not found");
+    throw new ApiError(404, "Logistic work report not found");
   }
 
   return result;
@@ -145,7 +106,7 @@ const createReport = async (payload, actor) => {
   const employee = await getEmployeeProfile(actor.Id);
   const data = buildPayload(payload, today, getActorName(actor, employee));
 
-  const existing = await EmployeeWorkReport.findOne({
+  const existing = await LogisticWorkReport.findOne({
     where: {
       userId: actor.Id,
       reportDate: data.reportDate,
@@ -156,7 +117,7 @@ const createReport = async (payload, actor) => {
     throw new ApiError(409, "You have already submitted this work report date");
   }
 
-  const result = await EmployeeWorkReport.create({
+  const result = await LogisticWorkReport.create({
     userId: actor.Id,
     employeeId: employee?.Id || null,
     ...data,
@@ -166,18 +127,18 @@ const createReport = async (payload, actor) => {
 };
 
 const updateReport = async (id, payload, actor) => {
-  const existing = await EmployeeWorkReport.findOne({
+  const existing = await LogisticWorkReport.findOne({
     where: { Id: id, userId: actor.Id },
   });
 
   if (!existing) {
-    throw new ApiError(404, "Employee work report not found");
+    throw new ApiError(404, "Logistic work report not found");
   }
 
   const data = buildPayload(payload, existing.reportDate, existing.name);
 
   if (data.reportDate !== String(existing.reportDate).slice(0, 10)) {
-    const duplicate = await EmployeeWorkReport.findOne({
+    const duplicate = await LogisticWorkReport.findOne({
       where: {
         Id: { [Op.ne]: id },
         userId: actor.Id,
@@ -195,12 +156,12 @@ const updateReport = async (id, payload, actor) => {
 };
 
 const deleteReport = async (id, actor) => {
-  const existing = await EmployeeWorkReport.findOne({
+  const existing = await LogisticWorkReport.findOne({
     where: { Id: id, userId: actor.Id },
   });
 
   if (!existing) {
-    throw new ApiError(404, "Employee work report not found");
+    throw new ApiError(404, "Logistic work report not found");
   }
 
   await existing.destroy();
@@ -213,7 +174,8 @@ const getMyReports = async (actor, filters, options) => {
 
 const getAllReports = async (filters = {}, options = {}, actor) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
-  const { searchTerm, reportDate, userId, employeeId, startDate, endDate } = filters;
+  const { searchTerm, reportDate, userId, employeeId, startDate, endDate } =
+    filters;
   const andConditions = [];
 
   if (!PRIVILEGED_ROLES.has(actor.role)) {
@@ -224,7 +186,7 @@ const getAllReports = async (filters = {}, options = {}, actor) => {
     const normalizedSearchTerm = searchTerm.trim();
     andConditions.push({
       [Op.or]: [
-        ...EmployeeWorkReportSearchableFields.map((field) => ({
+        ...LogisticWorkReportSearchableFields.map((field) => ({
           [field]: { [Op.like]: `%${normalizedSearchTerm}%` },
         })),
         { "$user.FirstName$": { [Op.like]: `%${normalizedSearchTerm}%` } },
@@ -264,7 +226,7 @@ const getAllReports = async (filters = {}, options = {}, actor) => {
           ["createdAt", "DESC"],
         ];
 
-  const data = await EmployeeWorkReport.findAll({
+  const data = await LogisticWorkReport.findAll({
     where,
     offset: skip,
     limit,
@@ -272,7 +234,7 @@ const getAllReports = async (filters = {}, options = {}, actor) => {
     order,
   });
 
-  const count = await EmployeeWorkReport.count({
+  const count = await LogisticWorkReport.count({
     where,
     include: [
       {

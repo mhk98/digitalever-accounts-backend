@@ -123,12 +123,20 @@ const includeNewSettingsChildren = (role, permissions = []) => {
     permissionSet.add("loan");
   }
 
-  if (
-    defaults.includes("CS_WORK_REPORTS") &&
-    !permissionSet.has("CS_WORK_REPORTS")
-  ) {
-    permissionSet.add("CS_WORK_REPORTS");
-  }
+  [
+    "ads_campaign_kpi",
+    "auto_profit_loss",
+    "stock_alert",
+    "daily_work_reports",
+    "cs_work_reports",
+    "logistic_work_reports",
+    "employee_profile",
+    "employee_kpi",
+  ].forEach((permission) => {
+    if (defaults.includes(permission) && !permissionSet.has(permission)) {
+      permissionSet.add(permission);
+    }
+  });
 
   return Array.from(permissionSet);
 };

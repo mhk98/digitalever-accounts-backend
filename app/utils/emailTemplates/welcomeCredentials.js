@@ -11,18 +11,21 @@ const welcomeCredentialsTemplate = ({
   name = "User",
   email,
   password,
-  loginUrl = "https://yourdomain.com/login",
+  loginUrl = process.env.APP_LOGIN_URL ||
+    `${String(process.env.ORIGIN_URL || "").replace(/\/+$/, "")}/login`,
+  brandName = process.env.MAIL_BRAND_NAME || "Business Solution",
 }) => {
   const safeName = escapeHtml(name);
   const safeEmail = escapeHtml(email);
   const safePassword = escapeHtml(password);
   const safeUrl = escapeHtml(loginUrl);
+  const safeBrandName = escapeHtml(brandName);
 
   return `
   <div style="font-family: Arial, sans-serif; background:#f6f7fb; padding:24px;">
     <div style="max-width:620px; margin:0 auto; background:#ffffff; border:1px solid #e5e7eb; border-radius:14px; overflow:hidden;">
       <div style="background:#111827; padding:18px 22px;">
-        <h2 style="margin:0; color:#fff; font-size:18px;">EA Consultancy</h2>
+        <h2 style="margin:0; color:#fff; font-size:18px;">${safeBrandName}</h2>
         <p style="margin:6px 0 0; color:#cbd5e1; font-size:13px;">Your account has been created</p>
       </div>
 

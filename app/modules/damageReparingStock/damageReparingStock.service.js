@@ -5,8 +5,28 @@ const ApiError = require("../../../error/ApiError");
 const {
   DamageReparingStockSearchableFields,
 } = require("./damageReparingStock.constants");
+const parseVariants = require("../../../shared/parseVariants");
 
 const DamageReparingStock = db.damageReparingStock;
+
+const getVariantQuantityTotal = (variants) =>
+  parseVariants(variants).reduce(
+    (total, variant) => total + (Number(variant?.quantity) || 0),
+    0,
+  );
+
+const assertQuantityMatchesExistingVariants = (row, nextQuantity) => {
+  const variants = parseVariants(row?.variants);
+  if (!variants.length || nextQuantity === undefined) return;
+
+  const variantTotal = getVariantQuantityTotal(variants);
+  if (Number(nextQuantity || 0) !== variantTotal) {
+    throw new ApiError(
+      400,
+      "Quantity must match existing variant quantity total",
+    );
+  }
+};
 
 const insertIntoDB = async (data) => {
   const result = await DamageReparingStock.create(data);
@@ -111,6 +131,16 @@ const deleteIdFromDB = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
+  const existing = await DamageReparingStock.findOne({
+    where: {
+      Id: id,
+    },
+  });
+
+  if (!existing) throw new ApiError(404, "DamageReparingStock not found");
+
+  assertQuantityMatchesExistingVariants(existing, payload.quantity);
+
   const result = await DamageReparingStock.update(payload, {
     where: {
       Id: id,

@@ -110,7 +110,7 @@ const createTask = async (payload, actor) => {
 
   await Notification.create({
     userId: assignedToUserId,
-    url: "tasks",
+    url: `/${process.env.APP_BASE_URL}/tasks`,
     message: `New task assigned by ${getUserName(actor)}: ${title}`,
   });
 
@@ -136,7 +136,10 @@ const getTasks = async (filters, options, actor) => {
   if (searchTerm && searchTerm.trim()) {
     const value = `%${searchTerm.trim()}%`;
     andConditions.push({
-      [Op.or]: [{ title: { [Op.like]: value } }, { description: { [Op.like]: value } }],
+      [Op.or]: [
+        { title: { [Op.like]: value } },
+        { description: { [Op.like]: value } },
+      ],
     });
   }
 
@@ -170,8 +173,7 @@ const updateTask = async (id, payload, actor) => {
     throw new ApiError(404, "Task not found");
   }
 
-  const canUpdate =
-    canAccessTask(task, actor);
+  const canUpdate = canAccessTask(task, actor);
   if (!canUpdate) {
     throw new ApiError(403, "You are not allowed to update this task");
   }
@@ -191,7 +193,11 @@ const updateTask = async (id, payload, actor) => {
       next.description = String(payload.description || "").trim() || null;
     }
     if (payload.priority !== undefined) {
-      next.priority = normalizeOption(payload.priority, TASK_PRIORITIES, task.priority);
+      next.priority = normalizeOption(
+        payload.priority,
+        TASK_PRIORITIES,
+        task.priority,
+      );
     }
     if (payload.dueDate !== undefined) {
       next.dueDate = payload.dueDate || null;

@@ -50,7 +50,7 @@ const insertIntoDB = async (data) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/kafelamart.digitalever.com.bd/${url}`,
+          url: `/${process.env.APP_BASE_URL}/${url}`,
         }),
       ),
     );
@@ -230,7 +230,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/kafelamart.digitalever.com.bd/`,
+        url: `/${process.env.APP_BASE_URL}/`,
       }),
     ),
   );

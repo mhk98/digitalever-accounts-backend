@@ -80,7 +80,7 @@ const insertIntoDB = async (data) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: "/confirm-order",
+          url: `/${process.env.APP_BASE_URL}/confirm-order`,
         }),
       ),
     );
@@ -308,7 +308,7 @@ const updateOneFromDB = async (id, data) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/kafelamart.digitalever.com.bd/confirm-order`,
+        url: `/${process.env.APP_BASE_URL}/confirm-order`,
       }),
     ),
   );

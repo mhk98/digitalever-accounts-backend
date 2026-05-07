@@ -1,72 +1,3 @@
-// const express = require("express");
-// const cors = require("cors");
-// const cookieParser = require("cookie-parser");
-// const bodyParser = require("body-parser");
-// const http = require("http");
-// require("./models");
-// require("dotenv").config();
-// const routes = require("./app/routes"); // Import your routes
-// const ApiError = require("./error/ApiError");
-
-// const app = express();
-
-// // Apply CORS Middleware
-// // app.use(cors({
-// //   origin: ['https://insaniat.xyz/'],
-// //   credentials: true
-// // }));
-
-// app.use(cors({ origin: true, credentials: true }));
-
-// // Express built-in middleware for parsing request bodies
-// app.use(express.urlencoded({ extended: true }));
-// app.use(express.json());
-// app.use(cookieParser());
-
-// // Static image folder
-// app.use("/images", express.static("images"));
-
-// // Main route
-// app.get("/", (req, res) => {
-//   res.send("Server is running");
-// });
-
-// // API routes
-// app.use("/api/v1", routes);
-
-// // Catch-all route for handling API not found
-// app.use((req, res) => {
-//   res.status(404).json({ error: "API not found" });
-// });
-
-// // Global error handler
-// app.use((err, req, res, next) => {
-//   if (err instanceof ApiError) {
-//     return res.status(err.statusCode).json({
-//       status: "error",
-//       message: err.message,
-//       // Optionally include stack trace if it's an internal error
-//       ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
-//     });
-//   }
-
-//   // For unexpected errors, return a generic message
-//   console.error(err);
-//   return res.status(500).json({
-//     status: "error",
-//     message: "Internal server error",
-//   });
-// });
-
-// // Server setup
-// const port = process.env.PORT || 5000; // Use environment variable if available
-// const server = http.createServer(app);
-
-// // Start listening
-// server.listen(port, () => {
-//   console.log(`Server is listening at http://localhost:${port}`);
-// });
-
 require("dotenv").config();
 
 const express = require("express");
@@ -236,7 +167,9 @@ const startServer = async () => {
   } catch (error) {
     console.error("❌ Failed to connect to database:", error.message);
     if (error.original?.code === "ER_USER_LIMIT_REACHED") {
-      console.error("⚠️  DB connection limit exceeded. ১ ঘণ্টা পর আবার চেষ্টা করুন অথবা hosting panel থেকে connection reset করুন।");
+      console.error(
+        "⚠️  DB connection limit exceeded. ১ ঘণ্টা পর আবার চেষ্টা করুন অথবা hosting panel থেকে connection reset করুন।",
+      );
     }
     process.exit(1);
   }

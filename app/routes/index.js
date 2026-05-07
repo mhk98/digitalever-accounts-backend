@@ -39,6 +39,7 @@ const PosReportRoutes = require("../modules/posReport/posReport.routes");
 const WarrantyProductRoutes = require("../modules/warrantyProduct/warrantyProduct.routes");
 const MarketingBookRoutes = require("../modules/marketingBook/marketingBook.routes");
 const MarketingExpenseRoutes = require("../modules/marketingExpense/marketingExpense.routes");
+const AdsCampaignKPIRoutes = require("../modules/adsCampaignKPI/adsCampaignKPI.routes");
 const InventoryMasterRoutes = require("../modules/inventoryMaster/inventoryMaster.routes");
 const InventoryOverviewRoutes = require("../modules/inventoryOverview/inventoryOverview.routes");
 const DamageStockRoutes = require("../modules/damageStock/damageStock.routes");
@@ -55,6 +56,7 @@ const DamageReparingStockRoutes = require("../modules/damageReparingStock/damage
 const EmployeeListRoutes = require("../modules/employeeList/employeeList.routes");
 const DailyWorkReportRoutes = require("../modules/dailyWorkReport/dailyWorkReport.routes");
 const EmployeeWorkReportRoutes = require("../modules/employeeWorkReport/employeeWorkReport.routes");
+const LogisticWorkReportRoutes = require("../modules/logisticWorkReport/logisticWorkReport.routes");
 const DepartmentRoutes = require("../modules/department/department.routes");
 const DesignationRoutes = require("../modules/designation/designation.routes");
 const ShiftRoutes = require("../modules/shift/shift.routes");
@@ -88,6 +90,10 @@ const moduleRoutes = [
   {
     path: "/employee-work-reports",
     route: EmployeeWorkReportRoutes,
+  },
+  {
+    path: "/logistic-work-reports",
+    route: LogisticWorkReportRoutes,
   },
   {
     path: "/role-permissions",
@@ -237,6 +243,10 @@ const moduleRoutes = [
   {
     path: "/marketing-expense",
     route: MarketingExpenseRoutes,
+  },
+  {
+    path: "/ads-campaign-kpi",
+    route: AdsCampaignKPIRoutes,
   },
   {
     path: "/profit-loss",

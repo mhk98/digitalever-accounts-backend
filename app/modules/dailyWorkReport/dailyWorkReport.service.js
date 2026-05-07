@@ -18,6 +18,7 @@ const Notification = db.notification;
 const Task = db.task;
 
 const PRIVILEGED_ROLES = new Set(["superAdmin", "admin"]);
+const DAILY_WORK_REPORT_EXCLUDED_ROLE = "employee";
 const VALID_PRIORITIES = new Set(["High", "Medium", "Low"]);
 const VALID_TASK_STATUSES = new Set([
   "Completed",
@@ -25,6 +26,7 @@ const VALID_TASK_STATUSES = new Set([
   "Pending",
   "Failed",
   "Hold",
+  "Blocked",
 ]);
 const VALID_TASK_SOURCES = new Set(["Assigned", "Self-created", "Urgent"]);
 const VALID_REVIEW_STATUSES = new Set(["Pending", "Approved", "Rejected"]);
@@ -34,6 +36,16 @@ const STATUS_POINTS = {
   Partial: 6,
   Pending: 5,
   Hold: 3,
+  Blocked: 3,
+  Failed: 0,
+};
+
+const STATUS_PROGRESS = {
+  Completed: 100,
+  Partial: 50,
+  Pending: 0,
+  Hold: 25,
+  Blocked: 25,
   Failed: 0,
 };
 
@@ -43,7 +55,32 @@ const PRIORITY_MULTIPLIER = {
   Low: 0.7,
 };
 
+const FINAL_SCORE_WEIGHTS = {
+  taskCompletion: 0.45,
+  productivity: 0.25,
+  quality: 0.1,
+  consistency: 0.15,
+  initiative: 0.05,
+};
+
 const roundScore = (value) => Number(Number(value || 0).toFixed(2));
+
+const getDailyWorkSubmitterWhere = ({ excludeUserIds = [] } = {}) => {
+  const where = {
+    role: { [Op.ne]: DAILY_WORK_REPORT_EXCLUDED_ROLE },
+    status: "Active",
+  };
+  const normalizedExcludeIds = excludeUserIds.map(Number).filter(Boolean);
+  if (normalizedExcludeIds.length) {
+    where.Id = { [Op.notIn]: normalizedExcludeIds };
+  }
+  return where;
+};
+
+const getUserDisplayName = (user) =>
+  `${user?.FirstName || ""} ${user?.LastName || ""}`.trim() ||
+  user?.Email ||
+  `User #${user?.Id}`;
 
 const reportIncludes = [
   {
@@ -130,14 +167,6 @@ const normalizeText = (value, fieldName, { required = false } = {}) => {
   return normalized || null;
 };
 
-const validateScore = (value, fieldName, min, max) => {
-  const score = Number(value);
-  if (!Number.isFinite(score) || score < min || score > max) {
-    throw new ApiError(400, `${fieldName} must be between ${min} and ${max}`);
-  }
-  return score;
-};
-
 const normalizeTime = (value, fieldName, { required = false } = {}) => {
   const normalized = String(value || "").trim();
   if (required && !normalized) throw new ApiError(400, `${fieldName} is required`);
@@ -174,7 +203,7 @@ const normalizeTask = (task = {}, index = 0) => {
   const status = task.status || "";
   const taskSource = task.taskId ? "Assigned" : task.taskSource || "Self-created";
   const selfRating = Number(task.selfRating);
-  const progressPercent = Number(task.progressPercent ?? (status === "Completed" ? 100 : 0));
+  const progressPercent = Number(STATUS_PROGRESS[status] ?? 0);
   const timeSpentMinutes = Number(task.timeSpentMinutes || 0);
   const startTime = normalizeTime(task.startTime, `tasks[${index}].startTime`);
   const endTime = normalizeTime(task.endTime, `tasks[${index}].endTime`);
@@ -300,24 +329,141 @@ const calculateConsistencyScore = async (userId, reportDate, transaction) => {
   return roundScore(Math.min(100, (submittedCount / 22) * 100));
 };
 
-const calculateScorePayload = async (report, tasks, evaluation, transaction) => {
+const getTaskProgressFactor = (task) =>
+  task.status === "Completed"
+    ? 1
+    : Math.max(0.1, Number(task.progressPercent || 0) / 100);
+
+const calculateAutomatedQualityScore = (tasks) => {
+  if (!tasks.length) return 0;
+
+  const total = tasks.reduce((sum, task) => {
+    const statusScore = (STATUS_POINTS[task.status] || 0) / 10;
+    const completionScore = statusScore * getTaskProgressFactor(task) * 60;
+    const titleScore = Math.min(15, (String(task.taskTitle || "").trim().length / 30) * 15);
+    const actualOutputText = String(task.outputResult || "").trim();
+    const actualOutputScore = actualOutputText
+      ? Math.min(15, (actualOutputText.length / 80) * 15)
+      : statusScore * 15;
+    const blockerText = String(task.blockerProblem || "").trim();
+    const blockerScore = ["Blocked", "Hold", "Pending", "Partial"].includes(task.status)
+      ? Math.min(10, (blockerText.length / 50) * 10)
+      : 10;
+
+    return sum + completionScore + titleScore + actualOutputScore + blockerScore;
+  }, 0);
+
+  return Math.min(100, total / tasks.length);
+};
+
+const calculateAutomatedInitiativeScore = (tasks) => {
+  if (!tasks.length) return 0;
+
+  const total = tasks.reduce((sum, task) => {
+    const sourceMultiplier =
+      task.taskSource === "Urgent"
+        ? 1
+        : task.taskSource === "Self-created"
+          ? 0.85
+          : 0.65;
+    const statusScore = (STATUS_POINTS[task.status] || 0) / 10;
+    const blockerPenalty =
+      ["Blocked", "Hold"].includes(task.status) && !String(task.blockerProblem || "").trim()
+        ? 0.75
+        : 1;
+    return (
+      sum +
+      Math.min(
+        100,
+        sourceMultiplier *
+          statusScore *
+          getTaskProgressFactor(task) *
+          blockerPenalty *
+          100,
+      )
+    );
+  }, 0);
+
+  return Math.min(100, total / tasks.length);
+};
+
+const calculateProductivityScore = (tasks, totalWorkingHours) => {
+  const hours = Number(totalWorkingHours || 0);
+  const weightedWorkUnits = tasks.reduce((sum, task) => {
+    const statusScore = (STATUS_POINTS[task.status] || 0) / 10;
+    return sum + statusScore * getTaskProgressFactor(task);
+  }, 0);
+
+  if (!hours) return weightedWorkUnits ? 100 : 0;
+
+  return Math.min(100, ((weightedWorkUnits / hours) / 1.2) * 100);
+};
+
+const calculateReportCompletenessScore = (report) => {
+  const todayWorkLength = String(report.todayWork || "").trim().length;
+  const tomorrowPlanLength = String(report.tomorrowPlan || "").trim().length;
+  const totalWorkingHours = Number(report.totalWorkingHours || 0);
+
+  const todayWorkScore = Math.min(45, (todayWorkLength / 120) * 45);
+  const tomorrowPlanScore = Math.min(25, (tomorrowPlanLength / 80) * 25);
+  const workingHoursScore = Math.min(30, (totalWorkingHours / 8) * 30);
+
+  return roundScore(todayWorkScore + tomorrowPlanScore + workingHoursScore);
+};
+
+const calculateReportOnlyScorePayload = async (report, transaction) => {
+  const totalWorkingHours = Number(report.totalWorkingHours || 0);
+  const reportCompletenessScore = calculateReportCompletenessScore(report);
+  const productivityScore = Math.min(100, (totalWorkingHours / 8) * 100);
+  const consistencyScore = await calculateConsistencyScore(
+    report.userId,
+    report.reportDate,
+    transaction,
+  );
+  const qualityScore = reportCompletenessScore;
+  const initiativeScore = reportCompletenessScore;
+  const finalScore =
+    reportCompletenessScore * FINAL_SCORE_WEIGHTS.taskCompletion +
+    productivityScore * FINAL_SCORE_WEIGHTS.productivity +
+    qualityScore * FINAL_SCORE_WEIGHTS.quality +
+    consistencyScore * FINAL_SCORE_WEIGHTS.consistency +
+    initiativeScore * FINAL_SCORE_WEIGHTS.initiative;
+
+  return {
+    reportId: report.Id,
+    userId: report.userId,
+    employeeId: report.employeeId,
+    reportDate: report.reportDate,
+    taskCompletionScore: reportCompletenessScore,
+    productivityScore: roundScore(productivityScore),
+    qualityScore: roundScore(qualityScore),
+    consistencyScore,
+    initiativeScore: roundScore(initiativeScore),
+    finalScore: roundScore(finalScore),
+    completedTasks: 0,
+    pendingTasks: 0,
+    failedTasks: 0,
+    holdTasks: 0,
+    totalTasks: 0,
+    totalWorkingHours: roundScore(totalWorkingHours),
+  };
+};
+
+const calculateScorePayload = async (report, tasks, transaction) => {
+  if (!tasks.length) {
+    return calculateReportOnlyScorePayload(report, transaction);
+  }
+
   const totalTasks = tasks.length;
   const weightedTotal = tasks.reduce((sum, task) => {
     const dueMultiplier = task.isDueToday ? 1.1 : 1;
-    return sum + 10 * PRIORITY_MULTIPLIER[task.priority] * dueMultiplier;
+    return sum + 10 * dueMultiplier;
   }, 0);
   const earnedTotal = tasks.reduce((sum, task) => {
-    const progressFactor =
-      task.status === "Completed"
-        ? 1
-        : Math.max(0.1, Number(task.progressPercent || 0) / 100);
     const dueMultiplier = task.isDueToday ? 1.1 : 1;
     return (
       sum +
-      STATUS_POINTS[task.status] *
-        PRIORITY_MULTIPLIER[task.priority] *
-        progressFactor *
-        dueMultiplier
+      STATUS_POINTS[task.status] * getTaskProgressFactor(task) * dueMultiplier
     );
   }, 0);
   const completedTasks = tasks.filter((task) => task.status === "Completed").length;
@@ -325,27 +471,23 @@ const calculateScorePayload = async (report, tasks, evaluation, transaction) => 
     ["Pending", "Partial"].includes(task.status),
   ).length;
   const failedTasks = tasks.filter((task) => task.status === "Failed").length;
-  const holdTasks = tasks.filter((task) => task.status === "Hold").length;
+  const holdTasks = tasks.filter((task) => ["Hold", "Blocked"].includes(task.status)).length;
   const totalWorkingHours = Number(report.totalWorkingHours || 0);
   const taskCompletionScore = weightedTotal ? (earnedTotal / weightedTotal) * 100 : 0;
-  const productivityScore = totalWorkingHours
-    ? Math.min(100, ((completedTasks / totalWorkingHours) / 1.5) * 100)
-    : completedTasks
-      ? 100
-      : 0;
-  const qualityScore = Number(evaluation?.qualityScore || 0) * 10;
-  const initiativeScore = Number(evaluation?.initiativeScore || 0) * 10;
+  const productivityScore = calculateProductivityScore(tasks, totalWorkingHours);
+  const qualityScore = calculateAutomatedQualityScore(tasks);
+  const initiativeScore = calculateAutomatedInitiativeScore(tasks);
   const consistencyScore = await calculateConsistencyScore(
     report.userId,
     report.reportDate,
     transaction,
   );
   const finalScore =
-    taskCompletionScore * 0.4 +
-    productivityScore * 0.2 +
-    qualityScore * 0.2 +
-    consistencyScore * 0.1 +
-    initiativeScore * 0.1;
+    taskCompletionScore * FINAL_SCORE_WEIGHTS.taskCompletion +
+    productivityScore * FINAL_SCORE_WEIGHTS.productivity +
+    qualityScore * FINAL_SCORE_WEIGHTS.quality +
+    consistencyScore * FINAL_SCORE_WEIGHTS.consistency +
+    initiativeScore * FINAL_SCORE_WEIGHTS.initiative;
 
   return {
     reportId: report.Id,
@@ -434,12 +576,9 @@ const recalculatePerformanceScore = async (reportId, transaction) => {
   const report = await DailyWorkReport.findOne({ where: { Id: reportId }, transaction });
   if (!report) throw new ApiError(404, "Daily work report not found");
 
-  const [tasks, evaluation] = await Promise.all([
-    DailyWorkReportTask.findAll({ where: { reportId }, transaction }),
-    PerformanceEvaluation.findOne({ where: { reportId }, transaction }),
-  ]);
+  const tasks = await DailyWorkReportTask.findAll({ where: { reportId }, transaction });
 
-  const scorePayload = await calculateScorePayload(report, tasks, evaluation, transaction);
+  const scorePayload = await calculateScorePayload(report, tasks, transaction);
   const [score] = await PerformanceScore.findOrCreate({
     where: { reportId },
     defaults: scorePayload,
@@ -450,6 +589,10 @@ const recalculatePerformanceScore = async (reportId, transaction) => {
 };
 
 const submitReport = async (payload, actor) => {
+  if (actor.role === DAILY_WORK_REPORT_EXCLUDED_ROLE) {
+    throw new ApiError(403, "Employee role is not allowed to submit daily work reports");
+  }
+
   const today = new Date().toISOString().slice(0, 10);
   const data = buildPayload(payload, today);
 
@@ -495,6 +638,10 @@ const submitReport = async (payload, actor) => {
 };
 
 const updateMyReport = async (id, payload, actor) => {
+  if (actor.role === DAILY_WORK_REPORT_EXCLUDED_ROLE) {
+    throw new ApiError(403, "Employee role is not allowed to submit daily work reports");
+  }
+
   const existing = await DailyWorkReport.findOne({ where: { Id: id, userId: actor.Id } });
   if (!existing) throw new ApiError(404, "Daily work report not found");
   if (existing.status === "Approved") {
@@ -548,6 +695,7 @@ const getAllReports = async (filters, options, actor) => {
     endDate,
     reportDate,
     status,
+    taskStatus,
     userId,
     employeeId,
     departmentId,
@@ -555,6 +703,9 @@ const getAllReports = async (filters, options, actor) => {
   const andConditions = [];
 
   if (!PRIVILEGED_ROLES.has(actor.role)) andConditions.push({ userId: actor.Id });
+  if (PRIVILEGED_ROLES.has(actor.role)) {
+    andConditions.push({ "$user.role$": { [Op.ne]: DAILY_WORK_REPORT_EXCLUDED_ROLE } });
+  }
   if (searchTerm && searchTerm.trim()) {
     const normalizedSearchTerm = searchTerm.trim();
     andConditions.push({
@@ -572,6 +723,15 @@ const getAllReports = async (filters, options, actor) => {
   if (reportDate) andConditions.push({ reportDate });
   if (startDate && endDate) andConditions.push({ reportDate: { [Op.between]: [startDate, endDate] } });
   if (status) andConditions.push({ status });
+  if (taskStatus) {
+    const taskRows = await DailyWorkReportTask.findAll({
+      where: { status: taskStatus },
+      attributes: ["reportId"],
+      raw: true,
+    });
+    const reportIds = [...new Set(taskRows.map((row) => Number(row.reportId)).filter(Boolean))];
+    andConditions.push({ Id: reportIds.length ? { [Op.in]: reportIds } : { [Op.eq]: 0 } });
+  }
   if (userId) andConditions.push({ userId });
   if (employeeId) andConditions.push({ employeeId });
   if (departmentId) andConditions.push({ "$employee.departmentId$": departmentId });
@@ -593,7 +753,7 @@ const getAllReports = async (filters, options, actor) => {
   const count = await DailyWorkReport.count({
     where,
     include: [
-      { model: User, as: "user", attributes: [], required: false },
+      { model: User, as: "user", attributes: [], required: PRIVILEGED_ROLES.has(actor.role) },
       { model: EmployeeList, as: "employee", attributes: [], required: false },
     ],
     distinct: true,
@@ -607,13 +767,6 @@ const reviewReport = async (id, payload, actor) => {
   const existing = await DailyWorkReport.findOne({ where: { Id: id } });
   if (!existing) throw new ApiError(404, "Daily work report not found");
 
-  const qualityScore = validateScore(payload?.qualityScore, "qualityScore", 1, 10);
-  const initiativeScore = validateScore(
-    payload?.initiativeScore,
-    "initiativeScore",
-    1,
-    10,
-  );
   const reviewStatus = VALID_REVIEW_STATUSES.has(payload?.status)
     ? payload.status
     : "Approved";
@@ -630,8 +783,8 @@ const reviewReport = async (id, payload, actor) => {
     });
     await evaluation.update(
       {
-        qualityScore,
-        initiativeScore,
+        qualityScore: 0,
+        initiativeScore: 0,
         managerRemarks: normalizeText(payload?.managerRemarks || payload?.reviewNote, "managerRemarks"),
         status: reviewStatus,
         reviewedByUserId: actor.Id,
@@ -689,7 +842,15 @@ const getLeaderboard = async (filters = {}, actor) => {
           { model: Department, as: "department", attributes: ["Id", "name"], required: false },
         ],
       },
-      { model: User, as: "user", attributes: ["Id", "FirstName", "LastName", "Email"], required: false },
+      {
+        model: User,
+        as: "user",
+        attributes: ["Id", "FirstName", "LastName", "Email", "role"],
+        required: PRIVILEGED_ROLES.has(actor.role),
+        where: PRIVILEGED_ROLES.has(actor.role)
+          ? { role: { [Op.ne]: DAILY_WORK_REPORT_EXCLUDED_ROLE } }
+          : undefined,
+      },
     ],
   });
 
@@ -766,26 +927,90 @@ const getEmployeeDashboard = async (actor) => {
   };
 };
 
+const getEligibleSubmitters = async (actor) => {
+  if (!PRIVILEGED_ROLES.has(actor.role)) throw new ApiError(403, "Forbidden");
+
+  const users = await User.findAll({
+    where: getDailyWorkSubmitterWhere(),
+    attributes: ["Id", "FirstName", "LastName", "Email", "role", "status"],
+    include: [
+      {
+        model: EmployeeList,
+        as: "employeeProfile",
+        attributes: ["Id", "name", "employeeCode", "departmentId", "designationId"],
+        required: false,
+        include: [
+          {
+            model: Department,
+            as: "department",
+            attributes: ["Id", "name", "code"],
+            required: false,
+          },
+          {
+            model: Designation,
+            as: "designation",
+            attributes: ["Id", "name", "code"],
+            required: false,
+          },
+        ],
+      },
+    ],
+    order: [
+      ["role", "ASC"],
+      ["FirstName", "ASC"],
+      ["LastName", "ASC"],
+      ["Email", "ASC"],
+    ],
+  });
+
+  return users.map((user) => {
+    const plain = user.get({ plain: true });
+    return {
+      Id: plain.Id,
+      name: plain.employeeProfile?.name || getUserDisplayName(plain),
+      email: plain.Email,
+      role: plain.role,
+      employeeProfile: plain.employeeProfile || null,
+      department: plain.employeeProfile?.department || null,
+      designation: plain.employeeProfile?.designation || null,
+    };
+  });
+};
+
 const getAdminDashboard = async (filters = {}, actor) => {
   if (!PRIVILEGED_ROLES.has(actor.role)) throw new ApiError(403, "Forbidden");
   const today = filters.date || new Date().toISOString().slice(0, 10);
   const leaderboard = await getLeaderboard({ period: "monthly", date: today }, actor);
-  const todayReports = await DailyWorkReport.count({ where: { reportDate: today } });
+  const reportSubmitterInclude = [
+    {
+      model: User,
+      as: "user",
+      attributes: [],
+      required: true,
+      where: { role: { [Op.ne]: DAILY_WORK_REPORT_EXCLUDED_ROLE } },
+    },
+  ];
+  const todayReports = await DailyWorkReport.count({
+    where: { reportDate: today },
+    include: reportSubmitterInclude,
+  });
   const pendingReviewReports = await DailyWorkReport.count({
     where: { reportDate: today, status: "Submitted" },
+    include: reportSubmitterInclude,
   });
-  const activeEmployees = await User.count({ where: { role: "employee", status: "Active" } });
+  const activeEmployees = await User.count({
+    where: getDailyWorkSubmitterWhere(),
+  });
   const submittedRows = await DailyWorkReport.findAll({
     where: { reportDate: today },
     attributes: ["userId"],
+    include: reportSubmitterInclude,
     raw: true,
   });
   const submittedUserIds = submittedRows.map((row) => Number(row.userId));
   const notSubmittedToday = await User.count({
     where: {
-      role: "employee",
-      status: "Active",
-      Id: submittedUserIds.length ? { [Op.notIn]: submittedUserIds } : { [Op.ne]: null },
+      ...getDailyWorkSubmitterWhere({ excludeUserIds: submittedUserIds }),
     },
   });
 
@@ -811,7 +1036,7 @@ const getAdminDashboard = async (filters = {}, actor) => {
   };
 };
 
-const sendPendingReminders = async (payload = {}) => {
+const sendPendingReminders = async (payload = {}, actor) => {
   const targetDate = String(payload.reportDate || new Date().toISOString().slice(0, 10)).slice(0, 10);
   const submittedRows = await DailyWorkReport.findAll({
     where: { reportDate: targetDate },
@@ -820,11 +1045,9 @@ const sendPendingReminders = async (payload = {}) => {
   });
   const submittedUserIds = submittedRows.map((row) => Number(row.userId));
   const employees = await User.findAll({
-    where: {
-      role: "employee",
-      status: "Active",
-      Id: submittedUserIds.length ? { [Op.notIn]: submittedUserIds } : { [Op.ne]: null },
-    },
+    where: getDailyWorkSubmitterWhere({
+      excludeUserIds: [...submittedUserIds, actor?.Id],
+    }),
     attributes: ["Id", "FirstName", "LastName", "Email"],
   });
 
@@ -862,5 +1085,6 @@ module.exports = {
   getLeaderboard,
   getEmployeeDashboard,
   getAdminDashboard,
+  getEligibleSubmitters,
   sendPendingReminders,
 };

@@ -106,7 +106,7 @@ const insertIntoDB = async (payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/kafelamart.digitalever.com.bd/assets-requisition`,
+          url: `/${process.env.APP_BASE_URL}/assets-requisition`,
         }),
       ),
     );
@@ -285,7 +285,7 @@ const deleteIdFromDB = async (id) => {
 //         {
 //           userId: u.Id,
 //           message,
-//           url: `/kafelamart.digitalever.com.bd/assets-purchase`,
+//           url: `/${process.env.APP_BASE_URL}/assets-purchase`,
 //         },
 //         {
 //           transaction: t,
@@ -389,7 +389,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/kafelamart.digitalever.com.bd/assets-requisition`,
+        url: `/${process.env.APP_BASE_URL}/assets-requisition`,
       }),
     ),
   );

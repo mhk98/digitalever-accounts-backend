@@ -28,6 +28,18 @@ router.get(
   requireMenuPermission("employee_kpi"),
   KPIController.getKPISettings,
 );
+router.get(
+  "/performance-graph",
+  auth(),
+  requireMenuPermission("employee_kpi"),
+  KPIController.getPerformanceGraph,
+);
+router.get(
+  "/employee-options",
+  auth(),
+  requireMenuPermission("employee_kpi"),
+  KPIController.getEmployeeOptions,
+);
 router.put(
   "/settings",
   auth(ENUM_USER_ROLE.SUPER_ADMIN, ENUM_USER_ROLE.ADMIN),

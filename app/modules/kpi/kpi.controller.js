@@ -1,7 +1,10 @@
 const catchAsync = require("../../../shared/catchAsync");
 const sendResponse = require("../../../shared/sendResponse");
 const pick = require("../../../shared/pick");
-const { KPIFilterAbleFileds } = require("./kpi.constants");
+const {
+  KPIFilterAbleFileds,
+  KPIEmployeeOptionFilterAbleFields,
+} = require("./kpi.constants");
 const KPIService = require("./kpi.service");
 
 const insertIntoDB = catchAsync(async (req, res) => {
@@ -80,6 +83,30 @@ const getAllFromDBWithoutQuery = catchAsync(async (req, res) => {
   });
 });
 
+const getPerformanceGraph = catchAsync(async (req, res) => {
+  const filters = pick(req.query, KPIFilterAbleFileds);
+  const result = await KPIService.getPerformanceGraph(filters, req.user);
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "KPI performance graph fetched!!",
+    data: result,
+  });
+});
+
+const getEmployeeOptions = catchAsync(async (req, res) => {
+  const filters = pick(req.query, KPIEmployeeOptionFilterAbleFields);
+  const options = pick(req.query, ["limit", "page"]);
+  const result = await KPIService.getEmployeeOptions(filters, options, req.user);
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "KPI employee options fetched!!",
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
 const getKPISettings = catchAsync(async (req, res) => {
   const result = await KPIService.getKPISettings();
   sendResponse(res, {
@@ -107,6 +134,8 @@ const KPIController = {
   updateOneFromDB,
   deleteIdFromDB,
   getAllFromDBWithoutQuery,
+  getPerformanceGraph,
+  getEmployeeOptions,
   getKPISettings,
   updateKPISettings,
 };

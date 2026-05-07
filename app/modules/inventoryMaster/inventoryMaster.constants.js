@@ -5,7 +5,7 @@ const InventoryMasterFilterAbleFileds = [
   "name",
 ];
 
-const InventoryMasterSearchableFields = [""];
+const InventoryMasterSearchableFields = ["name", "sku"];
 
 module.exports = {
   InventoryMasterFilterAbleFileds,

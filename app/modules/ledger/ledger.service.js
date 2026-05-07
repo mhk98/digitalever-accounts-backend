@@ -90,25 +90,31 @@ const insertIntoDB = async (data) => {
 
     const result = await Ledger.create(normalizedData, { transaction: t });
 
-      if (supplierId) {
-        // SupplierHistory
-        await SupplierHistory.create(
+    let supplierHistoryId = null;
+    let cashInOutId = null;
+
+    if (supplierId) {
+      // SupplierHistory — বাকি যোগ = Unpaid, পরিশোধ = Paid
+      const supplierHistory = await SupplierHistory.create(
+        {
+          supplierId,
+          bookId,
+          amount,
+          status: cashType,
+          date: date || new Date(),
+          note: note || "",
+        },
+        { transaction: t },
+      );
+      supplierHistoryId = supplierHistory.Id;
+
+      // CashInOut — শুধু পরিশোধ (Paid) হলে CashOut। বাকি যোগ (Unpaid) হলে cash movement নেই।
+      if (cashType === "Paid") {
+        const cashInOut = await CashInOut.create(
           {
             supplierId,
             bookId,
-            amount,
-            status: cashType,
-            date: date || new Date(),
-            note: note || "",
-          },
-          { transaction: t },
-        );
-        // CashInOut
-        await CashInOut.create(
-          {
-            supplierId,
-            bookId,
-            paymentStatus: cashType,
+            paymentStatus: "CashOut",
             amount,
             status: "Active",
             date,
@@ -116,28 +122,36 @@ const insertIntoDB = async (data) => {
           },
           { transaction: t },
         );
+        cashInOutId = cashInOut.Id;
       }
+    }
 
-      if (employeeId) {
-        // CashInOut
-        await CashInOut.create(
+    if (employeeId) {
+      // CashInOut — শুধু পরিশোধ (Paid) হলে CashOut। বাকি যোগ (Unpaid) হলে cash movement নেই।
+      if (cashType === "Paid") {
+        const cashInOut = await CashInOut.create(
           {
             employeeId,
             bookId,
-            paymentStatus: cashType,
+            paymentStatus: "CashOut",
             amount,
             status: "Active",
             date,
           },
           { transaction: t },
         );
+        cashInOutId = cashInOut.Id;
       }
+    }
 
     await LedgerHistory.create(
       {
         ledgerId: result.Id,
         supplierId,
         employeeId,
+        bookId,
+        supplierHistoryId,
+        cashInOutId,
         status: cashType,
         paidAmount: cashType === "Paid" ? amount : 0,
         unpaidAmount: cashType === "Unpaid" ? amount : 0,

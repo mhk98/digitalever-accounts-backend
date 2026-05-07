@@ -74,10 +74,7 @@ const getAllFromDBWithoutQuery = catchAsync(async (req, res) => {
 });
 
 const getLowStockProducts = catchAsync(async (req, res) => {
-  const threshold = req.query.threshold || 10;
-  const result = await InventoryMasterService.getLowStockProductsFromDB(
-    threshold,
-  );
+  const result = await InventoryMasterService.getLowStockProductsFromDB();
 
   sendResponse(res, {
     statusCode: 200,

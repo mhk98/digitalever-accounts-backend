@@ -60,7 +60,8 @@ const sanitizeMessage = (value) => {
 };
 
 const getUserDisplayName = (user = {}) => {
-  const plain = typeof user?.get === "function" ? user.get({ plain: true }) : user;
+  const plain =
+    typeof user?.get === "function" ? user.get({ plain: true }) : user;
   const name = `${plain?.FirstName || ""} ${plain?.LastName || ""}`.trim();
   return name || plain?.Email || "Someone";
 };
@@ -227,7 +228,7 @@ const sendMessage = async (payload = {}, actor = {}) => {
   await Notification.create({
     userId: receiverUserId,
     message: `New message from ${getUserDisplayName(result?.sender)}`,
-    url: "chat",
+    url: `/${process.env.APP_BASE_URL}/chat/${conversation.Id}`,
   });
 
   return eventPayload;

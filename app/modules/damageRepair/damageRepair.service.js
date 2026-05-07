@@ -16,6 +16,7 @@ const Supplier = db.supplier;
 const Warehouse = db.warehouse;
 const DamageStock = db.damageStock;
 const DamageReparingStock = db.damageReparingStock;
+const Variation = db.variation;
 
 const findDamageStockByReference = async (receivedId, transaction) => {
   const byId = await DamageStock.findOne({
@@ -39,6 +40,65 @@ const findDamageReparingStockByProductId = async (productId, transaction) =>
     transaction,
     lock: transaction?.LOCK?.UPDATE,
   });
+
+const getVariantKey = (variant) =>
+  `${String(variant?.size || "").trim()}__${String(variant?.color || "").trim()}`;
+
+const getVariantQuantityTotal = (variants) =>
+  parseVariants(variants).reduce(
+    (total, variant) => total + (Number(variant?.quantity) || 0),
+    0,
+  );
+
+const productHasVariations = async (productId, transaction) => {
+  if (!productId) return false;
+
+  const count = await Variation.count({
+    where: { productId },
+    transaction,
+  });
+
+  return count > 0;
+};
+
+const assertValidVariantSelection = ({
+  availableVariants,
+  incomingVariants,
+  quantity,
+}) => {
+  const availableRows = parseVariants(availableVariants);
+  if (!availableRows.length) return;
+
+  if (!incomingVariants.length) {
+    throw new ApiError(400, "Please select variants for this damage stock");
+  }
+
+  const incomingTotal = getVariantQuantityTotal(incomingVariants);
+  if (incomingTotal !== Number(quantity || 0)) {
+    throw new ApiError(400, "Variant quantity must match total quantity");
+  }
+
+  const availableByVariant = new Map();
+  availableRows.forEach((variant) => {
+    availableByVariant.set(
+      getVariantKey(variant),
+      Number(variant?.quantity || 0),
+    );
+  });
+
+  incomingVariants.forEach((variant) => {
+    const quantity = Number(variant?.quantity || 0);
+    const availableQuantity = availableByVariant.get(getVariantKey(variant));
+
+    if (!availableQuantity) {
+      throw new ApiError(400, "Selected variant is not available in damage stock");
+    }
+
+    if (quantity > availableQuantity) {
+      throw new ApiError(400, "Variant quantity exceeds available damage stock");
+    }
+  });
+};
 
 const syncDamageReparingStock = async (
   {
@@ -166,6 +226,20 @@ const insertIntoDB = async (data) => {
       throw new ApiError(400, "DamageStock.productId missing (Products.Id)");
     }
 
+    const hasProductVariations = await productHasVariations(
+      catalogProductId,
+      t,
+    );
+    const selectedVariants = hasProductVariations ? incomingVariants : [];
+
+    if (hasProductVariations) {
+      assertValidVariantSelection({
+        availableVariants: received.variants,
+        incomingVariants: selectedVariants,
+        quantity: returnQty,
+      });
+    }
+
     const result = await DamageRepair.create(
       {
         name: received.name,
@@ -174,7 +248,7 @@ const insertIntoDB = async (data) => {
         source: "Damage Repair",
         remarks: received.remarks,
         quantity: returnQty,
-        variants: incomingVariants,
+        variants: selectedVariants,
         purchase_price: deductPurchase,
         sale_price: deductSale,
         productId: damageStockId,
@@ -186,9 +260,11 @@ const insertIntoDB = async (data) => {
     );
 
     const finalQuantity = oldQty - returnQty;
-    const finalVariants = incomingVariants.length
-      ? subtractVariants(received.variants, incomingVariants)
-      : received.variants;
+    const finalVariants = hasProductVariations
+      ? selectedVariants.length
+        ? subtractVariants(received.variants, selectedVariants)
+        : received.variants
+      : [];
     await DamageStock.update(
       {
         quantity: finalQuantity,
@@ -209,7 +285,7 @@ const insertIntoDB = async (data) => {
         quantityDelta: returnQty,
         purchasePriceDelta: deductPurchase,
         salePriceDelta: deductSale,
-        variants: incomingVariants,
+        variants: selectedVariants,
         date,
       },
       t,
@@ -237,7 +313,7 @@ const insertIntoDB = async (data) => {
           Notification.create({
             userId: u.Id,
             message,
-            url: "/kafelamart.digitalever.com.bd/purchase-requisition",
+            url: `/${process.env.APP_BASE_URL}/purchase-requisition`,
           }),
         ),
       );
@@ -548,13 +624,27 @@ const updateOneFromDB = async (id, data) => {
       throw new ApiError(400, "DamageStock.productId missing (Products.Id)");
     }
 
+    const hasProductVariations = await productHasVariations(
+      catalogProductId,
+      t,
+    );
+    const selectedVariants = hasProductVariations ? incomingVariants : [];
+
+    if (hasProductVariations) {
+      assertValidVariantSelection({
+        availableVariants: received.variants,
+        incomingVariants: selectedVariants,
+        quantity: nextQty,
+      });
+    }
+
     const data = {
       name: received.name,
       supplierId,
       warehouseId,
       remarks: received.remarks,
       quantity: nextQty,
-      variants: incomingVariants,
+      variants: selectedVariants,
       purchase_price: deductPurchase,
       sale_price: deductSale,
       note: finalStatus === "Approved" ? null : newNote || null,
@@ -569,9 +659,11 @@ const updateOneFromDB = async (id, data) => {
     });
 
     const stockQuantity = Number(received.quantity || 0) - nextQty;
-    const updatedVariants = incomingVariants.length
-      ? subtractVariants(received.variants, incomingVariants)
-      : received.variants;
+    const updatedVariants = hasProductVariations
+      ? selectedVariants.length
+        ? subtractVariants(received.variants, selectedVariants)
+        : received.variants
+      : [];
 
     await DamageStock.update(
       {
@@ -586,7 +678,7 @@ const updateOneFromDB = async (id, data) => {
         productId: catalogProductId,
         name: received.name,
         quantityDelta: nextQty,
-        variants: incomingVariants,
+        variants: selectedVariants,
         date: inputDateStr || date,
       },
       t,
@@ -627,7 +719,7 @@ const updateOneFromDB = async (id, data) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/kafelamart.digitalever.com.bd/damage-product`,
+          url: `/${process.env.APP_BASE_URL}/damage-product`,
         }),
       ),
     );

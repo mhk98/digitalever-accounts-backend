@@ -385,7 +385,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: "/kafelamart.digitalever.com.bd/manufacture",
+        url: `/${process.env.APP_BASE_URL}/manufacture`,
       }),
     ),
   );

@@ -7,6 +7,7 @@ const LedgerHistory = db.ledgerHistory;
 const Ledger = db.ledger;
 const CashInOut = db.cashInOut;
 const SupplierHistory = db.supplierHistory;
+const EmployeeList = db.employeeList;
 
 const normalizeOptionalForeignKey = (value) => {
   if (value === undefined || value === null) {
@@ -44,6 +45,121 @@ const normalizePrimaryKey = (value) => {
   return value;
 };
 
+const resolveEmployeeLedgerIds = async (employeeId) => {
+  const normalizedEmployeeId = normalizeOptionalForeignKey(employeeId);
+
+  if (!normalizedEmployeeId) return [];
+
+  const employee = await EmployeeList.findOne({
+    where: {
+      [Op.or]: [
+        { Id: normalizedEmployeeId },
+        { employee_id: normalizedEmployeeId },
+      ],
+    },
+    attributes: ["Id", "employee_id"],
+  });
+
+  const ids = [normalizedEmployeeId, employee?.Id, employee?.employee_id]
+    .map((value) => {
+      if (value === undefined || value === null || value === "") return null;
+
+      const numericValue = Number(value);
+      return Number.isFinite(numericValue) ? numericValue : null;
+    })
+    .filter((value) => value !== null);
+
+  return [...new Set(ids)];
+};
+
+const getLedgerHistoryEntryType = (entry = {}) => {
+  const status = String(entry?.status || entry?.cashType || "").trim();
+
+  if (status === "Paid" || status === "Unpaid") {
+    return status;
+  }
+
+  return getSafeAmount(entry?.paidAmount) > 0 ? "Paid" : "Unpaid";
+};
+
+const getSafeAmount = (value) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+};
+
+const getLedgerHistoryAmount = (entry = {}) =>
+  getLedgerHistoryEntryType(entry) === "Paid"
+    ? getSafeAmount(entry?.paidAmount)
+    : getSafeAmount(entry?.unpaidAmount);
+
+const buildSupplierHistoryPayload = ({ entryType, amount, payload, existing }) => ({
+  supplierId: normalizeOptionalForeignKey(
+    payload?.supplierId ?? existing?.supplierId,
+  ),
+  bookId: normalizeOptionalForeignKey(payload?.bookId ?? existing?.bookId),
+  amount,
+  status: entryType,
+  date: payload?.date ?? existing?.date ?? new Date(),
+  note: payload?.note ?? existing?.note ?? "",
+});
+
+const buildCashInOutPayload = ({ amount, payload, existing }) => ({
+  supplierId: normalizeOptionalForeignKey(
+    payload?.supplierId ?? existing?.supplierId,
+  ),
+  employeeId: normalizeOptionalForeignKey(
+    payload?.employeeId ?? existing?.employeeId,
+  ),
+  bookId: normalizeOptionalForeignKey(payload?.bookId ?? existing?.bookId),
+  paymentStatus: "CashOut",
+  amount,
+  status: "Active",
+  date: payload?.date ?? existing?.date ?? new Date(),
+  note: payload?.note ?? existing?.note ?? "",
+});
+
+const findMatchingSupplierHistory = async (entry, transaction) => {
+  if (!entry?.supplierId) return null;
+
+  const where = {
+    supplierId: entry.supplierId,
+    amount: getLedgerHistoryAmount(entry),
+    status: getLedgerHistoryEntryType(entry),
+  };
+
+  if (entry.bookId) where.bookId = entry.bookId;
+  if (entry.date) where.date = entry.date;
+
+  return SupplierHistory.findOne({
+    where,
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+    transaction,
+  });
+};
+
+const findMatchingCashInOut = async (entry, transaction) => {
+  if (getLedgerHistoryEntryType(entry) !== "Paid") return null;
+  if (!entry?.supplierId && !entry?.employeeId) return null;
+
+  const where = {
+    paymentStatus: { [Op.in]: ["CashOut", "Paid"] },
+    amount: getLedgerHistoryAmount(entry),
+  };
+
+  if (entry.supplierId) where.supplierId = entry.supplierId;
+  if (entry.employeeId) where.employeeId = entry.employeeId;
+  if (entry.bookId) where.bookId = entry.bookId;
+  if (entry.date) where.date = entry.date;
+
+  return CashInOut.findOne({
+    where,
+    paranoid: true,
+    order: [["createdAt", "DESC"]],
+    transaction,
+  });
+};
+
 const insertIntoDB = async (payload) => {
   const {
     cashType,
@@ -69,6 +185,7 @@ const insertIntoDB = async (payload) => {
     unpaidAmount,
     status: cashType,
     ledgerId,
+    bookId: normalizeOptionalForeignKey(bookId),
     supplierId: normalizeOptionalForeignKey(supplierId),
     employeeId: normalizeOptionalForeignKey(employeeId),
     note,
@@ -82,9 +199,12 @@ const insertIntoDB = async (payload) => {
       throw new ApiError(404, "Ledger not found for the provided ledgerId");
     }
 
+      let supplierHistoryId = null;
+      let cashInOutId = null;
+
       if (supplierId) {
         // SupplierHistory — বাকি যোগ = Unpaid, পরিশোধ = Paid
-        await SupplierHistory.create(
+        const supplierHistory = await SupplierHistory.create(
           {
             supplierId,
             bookId,
@@ -95,10 +215,11 @@ const insertIntoDB = async (payload) => {
           },
           { transaction: t },
         );
+        supplierHistoryId = supplierHistory.Id;
 
         // CashInOut — শুধু পরিশোধ (Paid) হলে CashOut। বাকি যোগ (Unpaid) হলে কোনো cash movement নেই।
         if (cashType === "Paid") {
-          await CashInOut.create(
+          const cashInOut = await CashInOut.create(
             {
               supplierId,
               bookId,
@@ -109,13 +230,14 @@ const insertIntoDB = async (payload) => {
             },
             { transaction: t },
           );
+          cashInOutId = cashInOut.Id;
         }
       }
 
       if (employeeId) {
         // CashInOut — শুধু পরিশোধ (Paid) হলে CashOut। বাকি যোগ (Unpaid) হলে কোনো cash movement নেই।
         if (cashType === "Paid") {
-          await CashInOut.create(
+          const cashInOut = await CashInOut.create(
             {
               employeeId,
               bookId,
@@ -126,8 +248,12 @@ const insertIntoDB = async (payload) => {
             },
             { transaction: t },
           );
+          cashInOutId = cashInOut.Id;
         }
       }
+
+    data.supplierHistoryId = supplierHistoryId;
+    data.cashInOutId = cashInOutId;
 
     const result = await LedgerHistory.create(data, { transaction: t });
 
@@ -141,9 +267,20 @@ const getAllFromDB = async (filters, options) => {
 
   const andConditions = [];
   const normalizedOtherFilters = {};
+  const employeeLedgerIds = await resolveEmployeeLedgerIds(otherFilters.employeeId);
 
   Object.entries(otherFilters).forEach(([key, value]) => {
-    if (key === "supplierId" || key === "employeeId") {
+    if (key === "employeeId") {
+      if (employeeLedgerIds.length === 1) {
+        normalizedOtherFilters[key] = employeeLedgerIds[0];
+      } else if (employeeLedgerIds.length > 1) {
+        normalizedOtherFilters[key] = { [Op.in]: employeeLedgerIds };
+      }
+
+      return;
+    }
+
+    if (key === "supplierId") {
       const normalizedValue = normalizeOptionalForeignKey(value);
 
       if (normalizedValue !== null) {
@@ -177,7 +314,7 @@ const getAllFromDB = async (filters, options) => {
   if (Object.keys(normalizedOtherFilters).length) {
     andConditions.push(
       ...Object.entries(normalizedOtherFilters).map(([key, value]) => ({
-        [key]: { [Op.eq]: value },
+        [key]: value && value[Op.in] ? value : { [Op.eq]: value },
       })),
     );
   }
@@ -268,29 +405,156 @@ const getDataById = async (id) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
-  const normalizedPayload = {
-    ...payload,
-    supplierId: normalizeOptionalForeignKey(payload?.supplierId),
-    employeeId: normalizeOptionalForeignKey(payload?.employeeId),
-  };
+  return db.sequelize.transaction(async (t) => {
+    const existing = await LedgerHistory.findByPk(id, { transaction: t });
 
-  const result = await LedgerHistory.update(normalizedPayload, {
-    where: {
-      Id: id,
-    },
+    if (!existing) {
+      throw new ApiError(404, "LedgerHistory not found");
+    }
+
+    const nextEntryType =
+      payload?.cashType ||
+      payload?.status ||
+      (getSafeAmount(payload?.paidAmount) > 0 ? "Paid" : "Unpaid");
+    const nextAmount =
+      nextEntryType === "Paid"
+        ? getSafeAmount(payload?.paidAmount ?? payload?.amount)
+        : getSafeAmount(payload?.unpaidAmount ?? payload?.amount);
+
+    if (nextAmount <= 0) {
+      throw new ApiError(400, "Amount must be greater than 0");
+    }
+
+    const normalizedPayload = {
+      ledgerId: payload?.ledgerId ?? existing.ledgerId,
+      supplierId: normalizeOptionalForeignKey(
+        payload?.supplierId ?? existing.supplierId,
+      ),
+      employeeId: normalizeOptionalForeignKey(
+        payload?.employeeId ?? existing.employeeId,
+      ),
+      bookId: normalizeOptionalForeignKey(payload?.bookId ?? existing.bookId),
+      status: nextEntryType,
+      paidAmount: nextEntryType === "Paid" ? nextAmount : 0,
+      unpaidAmount: nextEntryType === "Unpaid" ? nextAmount : 0,
+      date: payload?.date ?? existing.date,
+      note: payload?.note ?? existing.note ?? "",
+    };
+
+    const previousSupplierHistory =
+      existing.supplierHistoryId &&
+      (await SupplierHistory.findByPk(existing.supplierHistoryId, {
+        transaction: t,
+      }));
+    const fallbackSupplierHistory =
+      previousSupplierHistory || (await findMatchingSupplierHistory(existing, t));
+
+    let nextSupplierHistoryId = existing.supplierHistoryId || null;
+    if (normalizedPayload.supplierId) {
+      const supplierPayload = buildSupplierHistoryPayload({
+        entryType: nextEntryType,
+        amount: nextAmount,
+        payload: normalizedPayload,
+        existing,
+      });
+
+      if (fallbackSupplierHistory) {
+        await fallbackSupplierHistory.update(supplierPayload, {
+          transaction: t,
+        });
+        nextSupplierHistoryId = fallbackSupplierHistory.Id;
+      } else {
+        const supplierHistory = await SupplierHistory.create(supplierPayload, {
+          transaction: t,
+        });
+        nextSupplierHistoryId = supplierHistory.Id;
+      }
+    } else if (fallbackSupplierHistory) {
+      await fallbackSupplierHistory.destroy({ transaction: t });
+      nextSupplierHistoryId = null;
+    }
+
+    const previousCashInOut =
+      existing.cashInOutId &&
+      (await CashInOut.findByPk(existing.cashInOutId, { transaction: t }));
+    const fallbackCashInOut =
+      previousCashInOut || (await findMatchingCashInOut(existing, t));
+
+    let nextCashInOutId = existing.cashInOutId || null;
+    if (nextEntryType === "Paid") {
+      const cashPayload = buildCashInOutPayload({
+        amount: nextAmount,
+        payload: normalizedPayload,
+        existing,
+      });
+
+      if (fallbackCashInOut) {
+        await fallbackCashInOut.update(cashPayload, { transaction: t });
+        nextCashInOutId = fallbackCashInOut.Id;
+      } else {
+        const cashInOut = await CashInOut.create(cashPayload, {
+          transaction: t,
+        });
+        nextCashInOutId = cashInOut.Id;
+      }
+    } else if (fallbackCashInOut) {
+      await fallbackCashInOut.destroy({ transaction: t });
+      nextCashInOutId = null;
+    }
+
+    normalizedPayload.supplierHistoryId = nextSupplierHistoryId;
+    normalizedPayload.cashInOutId = nextCashInOutId;
+
+    const [updatedCount] = await LedgerHistory.update(normalizedPayload, {
+      where: {
+        Id: id,
+      },
+      transaction: t,
+    });
+
+    return updatedCount;
   });
-
-  return result;
 };
 
 const deleteIdFromDB = async (id) => {
-  const result = await LedgerHistory.destroy({
-    where: {
-      Id: id,
-    },
-  });
+  return db.sequelize.transaction(async (t) => {
+    const existing = await LedgerHistory.findByPk(id, { transaction: t });
 
-  return result;
+    if (!existing) {
+      throw new ApiError(404, "LedgerHistory not found");
+    }
+
+    const linkedSupplierHistory =
+      existing.supplierHistoryId &&
+      (await SupplierHistory.findByPk(existing.supplierHistoryId, {
+        transaction: t,
+      }));
+    const fallbackSupplierHistory =
+      linkedSupplierHistory || (await findMatchingSupplierHistory(existing, t));
+
+    if (fallbackSupplierHistory) {
+      await fallbackSupplierHistory.destroy({ transaction: t });
+    }
+
+    const linkedCashInOut =
+      existing.cashInOutId &&
+      (await CashInOut.findByPk(existing.cashInOutId, { transaction: t }));
+    const fallbackCashInOut =
+      linkedCashInOut || (await findMatchingCashInOut(existing, t));
+
+    if (fallbackCashInOut) {
+      await fallbackCashInOut.destroy({ transaction: t });
+    }
+
+    const result = await LedgerHistory.destroy({
+      where: {
+        Id: id,
+      },
+      transaction: t,
+    });
+
+    return result;
+  });
 };
 
 const getAllFromDBWithoutQuery = async () => {

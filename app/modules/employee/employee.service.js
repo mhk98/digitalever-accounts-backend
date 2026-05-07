@@ -11,6 +11,83 @@ const Notification = db.notification;
 const User = db.user;
 const LedgerHistory = db.ledgerHistory;
 const CashInOut = db.cashInOut;
+const EmployeeList = db.employeeList;
+
+const getSafeAmount = (value) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+};
+
+const normalizeOptionalId = (value) => {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return null;
+  }
+
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+};
+
+const resolveEmployeeListId = async ({
+  employeeListId,
+  employee_id,
+  transaction,
+}) => {
+  const directId = normalizeOptionalId(employeeListId);
+  if (directId) return directId;
+
+  if (!employee_id) return null;
+
+  const employee = await EmployeeList.findOne({
+    where: { employee_id },
+    attributes: ["Id"],
+    transaction,
+  });
+
+  return employee?.Id || null;
+};
+
+const resolveLedgerEmployeeId = ({ employee_id, employeeListId }) =>
+  normalizeOptionalId(employeeListId) || normalizeOptionalId(employee_id);
+
+const createAdvanceSettlementEntries = async (
+  { employeeId, amount, bookId, date },
+  transaction,
+) => {
+  const advanceAmount = getSafeAmount(amount);
+  const normalizedEmployeeId = normalizeOptionalId(employeeId);
+  const normalizedBookId = normalizeOptionalId(bookId);
+
+  if (!normalizedEmployeeId || advanceAmount <= 0) return null;
+
+  const cashInOut = await CashInOut.create(
+    {
+      employeeId: normalizedEmployeeId,
+      paymentStatus: "CashIn",
+      amount: advanceAmount,
+      bookId: normalizedBookId,
+      status: "Active",
+      date: date || new Date(),
+      note: "Payroll advance adjustment",
+    },
+    { transaction },
+  );
+
+  const ledgerHistory = await LedgerHistory.create(
+    {
+      employeeId: normalizedEmployeeId,
+      paidAmount: advanceAmount,
+      unpaidAmount: 0,
+      status: "Paid",
+      bookId: normalizedBookId,
+      cashInOutId: cashInOut.Id,
+      date: date || new Date(),
+      note: "Payroll advance adjustment",
+    },
+    { transaction },
+  );
+
+  return { cashInOut, ledgerHistory };
+};
 
 const insertIntoDB = async (payload) => {
   const {
@@ -58,6 +135,7 @@ const insertIntoDB = async (payload) => {
     status: finalStatus,
     userId,
     employeeListId,
+    bookId: normalizeOptionalId(bookId),
     date,
   };
 
@@ -68,37 +146,44 @@ const insertIntoDB = async (payload) => {
       throw new ApiError(500, "Failed to create employee record");
     }
 
-    if (result.employee_id && result.advance) {
-      await LedgerHistory.create(
-        {
-          employeeId: result.employee_id,
-          amount: result.advance,
-          status: "Paid",
-          date: result.date || new Date(),
-        },
-        { transaction: t },
-      );
+    const resolvedEmployeeListId = await resolveEmployeeListId({
+      employeeListId,
+      employee_id,
+      transaction: t,
+    });
+    const payrollEmployeeId = resolveLedgerEmployeeId({
+      employee_id,
+      employeeListId: resolvedEmployeeListId,
+    });
 
+    const hasAdvanceAdjustment = getSafeAmount(result.advance) > 0;
+
+    if (payrollEmployeeId && hasAdvanceAdjustment) {
+      await createAdvanceSettlementEntries(
+        {
+          employeeId: payrollEmployeeId,
+          amount: result.advance,
+          bookId,
+          date: result.date,
+        },
+        t,
+      );
+    }
+
+    if (
+      payrollEmployeeId &&
+      hasAdvanceAdjustment &&
+      getSafeAmount(result.total_salary) > 0
+    ) {
       await CashInOut.create(
         {
-          employeeId: result.employee_id,
-          paymentStatus: "CashIn",
-          amount: result.advance,
-          bookId: bookId || null,
-          status: "Active",
-          date: result.date || new Date(),
-        },
-        { transaction: t },
-      );
-
-      await CashInOut.create(
-        {
-          employeeId: result.employee_id,
+          employeeId: payrollEmployeeId,
           paymentStatus: "CashOut",
           amount: result.total_salary,
-          bookId: bookId || null,
+          bookId: normalizeOptionalId(bookId),
           status: "Active",
           date: result.date || new Date(),
+          note: "Payroll salary payment",
         },
         { transaction: t },
       );
@@ -217,6 +302,7 @@ const updateOneFromDB = async (id, payload) => {
     status,
     userId,
     employeeListId,
+    bookId,
     date,
     actorRole,
   } = payload;
@@ -281,6 +367,7 @@ const updateOneFromDB = async (id, payload) => {
     status: finalStatus,
     userId,
     employeeListId,
+    bookId: normalizeOptionalId(bookId),
   };
 
   const [updatedCount] = await Employee.update(data, {
@@ -313,7 +400,7 @@ const updateOneFromDB = async (id, payload) => {
       Notification.create({
         userId: u.Id,
         message,
-        url: `/kafelamart.digitalever.com.bd/employee`,
+        url: `/${process.env.APP_BASE_URL}/employee`,
       }),
     ),
   );

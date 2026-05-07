@@ -222,7 +222,7 @@ const insertIntoDB = async (data, file) => {
             {
               userId: u.Id,
               message,
-              url: "/purchase-requisition",
+              url: `/${process.env.APP_BASE_URL}/purchase-requisition`,
             },
             { transaction: t },
           ),
@@ -494,8 +494,8 @@ const updateOneFromDB = async (id, payload) => {
     const data = {
       name: productData.name,
       quantity: nextQty,
-      purchase_price: Number(purchase_price || 0) * nextQty,
-      sale_price: Number(sale_price || 0) * nextQty,
+      purchase_price: Number(purchase_price),
+      sale_price: Number(sale_price),
       supplierId,
       warehouseId,
       productId: newProductId,
@@ -539,8 +539,8 @@ const updateOneFromDB = async (id, payload) => {
           weight,
           quantity: nextInventoryQty,
           variants: nextInventoryVariants,
-          purchase_price: Number(purchase_price || 0),
-          sale_price: Number(sale_price || 0),
+          purchase_price: Number(purchase_price),
+          sale_price: Number(sale_price),
         },
         { transaction: t },
       );
@@ -575,8 +575,8 @@ const updateOneFromDB = async (id, payload) => {
             sku,
             weight,
             variants: incomingVariants,
-            purchase_price: Number(purchase_price || 0),
-            sale_price: Number(sale_price || 0),
+            purchase_price: Number(purchase_price),
+            sale_price: Number(sale_price),
           },
           { transaction: t },
         );
@@ -650,7 +650,7 @@ const updateOneFromDB = async (id, payload) => {
           {
             userId: u.Id,
             message,
-            url: `/kafelamart.digitalever.com.bd/purchase-product`,
+            url: `/${process.env.APP_BASE_URL}/purchase-product`,
           },
           { transaction: t },
         ),

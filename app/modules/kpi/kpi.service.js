@@ -7,6 +7,8 @@ const { ENUM_USER_ROLE } = require("../../enums/user");
 
 const KPI = db.kpi;
 const KPISetting = db.kpiSetting;
+const EmployeeList = db.employeeList;
+const User = db.user;
 
 const MARK_FIELDS = [
   "confirm",
@@ -29,6 +31,9 @@ const RAW_FIELD_TO_MARK_FIELD = {
   absentRaw: "absent",
   leaveRaw: "leave",
   workingTimeRaw: "workingTime",
+  qcRaw: "qc",
+  overallBaviourRaw: "overallBaviour",
+  totalSaleAmountRaw: "totalSaleAmount",
 };
 
 const FIELD_MAX_MARKS = {
@@ -43,6 +48,44 @@ const FIELD_MAX_MARKS = {
   overallBaviour: 10,
   totalSaleAmount: 10,
 };
+
+const kpiIncludes = [
+  {
+    model: EmployeeList,
+    as: "employee",
+    attributes: ["Id", "name", "employee_id", "employeeCode", "userId"],
+    required: false,
+  },
+  {
+    model: User,
+    as: "user",
+    attributes: ["Id", "FirstName", "LastName", "Email", "role"],
+    required: false,
+  },
+];
+
+const employeeOptionIncludes = [
+  {
+    model: EmployeeList,
+    as: "employeeProfile",
+    attributes: ["Id", "name", "employee_id", "employeeCode", "userId"],
+    required: false,
+  },
+];
+
+const KPI_SETTING_ORDER = [
+  "order_cs",
+  "order_up",
+  "delivered",
+  "return",
+  "late",
+  "absent",
+  "leave",
+  "working_time",
+  "qc",
+  "overall_behaviour",
+  "total_sale_amount",
+];
 
 const DEFAULT_KPI_SETTINGS = {
   order_cs: {
@@ -138,6 +181,36 @@ const DEFAULT_KPI_SETTINGS = {
       { label: "6.5h - 7h", min: 6.5, max: 6.99, mark: 5 },
     ],
   },
+  qc: {
+    label: "For QC",
+    rules: [
+      { label: "90+", min: 90, max: null, mark: 10 },
+      { label: "80 - 89", min: 80, max: 89, mark: 9 },
+      { label: "70 - 79", min: 70, max: 79, mark: 8 },
+      { label: "60 - 69", min: 60, max: 69, mark: 7 },
+      { label: "50 - 59", min: 50, max: 59, mark: 6 },
+    ],
+  },
+  overall_behaviour: {
+    label: "For Overall Behaviour",
+    rules: [
+      { label: "90+", min: 90, max: null, mark: 10 },
+      { label: "80 - 89", min: 80, max: 89, mark: 9 },
+      { label: "70 - 79", min: 70, max: 79, mark: 8 },
+      { label: "60 - 69", min: 60, max: 69, mark: 7 },
+      { label: "50 - 59", min: 50, max: 59, mark: 6 },
+    ],
+  },
+  total_sale_amount: {
+    label: "For Total Sale Amount",
+    rules: [
+      { label: "100000+", min: 100000, max: null, mark: 10 },
+      { label: "80000 - 99999", min: 80000, max: 99999, mark: 9 },
+      { label: "60000 - 79999", min: 60000, max: 79999, mark: 8 },
+      { label: "40000 - 59999", min: 40000, max: 59999, mark: 7 },
+      { label: "20000 - 39999", min: 20000, max: 39999, mark: 6 },
+    ],
+  },
 };
 
 const RAW_FIELD_SETTING_KEYS = {
@@ -147,6 +220,9 @@ const RAW_FIELD_SETTING_KEYS = {
   absentRaw: "absent",
   leaveRaw: "leave",
   workingTimeRaw: "working_time",
+  qcRaw: "qc",
+  overallBaviourRaw: "overall_behaviour",
+  totalSaleAmountRaw: "total_sale_amount",
 };
 
 const toNumber = (value) => {
@@ -160,7 +236,10 @@ const normalizeMark = (value, fieldName) => {
   const n = toNumber(value);
   const maxMark = FIELD_MAX_MARKS[fieldName] || 10;
   if (Number.isNaN(n)) {
-    throw new ApiError(400, `${fieldName} must be a number between 0 and ${maxMark}`);
+    throw new ApiError(
+      400,
+      `${fieldName} must be a number between 0 and ${maxMark}`,
+    );
   }
   if (n < 0 || n > maxMark) {
     throw new ApiError(400, `${fieldName} must be between 0 and ${maxMark}`);
@@ -173,7 +252,10 @@ const normalizeRule = (rule = {}) => {
   const max = rule.max === null || rule.max === "" ? null : Number(rule.max);
   const mark = Number(rule.mark);
 
-  if ((min !== null && !Number.isFinite(min)) || (max !== null && !Number.isFinite(max))) {
+  if (
+    (min !== null && !Number.isFinite(min)) ||
+    (max !== null && !Number.isFinite(max))
+  ) {
     throw new ApiError(400, "KPI setting rule min/max must be valid numbers");
   }
   if (!Number.isFinite(mark) || mark < 0) {
@@ -204,6 +286,7 @@ const parseRules = (value) => {
 };
 
 const getAllSettingsMap = async () => {
+  await ensureDefaultSettings();
   const rows = await KPISetting.findAll({ where: { status: "Active" } });
   const map = { ...DEFAULT_KPI_SETTINGS };
 
@@ -223,8 +306,12 @@ const scoreByRules = (value, rules = []) => {
   if (Number.isNaN(n)) return 0;
 
   const matched = rules.find((rule) => {
-    const min = rule.min === null || rule.min === undefined ? -Infinity : Number(rule.min);
-    const max = rule.max === null || rule.max === undefined ? Infinity : Number(rule.max);
+    const min =
+      rule.min === null || rule.min === undefined
+        ? -Infinity
+        : Number(rule.min);
+    const max =
+      rule.max === null || rule.max === undefined ? Infinity : Number(rule.max);
     return n >= min && n <= max;
   });
 
@@ -232,7 +319,9 @@ const scoreByRules = (value, rules = []) => {
 };
 
 const getOrderSettingKey = (designationType) =>
-  String(designationType || "").trim().toUpperCase() === "UP"
+  String(designationType || "")
+    .trim()
+    .toUpperCase() === "UP"
     ? "order_up"
     : "order_cs";
 
@@ -272,7 +361,14 @@ const normalizeKpiPayload = async (payload = {}) => {
   ) {
     normalized.overallBaviour = normalized.overallBehind;
   }
+  if (
+    normalized.overallBaviourRaw === undefined &&
+    normalized.overallBehindRaw !== undefined
+  ) {
+    normalized.overallBaviourRaw = normalized.overallBehindRaw;
+  }
   delete normalized.overallBehind;
+  delete normalized.overallBehindRaw;
 
   Object.keys(RAW_FIELD_TO_MARK_FIELD).forEach((field) => {
     if (normalized[field] !== undefined) {
@@ -311,8 +407,12 @@ const normalizeKpiPayload = async (payload = {}) => {
   }
 
   if (normalized.designationType !== undefined) {
-    const designation = String(normalized.designationType || "").trim().toUpperCase();
-    normalized.designationType = ["CS", "UP"].includes(designation) ? designation : null;
+    const designation = String(normalized.designationType || "")
+      .trim()
+      .toUpperCase();
+    normalized.designationType = ["CS", "UP"].includes(designation)
+      ? designation
+      : null;
   }
 
   if (normalized.periodType !== undefined) {
@@ -352,32 +452,94 @@ const computeEvaluation = (row) => {
   };
 };
 
+const getTrendDirection = (change) => {
+  if (change > 0) return "up";
+  if (change < 0) return "down";
+  return "same";
+};
+
 const attachEvaluation = (row) => {
   if (!row) return row;
   const plain = typeof row.get === "function" ? row.get({ plain: true }) : row;
+  const evaluation = computeEvaluation(plain);
+  const employeeName =
+    plain.employee?.name ||
+    [plain.user?.FirstName, plain.user?.LastName].filter(Boolean).join(" ") ||
+    null;
+
   return {
     ...plain,
-    evaluation: computeEvaluation(plain),
+    employeeName,
+    totalMarks: evaluation.totalMarks,
+    maxMarks: evaluation.maxMarks,
+    performancePercentage: evaluation.performancePercentage,
+    marksOutOf: `${evaluation.totalMarks}/${evaluation.maxMarks}`,
+    evaluation,
   };
 };
 
-const assertKpiOwnership = (kpi, actor = {}) => {
+const getEmployeeProfileByUserId = async (userId) => {
+  if (!userId) return null;
+  return EmployeeList.findOne({
+    where: { userId },
+    attributes: ["Id", "name", "employee_id", "employeeCode", "userId"],
+  });
+};
+
+const resolveEmployeeProfile = async (employeeId) => {
+  if (!employeeId) return null;
+
+  const employee = await EmployeeList.findOne({
+    where: { Id: employeeId },
+    attributes: ["Id", "name", "employee_id", "employeeCode", "userId"],
+  });
+
+  if (!employee) {
+    throw new ApiError(400, "Selected employee was not found");
+  }
+
+  return employee;
+};
+
+const applyEmployeeSelection = async (normalized, actor = {}) => {
+  if (actor?.role === ENUM_USER_ROLE.EMPLOYEE) {
+    const employee = await getEmployeeProfileByUserId(actor.Id);
+    normalized.userId = actor.Id || null;
+    normalized.employeeId = employee?.Id || null;
+    return normalized;
+  }
+
+  if (normalized.employeeId) {
+    const employee = await resolveEmployeeProfile(normalized.employeeId);
+    normalized.userId = employee?.userId || null;
+    return normalized;
+  }
+
+  if (normalized.userId) {
+    const employee = await getEmployeeProfileByUserId(normalized.userId);
+    normalized.employeeId = employee?.Id || normalized.employeeId || null;
+    return normalized;
+  }
+
+  normalized.userId = actor?.Id || null;
+  return normalized;
+};
+
+const assertKpiOwnership = async (kpi, actor = {}) => {
   if (!kpi) return;
   if (actor?.role !== ENUM_USER_ROLE.EMPLOYEE) return;
-  if (!kpi.userId || Number(kpi.userId) !== Number(actor.Id)) {
+  if (kpi.userId && Number(kpi.userId) === Number(actor.Id)) return;
+  if (kpi.employeeId) {
+    const employee = await getEmployeeProfileByUserId(actor.Id);
+    if (employee && Number(employee.Id) === Number(kpi.employeeId)) return;
     throw new ApiError(403, "You can only access your own KPI data");
   }
+  throw new ApiError(403, "You can only access your own KPI data");
 };
 
 const insertIntoDB = async (payload, actor = {}) => {
   const normalized = await normalizeKpiPayload(payload);
-
-  // Ownership: employee can only create their own KPI record.
-  if (actor?.role === ENUM_USER_ROLE.EMPLOYEE) {
-    normalized.userId = actor.Id || null;
-  } else if (!normalized.userId) {
-    normalized.userId = actor?.Id || null;
-  }
+  await applyEmployeeSelection(normalized, actor);
 
   // Fill missing marks to 0 so evaluation is always complete.
   MARK_FIELDS.forEach((field) => {
@@ -385,13 +547,25 @@ const insertIntoDB = async (payload, actor = {}) => {
   });
 
   const result = await KPI.create(normalized);
-  return attachEvaluation(result);
+  const created = await KPI.findOne({
+    where: { Id: result.Id },
+    include: kpiIncludes,
+  });
+  return attachEvaluation(created);
 };
 
 const getAllFromDB = async (filters, options, actor = {}) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
 
-  const { searchTerm, startDate, endDate, status, userId } = filters;
+  const {
+    searchTerm,
+    startDate,
+    endDate,
+    status,
+    userId,
+    employeeId,
+    periodType,
+  } = filters;
 
   const andConditions = [];
 
@@ -418,21 +592,36 @@ const getAllFromDB = async (filters, options, actor = {}) => {
     andConditions.push({ status: { [Op.eq]: status } });
   }
 
+  if (periodType) {
+    andConditions.push({ periodType: { [Op.eq]: periodType } });
+  }
+
   // Employee: only see own KPI rows.
   if (actor?.role === ENUM_USER_ROLE.EMPLOYEE) {
-    andConditions.push({ userId: { [Op.eq]: actor.Id } });
+    const employee = await getEmployeeProfileByUserId(actor.Id);
+    andConditions.push({
+      [Op.or]: [
+        { userId: { [Op.eq]: actor.Id } },
+        ...(employee ? [{ employeeId: { [Op.eq]: employee.Id } }] : []),
+      ],
+    });
+  } else if (employeeId) {
+    andConditions.push({ employeeId: { [Op.eq]: Number(employeeId) } });
   } else if (userId) {
     andConditions.push({ userId: { [Op.eq]: Number(userId) } });
   }
 
   andConditions.push({ deletedAt: { [Op.is]: null } });
 
-  const whereConditions = andConditions.length ? { [Op.and]: andConditions } : {};
+  const whereConditions = andConditions.length
+    ? { [Op.and]: andConditions }
+    : {};
 
   const data = await KPI.findAll({
     where: whereConditions,
     offset: skip,
     limit,
+    include: kpiIncludes,
     paranoid: true,
     order:
       options.sortBy && options.sortOrder
@@ -440,7 +629,11 @@ const getAllFromDB = async (filters, options, actor = {}) => {
         : [["date", "DESC"]],
   });
 
-  const count = await KPI.count({ where: whereConditions });
+  const count = await KPI.count({
+    where: whereConditions,
+    include: searchTerm ? kpiIncludes : undefined,
+    distinct: true,
+  });
 
   return {
     meta: { count, page, limit },
@@ -449,9 +642,9 @@ const getAllFromDB = async (filters, options, actor = {}) => {
 };
 
 const getDataById = async (id, actor = {}) => {
-  const result = await KPI.findOne({ where: { Id: id } });
+  const result = await KPI.findOne({ where: { Id: id }, include: kpiIncludes });
   if (!result) return null;
-  assertKpiOwnership(result.get({ plain: true }), actor);
+  await assertKpiOwnership(result.get({ plain: true }), actor);
   return attachEvaluation(result);
 };
 
@@ -460,41 +653,256 @@ const updateOneFromDB = async (id, payload, actor = {}) => {
   if (!existing) throw new ApiError(404, "KPI not found");
 
   const plainExisting = existing.get({ plain: true });
-  assertKpiOwnership(plainExisting, actor);
+  await assertKpiOwnership(plainExisting, actor);
 
   const normalized = await normalizeKpiPayload(payload);
 
   // Employee cannot re-assign ownership.
   if (actor?.role === ENUM_USER_ROLE.EMPLOYEE) {
     delete normalized.userId;
+    delete normalized.employeeId;
+  } else {
+    await applyEmployeeSelection(normalized, actor);
   }
 
   await KPI.update(normalized, { where: { Id: id } });
-  const updated = await KPI.findOne({ where: { Id: id } });
+  const updated = await KPI.findOne({
+    where: { Id: id },
+    include: kpiIncludes,
+  });
   return attachEvaluation(updated);
 };
 
 const deleteIdFromDB = async (id, actor = {}) => {
   const existing = await KPI.findOne({ where: { Id: id } });
   if (!existing) throw new ApiError(404, "KPI not found");
-  assertKpiOwnership(existing.get({ plain: true }), actor);
+  await assertKpiOwnership(existing.get({ plain: true }), actor);
 
   return KPI.destroy({ where: { Id: id } });
 };
 
 const getAllFromDBWithoutQuery = async (actor = {}) => {
-  const whereConditions =
-    actor?.role === ENUM_USER_ROLE.EMPLOYEE
-      ? { userId: { [Op.eq]: actor.Id } }
-      : {};
+  let whereConditions = {};
+
+  if (actor?.role === ENUM_USER_ROLE.EMPLOYEE) {
+    const employee = await getEmployeeProfileByUserId(actor.Id);
+    whereConditions = {
+      [Op.or]: [
+        { userId: { [Op.eq]: actor.Id } },
+        ...(employee ? [{ employeeId: { [Op.eq]: employee.Id } }] : []),
+      ],
+    };
+  }
 
   const result = await KPI.findAll({
     where: whereConditions,
+    include: kpiIncludes,
     paranoid: true,
     order: [["date", "DESC"]],
   });
 
   return result.map(attachEvaluation);
+};
+
+const formatEmployeeOption = (row) => {
+  const user = typeof row.get === "function" ? row.get({ plain: true }) : row;
+  const userName = [user.FirstName, user.LastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const profile = user.employeeProfile || null;
+  const label = profile?.name || userName || user.Email;
+
+  return {
+    label,
+    value: user.Id,
+    userId: user.Id,
+    employeeId: profile?.Id || null,
+    employeeCode: profile?.employeeCode || null,
+    employeeNo: profile?.employee_id || null,
+    email: user.Email,
+    phone: user.Phone || null,
+    status: user.status,
+  };
+};
+
+const getEmployeeOptions = async (filters = {}, options = {}, actor = {}) => {
+  const { page, limit, skip } = paginationHelpers.calculatePagination({
+    page: options.page,
+    limit: options.limit || 50,
+  });
+  const { searchTerm, status } = filters;
+
+  const andConditions = [
+    { role: { [Op.eq]: ENUM_USER_ROLE.EMPLOYEE } },
+    { deletedAt: { [Op.is]: null } },
+  ];
+
+  if (actor?.role === ENUM_USER_ROLE.EMPLOYEE) {
+    andConditions.push({ Id: { [Op.eq]: actor.Id } });
+  }
+
+  if (status) {
+    andConditions.push({ status: { [Op.eq]: status } });
+  }
+
+  if (searchTerm && String(searchTerm).trim()) {
+    const term = String(searchTerm).trim();
+    andConditions.push({
+      [Op.or]: [
+        { FirstName: { [Op.like]: `%${term}%` } },
+        { LastName: { [Op.like]: `%${term}%` } },
+        { Email: { [Op.like]: `%${term}%` } },
+        { Phone: { [Op.like]: `%${term}%` } },
+        { "$employeeProfile.name$": { [Op.like]: `%${term}%` } },
+        { "$employeeProfile.employeeCode$": { [Op.like]: `%${term}%` } },
+      ],
+    });
+  }
+
+  const whereConditions = { [Op.and]: andConditions };
+
+  const rows = await User.findAll({
+    where: whereConditions,
+    include: employeeOptionIncludes,
+    attributes: [
+      "Id",
+      "FirstName",
+      "LastName",
+      "Email",
+      "Phone",
+      "status",
+      "role",
+    ],
+    offset: skip,
+    limit,
+    paranoid: true,
+    order: [
+      ["FirstName", "ASC"],
+      ["LastName", "ASC"],
+    ],
+  });
+
+  const count = await User.count({
+    where: whereConditions,
+    include: employeeOptionIncludes,
+    distinct: true,
+  });
+
+  return {
+    meta: { count, page, limit },
+    data: rows.map(formatEmployeeOption),
+  };
+};
+
+const getPerformanceGraph = async (filters = {}, actor = {}) => {
+  const { startDate, endDate, userId, employeeId, periodType } = filters;
+  const andConditions = [];
+
+  if (startDate && endDate) {
+    andConditions.push({
+      date: {
+        [Op.between]: [
+          String(startDate).slice(0, 10),
+          String(endDate).slice(0, 10),
+        ],
+      },
+    });
+  }
+
+  if (periodType) {
+    andConditions.push({ periodType: { [Op.eq]: periodType } });
+  }
+
+  if (actor?.role === ENUM_USER_ROLE.EMPLOYEE) {
+    const employee = await getEmployeeProfileByUserId(actor.Id);
+    andConditions.push({
+      [Op.or]: [
+        { userId: { [Op.eq]: actor.Id } },
+        ...(employee ? [{ employeeId: { [Op.eq]: employee.Id } }] : []),
+      ],
+    });
+  } else if (employeeId) {
+    andConditions.push({ employeeId: { [Op.eq]: Number(employeeId) } });
+  } else if (userId) {
+    andConditions.push({ userId: { [Op.eq]: Number(userId) } });
+  }
+
+  andConditions.push({ deletedAt: { [Op.is]: null } });
+
+  const rows = await KPI.findAll({
+    where: andConditions.length ? { [Op.and]: andConditions } : {},
+    include: kpiIncludes,
+    paranoid: true,
+    order: [
+      ["date", "ASC"],
+      ["Id", "ASC"],
+    ],
+  });
+
+  const previousByEmployee = new Map();
+
+  const points = rows.map((row) => {
+    const item = attachEvaluation(row);
+    const employeeKey = item.employeeId || item.userId || item.Id;
+    const previous = previousByEmployee.get(employeeKey) || null;
+    const change = previous
+      ? Number((item.totalMarks - previous.totalMarks).toFixed(2))
+      : 0;
+    previousByEmployee.set(employeeKey, item);
+
+    return {
+      Id: item.Id,
+      date: item.date,
+      periodType: item.periodType,
+      periodStartDate: item.periodStartDate,
+      periodEndDate: item.periodEndDate,
+      employeeId: item.employeeId,
+      userId: item.userId,
+      employeeName: item.employeeName,
+      totalMarks: item.totalMarks,
+      maxMarks: item.maxMarks,
+      performancePercentage: item.performancePercentage,
+      change,
+      trend: getTrendDirection(change),
+    };
+  });
+
+  const latest = points[points.length - 1] || null;
+  const latestKey = latest
+    ? latest.employeeId || latest.userId || latest.Id
+    : null;
+  const previous = latestKey
+    ? points
+        .slice(0, -1)
+        .reverse()
+        .find(
+          (point) =>
+            (point.employeeId || point.userId || point.Id) === latestKey,
+        )
+    : null;
+  const latestChange =
+    latest && previous
+      ? Number((latest.totalMarks - previous.totalMarks).toFixed(2))
+      : 0;
+
+  return {
+    summary: {
+      totalRecords: points.length,
+      latestScore: latest?.totalMarks || 0,
+      maxMarks: latest?.maxMarks || MARK_FIELDS.length * 10,
+      previousScore: previous?.totalMarks || 0,
+      change: latestChange,
+      trend: getTrendDirection(latestChange),
+      message:
+        getTrendDirection(latestChange) === "up"
+          ? "Performance is going up"
+          : getTrendDirection(latestChange) === "down"
+            ? "Performance is going down"
+            : "Performance is unchanged",
+    },
+    points,
+  };
 };
 
 const ensureDefaultSettings = async () => {
@@ -513,7 +921,9 @@ const ensureDefaultSettings = async () => {
       if (created) return row;
 
       const parsedRules = parseRules(row.rules);
-      const hasOutOfScaleMark = parsedRules.some((rule) => Number(rule?.mark || 0) > 10);
+      const hasOutOfScaleMark = parsedRules.some(
+        (rule) => Number(rule?.mark || 0) > 10,
+      );
       const hasLegacyLeaveScale =
         key === "leave" &&
         parsedRules.some(
@@ -537,7 +947,13 @@ const ensureDefaultSettings = async () => {
 const getKPISettings = async () => {
   await ensureDefaultSettings();
   const rows = await KPISetting.findAll({ order: [["Id", "ASC"]] });
-  return rows;
+  return rows.sort((a, b) => {
+    const aIndex = KPI_SETTING_ORDER.indexOf(a.key);
+    const bIndex = KPI_SETTING_ORDER.indexOf(b.key);
+    const safeAIndex = aIndex === -1 ? Number.MAX_SAFE_INTEGER : aIndex;
+    const safeBIndex = bIndex === -1 ? Number.MAX_SAFE_INTEGER : bIndex;
+    return safeAIndex - safeBIndex;
+  });
 };
 
 const updateKPISettings = async (payload = {}) => {
@@ -562,7 +978,9 @@ const updateKPISettings = async (payload = {}) => {
 
     const defaultSetting = DEFAULT_KPI_SETTINGS[key];
     const label = String(item.label || defaultSetting?.label || key).trim();
-    const rules = (Array.isArray(item.rules) ? item.rules : []).map(normalizeRule);
+    const rules = (Array.isArray(item.rules) ? item.rules : []).map(
+      normalizeRule,
+    );
 
     const [row] = await KPISetting.findOrCreate({
       where: { key },
@@ -592,6 +1010,8 @@ module.exports = {
   updateOneFromDB,
   deleteIdFromDB,
   getAllFromDBWithoutQuery,
+  getEmployeeOptions,
+  getPerformanceGraph,
   getKPISettings,
   updateKPISettings,
   ensureDefaultSettings,

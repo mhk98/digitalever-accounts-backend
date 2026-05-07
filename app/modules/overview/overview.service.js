@@ -3,6 +3,9 @@
 const { Op } = require("sequelize");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
+const {
+  getInventoryDisplayQuantity,
+} = require("../../../shared/variantQuantity");
 
 const Receiveable = db.receiveable;
 const Payable = db.payable;
@@ -212,7 +215,19 @@ const sumQuantityValue = async (
   return n(result?.totalValue);
 };
 
-const getOverviewSummaryFromDB = async (filters) => {
+const countLowStockProducts = async (where = {}) => {
+  const rows = await InventoryMaster.findAll({
+    where,
+    attributes: ["quantity", "variants", "minimumStock"],
+    paranoid: true,
+  });
+
+  return rows.filter(
+    (row) => n(getInventoryDisplayQuantity(row)) <= n(row.minimumStock),
+  ).length;
+};
+
+const getOverviewSummaryFromDB = async (filters = {}) => {
   const { from, to, filterType } = normalizeDateFilters(filters);
   const transactionDateWhere = buildDateWhere(from, to, "date");
   const snapshotWhere = buildDateWhere(from, to, "createdAt");
@@ -254,10 +269,7 @@ const getOverviewSummaryFromDB = async (filters) => {
       paymentStatus: "CashOut",
     }),
     sumField(ConfirmOrder, "sale_price", transactionDateWhere),
-    countWhere(InventoryMaster, {
-      ...snapshotWhere,
-      quantity: { [Op.lt]: 10 },
-    }),
+    countLowStockProducts(snapshotWhere),
     countWhere(PurchaseRequisition, {
       ...transactionDateWhere,
       status: "Pending",

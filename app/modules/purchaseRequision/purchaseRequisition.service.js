@@ -40,6 +40,32 @@ const normalizeOptionalId = (value) => {
   return Number.isNaN(id) ? null : id;
 };
 
+const normalizePaymentDetails = ({ paymentMode, bankName, bankAccount }) => {
+  const normalizedPaymentMode = String(paymentMode || "").trim();
+  const isBank = normalizedPaymentMode === "Bank";
+  const normalizedBankName = String(bankName || "").trim();
+  const normalizedBankAccount =
+    bankAccount !== undefined &&
+    bankAccount !== null &&
+    String(bankAccount).trim() !== ""
+      ? Number(bankAccount)
+      : null;
+
+  if (
+    isBank &&
+    normalizedBankAccount !== null &&
+    Number.isNaN(normalizedBankAccount)
+  ) {
+    throw new ApiError(400, "Invalid bank account");
+  }
+
+  return {
+    paymentMode: normalizedPaymentMode || null,
+    bankName: isBank ? normalizedBankName || null : null,
+    bankAccount: isBank ? normalizedBankAccount : null,
+  };
+};
+
 const resolveRequisitionItem = async (
   { productId, assetId, assetName, existing = null },
   options = {},
@@ -125,9 +151,17 @@ const insertIntoDB = async (data = {}) => {
     procurement,
     supplierId,
     warehouseId,
+    paymentMode,
+    bankName,
+    bankAccount,
   } = data;
 
   const incomingVariants = parseVariants(variants);
+  const paymentDetails = normalizePaymentDetails({
+    paymentMode,
+    bankName,
+    bankAccount,
+  });
 
   const finalStatus = "Pending";
 
@@ -147,6 +181,7 @@ const insertIntoDB = async (data = {}) => {
       quantity: Number(quantity),
       amount: Number(amount || 0),
       bookId: bookId || null,
+      ...paymentDetails,
       status: finalStatus, // সব নতুন রিকুয়েস্ট হবে Pending, পরে update route থেকে Approved/Completed করা যাবে
       note: finalStatus === "Approved" ? null : note || null,
       date: date,
@@ -186,7 +221,7 @@ const insertIntoDB = async (data = {}) => {
             {
               userId: u.Id,
               message,
-              url: `/kafelamart.digitalever.com.bd/purchase-requisition`,
+              url: `/${process.env.APP_BASE_URL}/purchase-requisition`,
             },
             { transaction: t },
           ),
@@ -347,6 +382,9 @@ const updateOneFromDB = async (id, payload) => {
     warehouseId,
     amount,
     bookId,
+    paymentMode,
+    bankName,
+    bankAccount,
     actorRole,
   } = payload;
 
@@ -366,12 +404,38 @@ const updateOneFromDB = async (id, payload) => {
       "productId",
       "assetId",
       "bookId",
+      "paymentMode",
+      "bankName",
+      "bankAccount",
+      "quantity",
+      "amount",
+      "date",
+      "supplierId",
+      "warehouseId",
     ],
   });
 
   if (!existing) return 0;
 
   const finalBookId = normalizeOptionalId(bookId) || existing.bookId || null;
+  const finalQuantity =
+    quantity === undefined || quantity === null || quantity === ""
+      ? existing.quantity
+      : Number(quantity);
+  const finalAmount =
+    amount === undefined || amount === null || amount === ""
+      ? Number(existing.amount || 0)
+      : Number(amount || 0);
+  const finalSupplierId =
+    normalizeOptionalId(supplierId) || existing.supplierId || null;
+  const finalWarehouseId =
+    normalizeOptionalId(warehouseId) || existing.warehouseId || null;
+  const finalDate = inputDateStr || existing.date || undefined;
+  const paymentDetails = normalizePaymentDetails({
+    paymentMode: paymentMode === undefined ? existing.paymentMode : paymentMode,
+    bankName: bankName === undefined ? existing.bankName : bankName,
+    bankAccount: bankAccount === undefined ? existing.bankAccount : bankAccount,
+  });
 
   const oldNote = String(existing.note || "").trim();
   const newNote = String(note || "").trim();
@@ -403,17 +467,18 @@ const updateOneFromDB = async (id, payload) => {
   }
 
   const data = {
-    quantity,
-    amount: Number(amount || 0),
+    quantity: finalQuantity,
+    amount: finalAmount,
     bookId: finalBookId,
+    ...paymentDetails,
     variants: incomingVariants,
     note: finalStatus === "Approved" ? null : newNote || null,
     status: finalStatus,
-    date: inputDateStr || undefined,
+    date: finalDate,
     procurement,
     file: file || null,
-    supplierId,
-    warehouseId,
+    supplierId: finalSupplierId,
+    warehouseId: finalWarehouseId,
   };
 
   return db.sequelize.transaction(async (t) => {
@@ -432,9 +497,9 @@ const updateOneFromDB = async (id, payload) => {
     data.assetId = item.assetId;
 
     if (finalStatus === "Completed" && existing.status !== "Completed") {
-      const resolvedSupplierId = normalizeOptionalId(supplierId);
-      const resolvedAmount = Number(amount || 0);
-      const resolvedDate = String(date || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
+      const resolvedSupplierId = finalSupplierId;
+      const resolvedAmount = finalAmount;
+      const resolvedDate = finalDate || new Date().toISOString().slice(0, 10);
       const itemName = data.name || existing.name;
 
       if (resolvedSupplierId && resolvedAmount > 0) {
@@ -457,9 +522,14 @@ const updateOneFromDB = async (id, payload) => {
           {
             supplierId: resolvedSupplierId,
             bookId: finalBookId,
+            ...paymentDetails,
             paymentStatus: "CashOut",
             amount: resolvedAmount,
+            paymentMode,
+            bankName,
+            bankAccount,
             status: "Active",
+            category: "Purchase Product",
             date: resolvedDate,
             note: `Purchase requisition completed: ${itemName}`,
             file: file || null,
@@ -499,7 +569,7 @@ const updateOneFromDB = async (id, payload) => {
         Notification.create({
           userId: u.Id,
           message,
-          url: `/kafelamart.digitalever.com.bd/purchase-product`,
+          url: `/${process.env.APP_BASE_URL}/purchase-product`,
         }),
       ),
     );
