@@ -16,6 +16,41 @@ const Supplier = db.supplier;
 const Warehouse = db.warehouse;
 const InventoryMaster = db.inventoryMaster;
 
+const parseItems = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const getBulkItems = (data = {}) => {
+  const items = parseItems(data.items);
+  if (!items.length) return [];
+
+  const { items: _items, ...commonFields } = data;
+  return items.map((item) => ({
+    ...commonFields,
+    ...item,
+  }));
+};
+
+const summarizeItems = (items = []) => ({
+  quantity: items.reduce((total, item) => total + Number(item.quantity || 0), 0),
+  purchase_price: items.reduce(
+    (total, item) => total + Number(item.purchase_price || 0),
+    0,
+  ),
+  sale_price: items.reduce(
+    (total, item) => total + Number(item.sale_price || 0),
+    0,
+  ),
+});
+
 const findInventoryByStoredReference = async (receivedId, transaction) => {
   const inventoryByInventoryId = await InventoryMaster.findOne({
     where: { Id: receivedId },
@@ -44,7 +79,160 @@ const findInventoryByRequestReference = async (receivedId, transaction) => {
   return findInventoryByStoredReference(receivedId, transaction);
 };
 
+const normalizeReturnItem = async (item, transaction) => {
+  const returnQty = Number(item.quantity || 0);
+  const receivedId = Number(item.receivedId || item.productId);
+  const incomingVariants = parseVariants(item.variants);
+  const customSalePrice =
+    item.sale_price === undefined || item.sale_price === null || item.sale_price === ""
+      ? null
+      : Number(item.sale_price);
+
+  if (!receivedId) throw new ApiError(400, "receivedId is required");
+  if (!returnQty || returnQty <= 0) {
+    throw new ApiError(400, "Quantity must be greater than 0");
+  }
+  if (
+    customSalePrice !== null &&
+    (!Number.isFinite(customSalePrice) || customSalePrice < 0)
+  ) {
+    throw new ApiError(400, "Sales price must be a positive number");
+  }
+
+  const inventory = await findInventoryByRequestReference(receivedId, transaction);
+  if (!inventory) throw new ApiError(404, "inventory product not found");
+
+  await inventory.update(
+    {
+      quantity: Number(inventory.quantity || 0) + returnQty,
+      variants: mergeVariants(inventory.variants, incomingVariants),
+    },
+    { transaction },
+  );
+
+  return {
+    name: inventory.name,
+    receivedId: Number(inventory.Id),
+    productId: Number(inventory.Id),
+    quantity: returnQty,
+    variants: incomingVariants,
+    purchase_price: Number(inventory.purchase_price || 0) * returnQty,
+    sale_price:
+      customSalePrice !== null
+        ? customSalePrice
+        : Number(inventory.sale_price || 0) * returnQty,
+  };
+};
+
+const restoreReturnItemsFromInventory = async (items = [], transaction) => {
+  for (const item of items) {
+    const qty = Number(item.quantity || 0);
+    if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
+
+    const inventory = await findInventoryByStoredReference(
+      Number(item.productId || item.receivedId),
+      transaction,
+    );
+
+    if (!inventory) throw new ApiError(404, "Received product not found");
+
+    const nextQuantity = Number(inventory.quantity || 0) - qty;
+    if (nextQuantity < 0) {
+      throw new ApiError(400, "Inventory cannot be negative");
+    }
+
+    await inventory.update(
+      {
+        quantity: nextQuantity,
+        variants: subtractVariants(inventory.variants, parseVariants(item.variants)),
+      },
+      { transaction },
+    );
+  }
+};
+
+const insertBulkIntoDB = async (data = {}, preparedItems = null) => {
+  const items = preparedItems || getBulkItems(data);
+  if (!items.length) return insertIntoDB(data);
+
+  const firstItem = items[0] || {};
+  const userId = data.userId ?? firstItem.userId;
+  const date = data.date ?? firstItem.date;
+  const status = data.status ?? firstItem.status;
+  const note = data.note ?? firstItem.note;
+  const supplierId = data.supplierId ?? firstItem.supplierId;
+  const warehouseId = data.warehouseId ?? firstItem.warehouseId;
+  const finalStatus = String(status || "").trim() || "Active";
+
+  return db.sequelize.transaction(async (t) => {
+    const normalizedItems = [];
+
+    for (const item of items) {
+      normalizedItems.push(await normalizeReturnItem(item, t));
+    }
+
+    const summary = summarizeItems(normalizedItems);
+    const result = await ReturnProduct.create(
+      {
+        name: normalizedItems.map((item) => item.name).join(", "),
+        supplierId,
+        warehouseId,
+        quantity: summary.quantity,
+        variants: [],
+        items: normalizedItems,
+        source: "Sales Return Product",
+        purchase_price: summary.purchase_price,
+        sale_price: summary.sale_price,
+        productId: normalizedItems[0]?.productId || null,
+        status: finalStatus || "---",
+        note: finalStatus === "Approved" ? null : note || null,
+        date,
+      },
+      { transaction: t },
+    );
+
+    const users = await User.findAll({
+      attributes: ["Id", "role"],
+      where: {
+        Id: { [Op.ne]: userId },
+        role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+      },
+      transaction: t,
+    });
+
+    if (users.length) {
+      const message = resolveApprovalNotificationMessage({
+        status: finalStatus,
+        note,
+        date,
+        approvedMessage: "Received product request approved",
+        fallbackMessage: "Please approved my request",
+      });
+
+      await Promise.all(
+        users.map((u) =>
+          Notification.create(
+            {
+              userId: u.Id,
+              message,
+              url: `/${process.env.APP_BASE_URL}/purchase-requisition`,
+            },
+            { transaction: t },
+          ),
+        ),
+      );
+    }
+
+    return result;
+  });
+};
+
 const insertIntoDB = async (data) => {
+  const bulkItems = getBulkItems(data);
+  if (bulkItems.length > 1) {
+    return insertBulkIntoDB(data, bulkItems);
+  }
+
   const {
     quantity,
     sale_price,
@@ -263,12 +451,23 @@ const deleteIdFromDB = async (id) => {
     // 1) Return row খুঁজে বের করো
     const ret = await ReturnProduct.findOne({
       where: { Id: id },
-      attributes: ["Id", "productId", "quantity", "variants"],
+      attributes: ["Id", "productId", "quantity", "variants", "items"],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
     if (!ret) throw new ApiError(404, "Return product not found");
+
+    const bulkItems = parseItems(ret.items);
+    if (bulkItems.length > 0) {
+      await restoreReturnItemsFromInventory(bulkItems, t);
+      await ReturnProduct.destroy({
+        where: { Id: id },
+        transaction: t,
+      });
+
+      return { deleted: true };
+    }
 
     const qty = Number(ret.quantity || 0);
     if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
@@ -518,6 +717,7 @@ const updateOneFromDB = async (id, payload) => {
   const todayStr = new Date().toISOString().slice(0, 10);
   const inputDateStr = String(date || "").slice(0, 10);
   const incomingVariants = parseVariants(variants);
+  const incomingBulkItems = getBulkItems(payload);
   const nextQty = Number(quantity || 0);
   const customSalePrice =
     sale_price === undefined || sale_price === null || sale_price === ""
@@ -539,6 +739,7 @@ const updateOneFromDB = async (id, payload) => {
         "sale_price",
         "variants",
         "productId",
+        "items",
       ],
       transaction: t,
       lock: t.LOCK.UPDATE,
@@ -585,6 +786,65 @@ const updateOneFromDB = async (id, payload) => {
       approvedMessage: "Purchase  product request approved",
       fallbackMessage: "Please approved my request",
     });
+
+    const oldItems = parseItems(existing.items);
+    if (oldItems.length > 0 || incomingBulkItems.length > 0) {
+      const nextItems = incomingBulkItems.length ? incomingBulkItems : oldItems;
+
+      await restoreReturnItemsFromInventory(oldItems, t);
+
+      const normalizedItems = [];
+      for (const item of nextItems) {
+        normalizedItems.push(await normalizeReturnItem(item, t));
+      }
+
+      const summary = summarizeItems(normalizedItems);
+      const data = {
+        name: normalizedItems.map((item) => item.name).join(", "),
+        quantity: summary.quantity,
+        variants: [],
+        items: normalizedItems,
+        purchase_price: summary.purchase_price,
+        sale_price: summary.sale_price,
+        supplierId,
+        warehouseId,
+        productId: normalizedItems[0]?.productId || existing.productId,
+        note: finalStatus === "Approved" ? null : newNote || null,
+        status: finalStatus,
+        date: inputDateStr || undefined,
+      };
+
+      const [updatedCount] = await ReturnProduct.update(data, {
+        where: { Id: id },
+        transaction: t,
+      });
+
+      const users = await User.findAll({
+        attributes: ["Id", "role"],
+        where: {
+          Id: { [Op.ne]: userId },
+          role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+        },
+        transaction: t,
+      });
+
+      if (!users.length) return updatedCount;
+
+      await Promise.all(
+        users.map((u) =>
+          Notification.create(
+            {
+              userId: u.Id,
+              message,
+              url: `/${process.env.APP_BASE_URL}/purchase-product`,
+            },
+            { transaction: t },
+          ),
+        ),
+      );
+
+      return updatedCount;
+    }
 
     const oldInv = await InventoryMaster.findOne({
       where: { Id: oldProductId },

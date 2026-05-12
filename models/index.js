@@ -1587,6 +1587,20 @@ const ensurePurchaseReturnProductItemsColumn = async () => {
   }
 };
 
+const ensureJsonItemsColumn = async (modelKey) => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db[modelKey].getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!tableDefinition.items) {
+    await queryInterface.addColumn(tableName, "items", {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: [],
+    });
+  }
+};
+
 const ensureProfitLossModeColumn = async () => {
   const queryInterface = db.sequelize.getQueryInterface();
   const tableName = db.profitLoss.getTableName();
@@ -2127,6 +2141,11 @@ db.sequelize
     await ensurePurchaseRequisitionAssetColumns();
     await ensurePurchaseRequisitionItemsColumn();
     await ensurePurchaseReturnProductItemsColumn();
+    await Promise.all(
+      ["inTransitProduct", "returnProduct"].map((modelKey) =>
+        ensureJsonItemsColumn(modelKey),
+      ),
+    );
     await Promise.all(
       ["pettyCash", "pettyCashRequisition"].map((modelKey) =>
         ensurePettyCashColumns(modelKey),

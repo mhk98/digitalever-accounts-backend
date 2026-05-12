@@ -42,6 +42,11 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: [],
         allowNull: true,
       },
+      items: {
+        type: DataTypes.JSON,
+        defaultValue: [],
+        allowNull: true,
+      },
 
       date: {
         type: DataTypes.DATEONLY,
