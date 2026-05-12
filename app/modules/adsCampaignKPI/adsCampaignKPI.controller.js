@@ -102,6 +102,29 @@ const getPerformanceGraph = catchAsync(async (req, res) => {
   });
 });
 
+const createAdsAccount = catchAsync(async (req, res) => {
+  const result = await AdsCampaignKPIService.createAdsAccount(req.body);
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Ads account created successfully!",
+    data: result,
+  });
+});
+
+const getAdsAccounts = catchAsync(async (req, res) => {
+  const filters = pick(req.query, ["platform"]);
+  const result = await AdsCampaignKPIService.getAdsAccounts(filters);
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Ads account data fetched successfully!",
+    data: result,
+  });
+});
+
 module.exports = {
   insertIntoDB,
   getAllFromDB,
@@ -111,4 +134,6 @@ module.exports = {
   getAllFromDBWithoutQuery,
   getSummary,
   getPerformanceGraph,
+  createAdsAccount,
+  getAdsAccounts,
 };

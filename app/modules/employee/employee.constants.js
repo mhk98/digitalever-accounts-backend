@@ -1,4 +1,10 @@
-const EmployeeFilterAbleFileds = ["searchTerm", "startDate", "endDate", "name"];
+const EmployeeFilterAbleFileds = [
+  "searchTerm",
+  "startDate",
+  "endDate",
+  "name",
+  "departmentId",
+];
 
 const EmployeeSearchableFields = ["searchTerm"];
 

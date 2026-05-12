@@ -13,7 +13,11 @@ router.post(
   applyApprovalWorkflow({ modelKey: "product", entityLabel: "Product" }),
   ProductController.insertIntoDB,
 );
-router.get("/", auth(), ProductController.getAllFromDB);
+router.get(
+  "/",
+  // auth(),
+  ProductController.getAllFromDB,
+);
 router.get("/all", auth(), ProductController.getAllFromDBWithoutQuery);
 router.get("/stock/:id", auth(), ProductController.getDataById);
 router.get("/:id", auth(), ProductController.getReceivedDataById);

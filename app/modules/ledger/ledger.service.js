@@ -29,7 +29,13 @@ const normalizeOptionalForeignKey = (value) => {
 
 const normalizeLedgerPayload = (payload) => {
   const normalizedPayload = {
-    ...payload,
+    cashType: payload?.cashType,
+    note: payload?.note,
+    date: payload?.date,
+    supplierId: payload?.supplierId,
+    employeeId: payload?.employeeId,
+    bookId: payload?.bookId,
+    file: payload?.file,
     supplierId: normalizeOptionalForeignKey(payload?.supplierId),
     employeeId: normalizeOptionalForeignKey(payload?.employeeId),
   };
@@ -85,8 +91,16 @@ const insertIntoDB = async (data) => {
       );
     }
 
-    const { cashType, amount, note, date, supplierId, employeeId, bookId, file } =
-      normalizedData;
+    const {
+      cashType,
+      amount,
+      note,
+      date,
+      supplierId,
+      employeeId,
+      bookId,
+      file,
+    } = normalizedData;
 
     const result = await Ledger.create(normalizedData, { transaction: t });
 

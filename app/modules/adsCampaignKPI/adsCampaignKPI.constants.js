@@ -4,10 +4,17 @@ const AdsCampaignKPIFilterAbleFields = [
   "startDate",
   "endDate",
   "platform",
+  "adsAccountId",
+  "adsAccountName",
   "status",
 ];
 
-const AdsCampaignKPISearchableFields = ["campaignName", "platform", "note"];
+const AdsCampaignKPISearchableFields = [
+  "campaignName",
+  "platform",
+  "adsAccountName",
+  "note",
+];
 
 module.exports = {
   AdsCampaignKPIFilterAbleFields,

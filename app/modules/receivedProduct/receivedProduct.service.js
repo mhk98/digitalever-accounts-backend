@@ -35,7 +35,330 @@ const toNumber = (value) => {
   return Number.isFinite(number) ? number : 0;
 };
 
+const parseItems = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const getBulkItems = (data = {}) => {
+  const items = parseItems(data.items);
+  if (!items.length) return [];
+
+  const { items: _items, ...commonFields } = data;
+  return items.map((item) => ({
+    ...commonFields,
+    ...item,
+  }));
+};
+
+const applyReceivedItemToInventory = async (item, productData, transaction) => {
+  const incomingVariants = parseVariants(item.variants);
+  const quantity = toNumber(item.quantity);
+  const productId = Number(item.productId);
+  const purchasePrice = toNumber(item.purchase_price);
+  const salePrice = toNumber(item.sale_price);
+
+  const inv = await InventoryMaster.findOne({
+    where: { productId },
+    transaction,
+    lock: transaction.LOCK.UPDATE,
+  });
+
+  if (inv) {
+    await inv.update(
+      {
+        quantity: toNumber(inv.quantity) + quantity,
+        variants: mergeVariants(inv.variants, incomingVariants),
+        purchase_price: purchasePrice,
+        sale_price: salePrice,
+      },
+      { transaction },
+    );
+
+    if (!productData.stockId) {
+      await Product.update(
+        { stockId: inv.Id },
+        { where: { Id: productId }, transaction },
+      );
+    }
+
+    return;
+  }
+
+  const stock = await InventoryMaster.create(
+    {
+      productId,
+      sku: item.sku || "",
+      weight: item.weight || 0,
+      name: productData.name,
+      quantity,
+      variants: incomingVariants,
+      purchase_price: purchasePrice,
+      sale_price: salePrice,
+    },
+    { transaction },
+  );
+
+  if (!productData.stockId) {
+    await Product.update(
+      { stockId: stock.Id },
+      { where: { Id: productId }, transaction },
+    );
+  }
+};
+
+const removeReceivedItemFromInventory = async (item, transaction) => {
+  const productId = Number(item.productId);
+  const quantity = toNumber(item.quantity);
+  if (!productId || quantity <= 0) return;
+
+  const inv = await InventoryMaster.findOne({
+    where: { productId },
+    transaction,
+    lock: transaction.LOCK.UPDATE,
+  });
+
+  if (!inv) return;
+
+  const nextQty = toNumber(inv.quantity) - quantity;
+  if (nextQty < 0) {
+    throw new ApiError(
+      400,
+      "Inventory cannot be negative for this received product update",
+    );
+  }
+
+  await inv.update(
+    {
+      quantity: nextQty,
+      variants: subtractVariants(inv.variants, item.variants),
+    },
+    { transaction },
+  );
+};
+
+const summarizeReceivedItems = (items = []) => {
+  const quantity = items.reduce((total, item) => total + toNumber(item.quantity), 0);
+  const totalPurchase = items.reduce(
+    (total, item) => total + toNumber(item.purchase_price) * toNumber(item.quantity),
+    0,
+  );
+  const totalSale = items.reduce(
+    (total, item) => total + toNumber(item.sale_price) * toNumber(item.quantity),
+    0,
+  );
+
+  return {
+    quantity,
+    purchase_price: quantity ? totalPurchase / quantity : 0,
+    sale_price: quantity ? totalSale / quantity : 0,
+  };
+};
+
+const sendReceivedProductNotifications = async ({
+  userId,
+  status,
+  note,
+  date,
+  transaction,
+}) => {
+  const users = await User.findAll({
+    attributes: ["Id", "role"],
+    where: {
+      Id: { [Op.ne]: userId },
+      role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+    },
+    transaction,
+  });
+
+  if (!users.length) return;
+
+  const message = resolveApprovalNotificationMessage({
+    status,
+    note,
+    date,
+    approvedMessage: "Received product request approved",
+    fallbackMessage: "Please approve my request",
+  });
+
+  await Promise.all(
+    users.map((u) =>
+      Notification.create(
+        {
+          userId: u.Id,
+          message,
+          url: `/${process.env.APP_BASE_URL}/purchase-requisition`,
+        },
+        { transaction },
+      ),
+    ),
+  );
+};
+
+const updateBulkOneFromDB = async (id, payload, preparedItems = []) => {
+  const {
+    note,
+    status,
+    date,
+    userId,
+    supplierId,
+    warehouseId,
+    batchId,
+    actorRole,
+    file,
+  } = payload;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10);
+
+  return db.sequelize.transaction(async (t) => {
+    const existing = await ReceivedProduct.findOne({
+      where: { Id: id },
+      attributes: [
+        "Id",
+        "note",
+        "status",
+        "items",
+        "quantity",
+        "productId",
+        "variants",
+      ],
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!existing) return 0;
+
+    const oldItems = parseItems(existing.items);
+    const newNote = String(note || "").trim();
+    const oldNote = String(existing.note || "").trim();
+    const inputStatus = String(status || "").trim();
+    const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
+    const dateTriggersPending =
+      Boolean(inputDateStr) && inputDateStr !== todayStr;
+    const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
+
+    let finalStatus = existing.status || "Pending";
+    if (isPrivileged) {
+      finalStatus = inputStatus || finalStatus;
+    } else if (dateTriggersPending || noteTriggersPending) {
+      finalStatus = "Pending";
+    } else {
+      finalStatus = inputStatus || finalStatus;
+    }
+
+    let normalizedItems = oldItems;
+
+    if (preparedItems.length > 0) {
+      for (const item of oldItems) {
+        await removeReceivedItemFromInventory(item, t);
+      }
+
+      const productIds = [
+        ...new Set(preparedItems.map((item) => Number(item.productId))),
+      ];
+      if (productIds.some((productId) => !productId)) {
+        throw new ApiError(400, "Product is required for every item");
+      }
+
+      const products = await Product.findAll({
+        where: { Id: { [Op.in]: productIds } },
+        transaction: t,
+      });
+      const productMap = new Map(
+        products.map((product) => [Number(product.Id), product]),
+      );
+
+      if (products.length !== productIds.length) {
+        throw new ApiError(404, "One or more products not found");
+      }
+
+      normalizedItems = [];
+      for (const item of preparedItems) {
+        const productId = Number(item.productId);
+        const productData = productMap.get(productId);
+        const quantity = toNumber(item.quantity);
+
+        if (quantity <= 0) {
+          throw new ApiError(
+            400,
+            "Quantity must be greater than 0 for every item",
+          );
+        }
+
+        const normalizedItem = {
+          productId,
+          name: productData.name,
+          quantity,
+          variants: parseVariants(item.variants),
+          sku: item.sku || "",
+          weight: item.weight || "",
+          purchase_price: toNumber(item.purchase_price),
+          sale_price: toNumber(item.sale_price),
+          warrantyValue: item.warrantyValue || "",
+          warrantyUnit: item.warrantyUnit || "",
+        };
+
+        normalizedItems.push(normalizedItem);
+        await applyReceivedItemToInventory(normalizedItem, productData, t);
+      }
+    }
+
+    const summary = summarizeReceivedItems(normalizedItems);
+    const firstItem = normalizedItems[0] || {};
+    const data = {
+      name: normalizedItems.map((item) => item.name).join(", "),
+      quantity: summary.quantity,
+      purchase_price: summary.purchase_price,
+      sale_price: summary.sale_price,
+      supplierId,
+      warehouseId,
+      productId: firstItem.productId || existing.productId,
+      sku: "",
+      weight: 0,
+      variants: [],
+      items: normalizedItems,
+      batchId: batchId || undefined,
+      note: finalStatus === "Approved" ? null : newNote || null,
+      status: finalStatus,
+      date: inputDateStr || undefined,
+      file,
+    };
+
+    Object.keys(data).forEach((key) => {
+      if (data[key] === undefined) delete data[key];
+    });
+
+    const [updatedCount] = await ReceivedProduct.update(data, {
+      where: { Id: id },
+      transaction: t,
+    });
+
+    await sendReceivedProductNotifications({
+      userId,
+      status: finalStatus,
+      note: newNote,
+      date: inputDateStr,
+      transaction: t,
+    });
+
+    return updatedCount;
+  });
+};
+
 const insertIntoDB = async (data, file) => {
+  const bulkItems = getBulkItems(data);
+  if (bulkItems.length > 1) {
+    return insertBulkIntoDB(data, file, bulkItems);
+  }
+
   const {
     quantity,
     productId,
@@ -53,6 +376,7 @@ const insertIntoDB = async (data, file) => {
     bookId,
     supplierId,
     warehouseId,
+    batchId,
   } = data;
 
   console.log("ReceivedProduct", data);
@@ -73,6 +397,7 @@ const insertIntoDB = async (data, file) => {
       name: productData.name,
       quantity,
       source: "Received Product",
+      batchId: batchId || null,
       purchase_price: Number(purchase_price),
       sale_price: Number(sale_price),
       supplierId,
@@ -234,6 +559,133 @@ const insertIntoDB = async (data, file) => {
   });
 };
 
+const insertBulkIntoDB = async (data, file, preparedItems = null) => {
+  const items = preparedItems || getBulkItems(data);
+  if (!items.length) return insertIntoDB(data, file);
+
+  const {
+    date,
+    status,
+    note,
+    userId,
+    supplierId,
+    warehouseId,
+    batchId,
+    warrantyValue,
+    warrantyUnit,
+  } = data;
+
+  const finalStatus = String(status || "").trim() || "Active";
+
+  return db.sequelize.transaction(async (t) => {
+    const productIds = [...new Set(items.map((item) => Number(item.productId)))];
+    if (productIds.some((id) => !id)) {
+      throw new ApiError(400, "Product is required for every item");
+    }
+
+    const products = await Product.findAll({
+      where: { Id: { [Op.in]: productIds } },
+      transaction: t,
+    });
+    const productMap = new Map(products.map((product) => [Number(product.Id), product]));
+
+    if (products.length !== productIds.length) {
+      throw new ApiError(404, "One or more products not found");
+    }
+
+    const normalizedItems = [];
+
+    for (const item of items) {
+      const productId = Number(item.productId);
+      const productData = productMap.get(productId);
+      const incomingVariants = parseVariants(item.variants);
+      const quantity = toNumber(item.quantity);
+
+      if (quantity <= 0) {
+        throw new ApiError(400, "Quantity must be greater than 0 for every item");
+      }
+
+      const normalizedItem = {
+        productId,
+        name: productData.name,
+        quantity,
+        variants: incomingVariants,
+        sku: item.sku || "",
+        weight: item.weight || "",
+        purchase_price: toNumber(item.purchase_price),
+        sale_price: toNumber(item.sale_price),
+        warrantyValue: item.warrantyValue || warrantyValue || "",
+        warrantyUnit: item.warrantyUnit || warrantyUnit || "",
+      };
+
+      normalizedItems.push(normalizedItem);
+      await applyReceivedItemToInventory(normalizedItem, productData, t);
+
+      if (
+        Number(normalizedItem.warrantyValue) > 0 &&
+        normalizedItem.warrantyUnit
+      ) {
+        await WarrantyProduct.create(
+          {
+            name: productData.name,
+            price: normalizedItem.purchase_price,
+            quantity,
+            date: item.date || date,
+            warrantyValue: Number(normalizedItem.warrantyValue),
+            warrantyUnit: normalizedItem.warrantyUnit,
+          },
+          { transaction: t },
+        );
+      }
+    }
+
+    const totalQuantity = normalizedItems.reduce(
+      (total, item) => total + item.quantity,
+      0,
+    );
+    const totalPurchase = normalizedItems.reduce(
+      (total, item) => total + item.purchase_price * item.quantity,
+      0,
+    );
+    const totalSale = normalizedItems.reduce(
+      (total, item) => total + item.sale_price * item.quantity,
+      0,
+    );
+
+    const result = await ReceivedProduct.create(
+      {
+        name: normalizedItems.map((item) => item.name).join(", "),
+        quantity: totalQuantity,
+        source: "Received Product",
+        batchId: batchId || null,
+        items: normalizedItems,
+        purchase_price: totalQuantity ? totalPurchase / totalQuantity : 0,
+        sale_price: totalQuantity ? totalSale / totalQuantity : 0,
+        supplierId,
+        warehouseId,
+        productId: normalizedItems[0]?.productId || null,
+        sku: "",
+        weight: 0,
+        variants: [],
+        status: finalStatus || "---",
+        note: finalStatus === "Approved" ? null : note || null,
+        date,
+      },
+      { transaction: t },
+    );
+
+    await sendReceivedProductNotifications({
+      userId,
+      status: finalStatus,
+      note,
+      date,
+      transaction: t,
+    });
+
+    return result;
+  });
+};
+
 const getAllFromDB = async (filters, options) => {
   const { page, limit, skip } = paginationHelpers.calculatePagination(options);
 
@@ -354,6 +806,7 @@ const deleteIdFromDB = async (id, options = {}) => {
         "productId",
         "quantity",
         "variants",
+        "items",
         "purchase_price",
         "sale_price",
       ],
@@ -363,35 +816,68 @@ const deleteIdFromDB = async (id, options = {}) => {
 
     if (!existing) throw new ApiError(404, "Received product not found");
 
+    const bulkItems = parseItems(existing.items);
     const productId = Number(existing.productId);
     const qty = toNumber(existing.quantity);
 
     // ✅ 2) InventoryMaster subtract
     if (!skipInventoryAdjustment) {
-      const inv = await InventoryMaster.findOne({
-        where: { productId },
-        transaction: t,
-        lock: t.LOCK.UPDATE,
-      });
+      if (bulkItems.length) {
+        for (const item of bulkItems) {
+          const itemProductId = Number(item.productId);
+          const itemQty = toNumber(item.quantity);
+          const inv = await InventoryMaster.findOne({
+            where: { productId: itemProductId },
+            transaction: t,
+            lock: t.LOCK.UPDATE,
+          });
 
-      if (inv) {
-        const nextQty = Number(inv.quantity || 0) - qty;
-        const nextVariants = subtractVariants(inv.variants, existing.variants);
+          if (!inv) continue;
 
-        if (nextQty < 0) {
-          throw new ApiError(
-            400,
-            "This received product cannot be deleted because some of its stock has already been used.",
+          const nextQty = Number(inv.quantity || 0) - itemQty;
+          const nextVariants = subtractVariants(inv.variants, item.variants);
+
+          if (nextQty < 0) {
+            throw new ApiError(
+              400,
+              "This received product cannot be deleted because some of its stock has already been used.",
+            );
+          }
+
+          await inv.update(
+            {
+              quantity: nextQty,
+              variants: nextVariants,
+            },
+            { transaction: t },
           );
         }
+      } else {
+        const inv = await InventoryMaster.findOne({
+          where: { productId },
+          transaction: t,
+          lock: t.LOCK.UPDATE,
+        });
 
-        await inv.update(
-          {
-            quantity: nextQty,
-            variants: nextVariants,
-          },
-          { transaction: t },
-        );
+        if (inv) {
+          const nextQty = Number(inv.quantity || 0) - qty;
+          const nextVariants = subtractVariants(inv.variants, existing.variants);
+
+          if (nextQty < 0) {
+            throw new ApiError(
+              400,
+              "This received product cannot be deleted because some of its stock has already been used.",
+            );
+          }
+
+          await inv.update(
+            {
+              quantity: nextQty,
+              variants: nextVariants,
+            },
+            { transaction: t },
+          );
+        }
       }
     }
 
@@ -406,6 +892,22 @@ const deleteIdFromDB = async (id, options = {}) => {
 };
 
 const updateOneFromDB = async (id, payload) => {
+  const incomingBulkItems = getBulkItems(payload);
+  if (incomingBulkItems.length > 1) {
+    return updateBulkOneFromDB(id, payload, incomingBulkItems);
+  }
+
+  const existingItemsRow = await ReceivedProduct.findOne({
+    where: { Id: id },
+    attributes: ["Id", "items"],
+  });
+
+  if (!existingItemsRow) return 0;
+
+  if (parseItems(existingItemsRow.items).length > 0) {
+    return updateBulkOneFromDB(id, payload, incomingBulkItems);
+  }
+
   const {
     quantity,
     productId,
@@ -440,7 +942,15 @@ const updateOneFromDB = async (id, payload) => {
     // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
     const existing = await ReceivedProduct.findOne({
       where: { Id: id },
-      attributes: ["Id", "note", "status", "quantity", "productId", "variants"],
+      attributes: [
+        "Id",
+        "note",
+        "status",
+        "quantity",
+        "productId",
+        "variants",
+        "items",
+      ],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });

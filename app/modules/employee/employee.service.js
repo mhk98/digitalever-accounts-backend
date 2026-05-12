@@ -12,6 +12,16 @@ const User = db.user;
 const LedgerHistory = db.ledgerHistory;
 const CashInOut = db.cashInOut;
 const EmployeeList = db.employeeList;
+const Department = db.department;
+
+const employeeInclude = [
+  {
+    model: Department,
+    as: "department",
+    attributes: ["Id", "name", "code", "status"],
+    required: false,
+  },
+];
 
 const getSafeAmount = (value) => {
   const numericValue = Number(value);
@@ -63,6 +73,7 @@ const createAdvanceSettlementEntries = async (
     {
       employeeId: normalizedEmployeeId,
       paymentStatus: "CashIn",
+      category: "Advance",
       amount: advanceAmount,
       bookId: normalizedBookId,
       status: "Active",
@@ -110,11 +121,12 @@ const insertIntoDB = async (payload) => {
     status,
     userId,
     employeeListId,
+    departmentId,
     date,
   } = payload;
 
   console.log("employeeData", payload);
-  const finalStatus = String(status || "").trim() || "Active";
+  const finalStatus = String(status || "").trim() || "Pending";
 
   const data = {
     name,
@@ -135,6 +147,7 @@ const insertIntoDB = async (payload) => {
     status: finalStatus,
     userId,
     employeeListId,
+    departmentId: normalizeOptionalId(departmentId),
     bookId: normalizeOptionalId(bookId),
     date,
   };
@@ -170,15 +183,13 @@ const insertIntoDB = async (payload) => {
       );
     }
 
-    if (
-      payrollEmployeeId &&
-      hasAdvanceAdjustment &&
-      getSafeAmount(result.total_salary) > 0
-    ) {
+    // Always create CashOut for total_salary if it exists, regardless of advance
+    if (payrollEmployeeId && getSafeAmount(result.total_salary) > 0) {
       await CashInOut.create(
         {
           employeeId: payrollEmployeeId,
           paymentStatus: "CashOut",
+          category: "salary",
           amount: result.total_salary,
           bookId: normalizeOptionalId(bookId),
           status: "Active",
@@ -249,6 +260,7 @@ const getAllFromDB = async (filters, options) => {
       where: whereConditions,
       offset: skip,
       limit,
+      include: employeeInclude,
       paranoid: true,
       order,
     }),
@@ -267,6 +279,7 @@ const getDataById = async (id) => {
     where: {
       Id: id,
     },
+    include: employeeInclude,
   });
 
   return result;
@@ -302,6 +315,7 @@ const updateOneFromDB = async (id, payload) => {
     status,
     userId,
     employeeListId,
+    departmentId,
     bookId,
     date,
     actorRole,
@@ -361,20 +375,160 @@ const updateOneFromDB = async (id, payload) => {
     friday_absent,
     unapproval_absent,
     net_salary,
-    note: finalStatus === "Approved" ? null : newNote || null,
+    note: finalStatus === "Completed" ? null : newNote || null,
     date: inputDateStr || undefined,
     remarks,
     status: finalStatus,
     userId,
     employeeListId,
+    departmentId: normalizeOptionalId(departmentId),
     bookId: normalizeOptionalId(bookId),
   };
+
+  const existingEmployee = await Employee.findOne({
+    where: { Id: id },
+    attributes: [
+      "advance",
+      "total_salary",
+      "employee_id",
+      "employeeListId",
+      "bookId",
+      "date",
+    ],
+  });
 
   const [updatedCount] = await Employee.update(data, {
     where: {
       Id: id,
     },
   });
+
+  // Handle CashInOut entries for advance and salary payments
+  if (updatedCount > 0) {
+    const updatedEmployee = await Employee.findOne({
+      where: { Id: id },
+      attributes: [
+        "advance",
+        "total_salary",
+        "employee_id",
+        "employeeListId",
+        "bookId",
+        "date",
+      ],
+    });
+
+    if (updatedEmployee) {
+      const resolvedEmployeeListId = await resolveEmployeeListId({
+        employeeListId: updatedEmployee.employeeListId,
+        employee_id: updatedEmployee.employee_id,
+      });
+      const payrollEmployeeId = resolveLedgerEmployeeId({
+        employee_id: updatedEmployee.employee_id,
+        employeeListId: resolvedEmployeeListId,
+      });
+
+      const oldAdvance = getSafeAmount(existingEmployee?.advance);
+      const oldSalary = getSafeAmount(existingEmployee?.total_salary);
+      const newAdvance = getSafeAmount(updatedEmployee.advance);
+      const newSalary = getSafeAmount(updatedEmployee.total_salary);
+      const salaryDateFilter =
+        existingEmployee?.date || updatedEmployee.date || null;
+      const advanceDateFilter =
+        existingEmployee?.date || updatedEmployee.date || null;
+
+      const normalizedBookId = normalizeOptionalId(updatedEmployee.bookId);
+
+      if (payrollEmployeeId) {
+        const existingAdvanceEntry = await CashInOut.findOne({
+          where: {
+            employeeId: payrollEmployeeId,
+            paymentStatus: "CashIn",
+            category: "Advance",
+            ...(advanceDateFilter ? { date: advanceDateFilter } : {}),
+          },
+          order: [["Id", "DESC"]],
+        });
+
+        if (newAdvance > 0) {
+          if (existingAdvanceEntry) {
+            if (
+              existingAdvanceEntry.amount !== newAdvance ||
+              existingAdvanceEntry.bookId !== normalizedBookId ||
+              String(existingAdvanceEntry.date) !==
+                String(updatedEmployee.date || existingAdvanceEntry.date)
+            ) {
+              await existingAdvanceEntry.update({
+                amount: newAdvance,
+                bookId: normalizedBookId,
+                date: updatedEmployee.date || existingAdvanceEntry.date,
+                note: "Payroll advance adjustment",
+                status: "Active",
+              });
+
+              await LedgerHistory.update(
+                { paidAmount: newAdvance },
+                { where: { cashInOutId: existingAdvanceEntry.Id } },
+              );
+            }
+          } else {
+            await createAdvanceSettlementEntries({
+              employeeId: payrollEmployeeId,
+              amount: updatedEmployee.advance,
+              bookId: updatedEmployee.bookId,
+              date: updatedEmployee.date,
+            });
+          }
+        } else if (oldAdvance > 0 && existingAdvanceEntry) {
+          await existingAdvanceEntry.destroy();
+          await LedgerHistory.destroy({
+            where: { cashInOutId: existingAdvanceEntry.Id },
+          });
+        }
+
+        const existingSalaryEntry = await CashInOut.findOne({
+          where: {
+            employeeId: payrollEmployeeId,
+            paymentStatus: "CashOut",
+            category: "salary",
+            ...(salaryDateFilter ? { date: salaryDateFilter } : {}),
+          },
+          order: [["Id", "DESC"]],
+        });
+
+        if (newSalary > 0) {
+          if (existingSalaryEntry) {
+            if (
+              existingSalaryEntry.amount !== newSalary ||
+              existingSalaryEntry.bookId !== normalizedBookId ||
+              String(existingSalaryEntry.date) !==
+                String(updatedEmployee.date || existingSalaryEntry.date)
+            ) {
+              await existingSalaryEntry.update({
+                amount: newSalary,
+                bookId: normalizedBookId,
+                date: updatedEmployee.date || existingSalaryEntry.date,
+                note: "Payroll salary payment",
+                status: "Active",
+              });
+            }
+          } else {
+            await CashInOut.create({
+              employeeId: payrollEmployeeId,
+              paymentStatus: "CashOut",
+              category: "salary",
+              amount: updatedEmployee.total_salary,
+              bookId: normalizedBookId,
+              status: "Active",
+              date: updatedEmployee.date || new Date(),
+              note: "Payroll salary payment",
+            });
+          }
+        } else if (oldSalary > 0 && existingSalaryEntry) {
+          await existingSalaryEntry.destroy();
+        }
+      }
+    }
+  }
 
   const users = await User.findAll({
     attributes: ["Id", "role"],
@@ -410,6 +564,7 @@ const updateOneFromDB = async (id, payload) => {
 
 const getAllFromDBWithoutQuery = async () => {
   const result = await Employee.findAll({
+    include: employeeInclude,
     paranoid: true,
     order: [["createdAt", "DESC"]],
   });

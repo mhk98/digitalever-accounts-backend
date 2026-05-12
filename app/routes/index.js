@@ -27,6 +27,7 @@ const DamageProductRoutes = require("../modules/damageProduct/damageProduct.rout
 const EmployeeRoutes = require("../modules/employee/employee.routes");
 const NotificationRoutes = require("../modules/notification/notification.routes");
 const NoticeRoutes = require("../modules/notice/notice.routes");
+const ChargeSettingRoutes = require("../modules/chargeSetting/chargeSetting.routes");
 const TaskRoutes = require("../modules/task/task.routes");
 const WarehouseRoutes = require("../modules/warehouse/warehouse.routes");
 const LogoRoutes = require("../modules/logo/logo.routes");
@@ -59,6 +60,7 @@ const EmployeeWorkReportRoutes = require("../modules/employeeWorkReport/employee
 const LogisticWorkReportRoutes = require("../modules/logisticWorkReport/logisticWorkReport.routes");
 const DepartmentRoutes = require("../modules/department/department.routes");
 const DesignationRoutes = require("../modules/designation/designation.routes");
+const TeamRoutes = require("../modules/team/team.routes");
 const ShiftRoutes = require("../modules/shift/shift.routes");
 const HolidayRoutes = require("../modules/holiday/holiday.routes");
 const AttendanceDeviceRoutes = require("../modules/attendanceDevice/attendanceDevice.routes");
@@ -313,6 +315,10 @@ const moduleRoutes = [
     route: DesignationRoutes,
   },
   {
+    path: "/team",
+    route: TeamRoutes,
+  },
+  {
     path: "/shift",
     route: ShiftRoutes,
   },
@@ -379,6 +385,10 @@ const moduleRoutes = [
   {
     path: "/notice",
     route: NoticeRoutes,
+  },
+  {
+    path: "/charge-settings",
+    route: ChargeSettingRoutes,
   },
   {
     path: "/task",

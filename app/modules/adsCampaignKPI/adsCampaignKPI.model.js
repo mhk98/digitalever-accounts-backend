@@ -10,11 +10,19 @@ module.exports = (sequelize, DataTypes) => {
       },
       campaignName: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       platform: {
         type: DataTypes.STRING(32),
         allowNull: false,
+      },
+      adsAccountId: {
+        type: DataTypes.INTEGER(10),
+        allowNull: true,
+      },
+      adsAccountName: {
+        type: DataTypes.STRING,
+        allowNull: true,
       },
       date: {
         type: DataTypes.DATEONLY,
@@ -25,7 +33,12 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: 0,
       },
-      conversions: {
+      result: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      confirm: {
         type: DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 0,

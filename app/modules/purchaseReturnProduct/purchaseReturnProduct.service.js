@@ -19,6 +19,41 @@ const Warehouse = db.warehouse;
 const InventoryMaster = db.inventoryMaster;
 const Product = db.product;
 
+const parseItems = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const getBulkItems = (data = {}) => {
+  const items = parseItems(data.items);
+  if (!items.length) return [];
+
+  const { items: _items, ...commonFields } = data;
+  return items.map((item) => ({
+    ...commonFields,
+    ...item,
+  }));
+};
+
+const summarizeReturnItems = (items = []) => ({
+  quantity: items.reduce((total, item) => total + Number(item.quantity || 0), 0),
+  purchase_price: items.reduce(
+    (total, item) => total + Number(item.purchase_price || 0),
+    0,
+  ),
+  sale_price: items.reduce(
+    (total, item) => total + Number(item.sale_price || 0),
+    0,
+  ),
+});
+
 const findInventoryByStoredReference = async (receivedId, transaction) => {
   const inventoryByInventoryId = await InventoryMaster.findOne({
     where: { Id: receivedId },
@@ -47,7 +82,80 @@ const findInventoryByRequestReference = async (receivedId, transaction) => {
   return findInventoryByStoredReference(receivedId, transaction);
 };
 
+const normalizeReturnItem = async (item, transaction) => {
+  const returnQty = Number(item.quantity || 0);
+  const receivedId = Number(item.receivedId || item.productId);
+  const incomingVariants = parseVariants(item.variants);
+
+  if (!receivedId) throw new ApiError(400, "receivedId is required");
+  if (!returnQty || returnQty <= 0) {
+    throw new ApiError(400, "Quantity must be greater than 0");
+  }
+
+  const inventory = await findInventoryByRequestReference(receivedId, transaction);
+  if (!inventory) throw new ApiError(404, "Product not found in inventory");
+
+  const oldQty = Number(inventory.quantity || 0);
+  if (oldQty < returnQty) {
+    throw new ApiError(400, `Not enough stock. Available: ${oldQty}`);
+  }
+
+  const inventoryId = Number(inventory.Id);
+  if (!inventoryId) {
+    throw new ApiError(400, "InventoryMaster.Id missing");
+  }
+
+  const finalVariants = incomingVariants.length
+    ? subtractVariants(inventory.variants, incomingVariants)
+    : inventory.variants;
+
+  await inventory.update(
+    {
+      quantity: oldQty - returnQty,
+      variants: finalVariants,
+    },
+    { transaction },
+  );
+
+  return {
+    name: inventory.name,
+    receivedId: inventoryId,
+    productId: inventoryId,
+    quantity: returnQty,
+    variants: incomingVariants,
+    purchase_price: Number(inventory.purchase_price || 0) * returnQty,
+    sale_price: Number(inventory.purchase_price || 0) * returnQty,
+  };
+};
+
+const restoreReturnItemsToInventory = async (items = [], transaction) => {
+  for (const item of items) {
+    const qty = Number(item.quantity || 0);
+    if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
+
+    const inventory = await findInventoryByStoredReference(
+      Number(item.productId || item.receivedId),
+      transaction,
+    );
+
+    if (!inventory) throw new ApiError(404, "inventory product not found");
+
+    await inventory.update(
+      {
+        quantity: Number(inventory.quantity || 0) + qty,
+        variants: mergeVariants(inventory.variants, parseVariants(item.variants)),
+      },
+      { transaction },
+    );
+  }
+};
+
 const insertIntoDB = async (data) => {
+  const bulkItems = getBulkItems(data);
+  if (bulkItems.length > 1) {
+    return insertBulkIntoDB(data, bulkItems);
+  }
+
   const {
     quantity,
     receivedId,
@@ -145,6 +253,82 @@ const insertIntoDB = async (data) => {
             message,
             url: `/${process.env.APP_BASE_URL}/purchase-requisition`,
           }),
+        ),
+      );
+    }
+
+    return result;
+  });
+};
+
+const insertBulkIntoDB = async (data = {}, preparedItems = null) => {
+  const items = preparedItems || getBulkItems(data);
+  if (!items.length) return insertIntoDB(data);
+
+  const firstItem = items[0] || {};
+  const userId = data.userId ?? firstItem.userId;
+  const date = data.date ?? firstItem.date;
+  const status = data.status ?? firstItem.status;
+  const note = data.note ?? firstItem.note;
+  const supplierId = data.supplierId ?? firstItem.supplierId;
+  const warehouseId = data.warehouseId ?? firstItem.warehouseId;
+  const finalStatus = String(status || "").trim() || "Active";
+
+  return db.sequelize.transaction(async (t) => {
+    const normalizedItems = [];
+
+    for (const item of items) {
+      normalizedItems.push(await normalizeReturnItem(item, t));
+    }
+
+    const summary = summarizeReturnItems(normalizedItems);
+    const result = await PurchaseReturnProduct.create(
+      {
+        name: normalizedItems.map((item) => item.name).join(", "),
+        supplierId,
+        warehouseId,
+        quantity: summary.quantity,
+        variants: [],
+        items: normalizedItems,
+        source: "Purchase Return Product",
+        purchase_price: summary.purchase_price,
+        sale_price: summary.sale_price,
+        productId: normalizedItems[0]?.productId || null,
+        status: finalStatus || "---",
+        note: finalStatus === "Approved" ? null : note || null,
+        date,
+      },
+      { transaction: t },
+    );
+
+    const users = await User.findAll({
+      attributes: ["Id", "role"],
+      where: {
+        Id: { [Op.ne]: userId },
+        role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+      },
+      transaction: t,
+    });
+
+    if (users.length) {
+      const message = resolveApprovalNotificationMessage({
+        status: finalStatus,
+        note,
+        date,
+        approvedMessage: "Received product request approved",
+        fallbackMessage: "Please approved my request",
+      });
+
+      await Promise.all(
+        users.map((u) =>
+          Notification.create(
+            {
+              userId: u.Id,
+              message,
+              url: `/${process.env.APP_BASE_URL}/purchase-requisition`,
+            },
+            { transaction: t },
+          ),
         ),
       );
     }
@@ -252,12 +436,24 @@ const deleteIdFromDB = async (id) => {
     // 1) Return row খুঁজে বের করো
     const ret = await PurchaseReturnProduct.findOne({
       where: { Id: id },
-      attributes: ["Id", "productId", "quantity", "variants"],
+      attributes: ["Id", "productId", "quantity", "variants", "items"],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
     if (!ret) throw new ApiError(404, "Return product not found");
+
+    const returnItems = parseItems(ret.items);
+    if (returnItems.length > 0) {
+      await restoreReturnItemsToInventory(returnItems, t);
+
+      await PurchaseReturnProduct.destroy({
+        where: { Id: id },
+        transaction: t,
+      });
+
+      return { deleted: true };
+    }
 
     const qty = Number(ret.quantity || 0);
     if (qty <= 0) throw new ApiError(400, "Invalid return quantity");
@@ -480,7 +676,146 @@ const deleteIdFromDB = async (id) => {
 //   });
 // };
 
+const updateBulkOneFromDB = async (id, payload, preparedItems = []) => {
+  const {
+    note,
+    status,
+    date,
+    userId,
+    supplierId,
+    warehouseId,
+    actorRole,
+  } = payload;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10);
+
+  return db.sequelize.transaction(async (t) => {
+    const existing = await PurchaseReturnProduct.findOne({
+      where: { Id: id },
+      attributes: [
+        "Id",
+        "note",
+        "status",
+        "quantity",
+        "variants",
+        "productId",
+        "items",
+      ],
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!existing) return 0;
+
+    const oldNote = String(existing.note || "").trim();
+    const newNote = String(note || "").trim();
+    const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
+    const dateTriggersPending =
+      Boolean(inputDateStr) && inputDateStr !== todayStr;
+    const inputStatus = String(status || "").trim();
+    const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
+
+    let finalStatus = existing.status || "Pending";
+    if (isPrivileged) {
+      finalStatus = inputStatus || finalStatus;
+    } else if (dateTriggersPending || noteTriggersPending) {
+      finalStatus = "Pending";
+    } else {
+      finalStatus = inputStatus || finalStatus;
+    }
+
+    const oldItems = parseItems(existing.items);
+    const restoreItems = oldItems.length
+      ? oldItems
+      : [
+          {
+            productId: existing.productId,
+            receivedId: existing.productId,
+            quantity: existing.quantity,
+            variants: existing.variants,
+          },
+        ];
+
+    await restoreReturnItemsToInventory(restoreItems, t);
+
+    const nextItems = preparedItems.length ? preparedItems : oldItems;
+    const normalizedItems = [];
+    for (const item of nextItems) {
+      normalizedItems.push(await normalizeReturnItem(item, t));
+    }
+
+    const summary = summarizeReturnItems(normalizedItems);
+    const data = {
+      name: normalizedItems.map((item) => item.name).join(", "),
+      quantity: summary.quantity,
+      variants: [],
+      items: normalizedItems,
+      purchase_price: summary.purchase_price,
+      sale_price: summary.sale_price,
+      supplierId,
+      warehouseId,
+      productId: normalizedItems[0]?.productId || null,
+      note: finalStatus === "Approved" ? null : newNote || null,
+      status: finalStatus,
+      date: inputDateStr || undefined,
+    };
+
+    const [updatedCount] = await PurchaseReturnProduct.update(data, {
+      where: { Id: id },
+      transaction: t,
+    });
+
+    const users = await User.findAll({
+      attributes: ["Id", "role"],
+      where: {
+        Id: { [Op.ne]: userId },
+        role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+      },
+      transaction: t,
+    });
+
+    if (!users.length) return updatedCount;
+
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note: newNote,
+      date: inputDateStr,
+      approvedMessage: "Purchase  product request approved",
+      fallbackMessage: "Please approved my request",
+    });
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create(
+          {
+            userId: u.Id,
+            message,
+            url: `/${process.env.APP_BASE_URL}/purchase-product`,
+          },
+          { transaction: t },
+        ),
+      ),
+    );
+
+    return updatedCount;
+  });
+};
+
 const updateOneFromDB = async (id, payload) => {
+  const incomingBulkItems = getBulkItems(payload);
+  if (incomingBulkItems.length > 1) {
+    return updateBulkOneFromDB(id, payload, incomingBulkItems);
+  }
+
+  const existingItemsRow = await PurchaseReturnProduct.findOne({
+    where: { Id: id },
+    attributes: ["Id", "items"],
+  });
+  if (parseItems(existingItemsRow?.items).length > 0) {
+    return updateBulkOneFromDB(id, payload, incomingBulkItems);
+  }
+
   const {
     quantity,
     receivedId,
@@ -503,7 +838,15 @@ const updateOneFromDB = async (id, payload) => {
     // ✅ আগে পুরোনো ডাটা আনো (note পরিবর্তন ধরার জন্য)
     const existing = await PurchaseReturnProduct.findOne({
       where: { Id: id },
-      attributes: ["Id", "note", "status", "quantity", "variants", "productId"],
+      attributes: [
+        "Id",
+        "note",
+        "status",
+        "quantity",
+        "variants",
+        "productId",
+        "items",
+      ],
       transaction: t,
       lock: t.LOCK.UPDATE,
     });

@@ -1,13 +1,18 @@
 const catchAsync = require("../../../shared/catchAsync");
 const sendResponse = require("../../../shared/sendResponse");
 const pick = require("../../../shared/pick");
+const { insertGroupedBulkOrSingle } = require("../../../shared/bulkItems");
 const InTransitProductService = require("./inTransitProduct.service");
 const {
   InTransitProductFilterAbleFileds,
 } = require("./inTransitProduct.constants");
 
 const insertIntoDB = catchAsync(async (req, res) => {
-  const result = await InTransitProductService.insertIntoDB(req.body);
+  const result = await insertGroupedBulkOrSingle(
+    req.body,
+    InTransitProductService.insertIntoDB,
+    ["receivedId"],
+  );
 
   sendResponse(res, {
     statusCode: 200,

@@ -406,6 +406,17 @@ const normalizeKpiPayload = async (payload = {}) => {
     normalized.employeeId = Number.isFinite(employeeId) ? employeeId : null;
   }
 
+  ["departmentId", "designationId", "teamId"].forEach((field) => {
+    if (normalized[field] !== undefined && normalized[field] !== null) {
+      if (String(normalized[field]).trim() === "") {
+        normalized[field] = null;
+        return;
+      }
+      const id = Number(normalized[field]);
+      normalized[field] = Number.isFinite(id) ? id : null;
+    }
+  });
+
   if (normalized.designationType !== undefined) {
     const designation = String(normalized.designationType || "")
       .trim()
@@ -564,6 +575,9 @@ const getAllFromDB = async (filters, options, actor = {}) => {
     status,
     userId,
     employeeId,
+    departmentId,
+    designationId,
+    teamId,
     periodType,
   } = filters;
 
@@ -594,6 +608,18 @@ const getAllFromDB = async (filters, options, actor = {}) => {
 
   if (periodType) {
     andConditions.push({ periodType: { [Op.eq]: periodType } });
+  }
+
+  if (departmentId) {
+    andConditions.push({ departmentId: { [Op.eq]: Number(departmentId) } });
+  }
+
+  if (designationId) {
+    andConditions.push({ designationId: { [Op.eq]: Number(designationId) } });
+  }
+
+  if (teamId) {
+    andConditions.push({ teamId: { [Op.eq]: Number(teamId) } });
   }
 
   // Employee: only see own KPI rows.
@@ -796,7 +822,16 @@ const getEmployeeOptions = async (filters = {}, options = {}, actor = {}) => {
 };
 
 const getPerformanceGraph = async (filters = {}, actor = {}) => {
-  const { startDate, endDate, userId, employeeId, periodType } = filters;
+  const {
+    startDate,
+    endDate,
+    userId,
+    employeeId,
+    departmentId,
+    designationId,
+    teamId,
+    periodType,
+  } = filters;
   const andConditions = [];
 
   if (startDate && endDate) {
@@ -812,6 +847,18 @@ const getPerformanceGraph = async (filters = {}, actor = {}) => {
 
   if (periodType) {
     andConditions.push({ periodType: { [Op.eq]: periodType } });
+  }
+
+  if (departmentId) {
+    andConditions.push({ departmentId: { [Op.eq]: Number(departmentId) } });
+  }
+
+  if (designationId) {
+    andConditions.push({ designationId: { [Op.eq]: Number(designationId) } });
+  }
+
+  if (teamId) {
+    andConditions.push({ teamId: { [Op.eq]: Number(teamId) } });
   }
 
   if (actor?.role === ENUM_USER_ROLE.EMPLOYEE) {

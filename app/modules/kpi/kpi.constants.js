@@ -5,6 +5,9 @@ const KPIFilterAbleFileds = [
   "status",
   "userId",
   "employeeId",
+  "departmentId",
+  "designationId",
+  "teamId",
   "periodType",
 ];
 

@@ -22,8 +22,45 @@ const designationInclude = [
   },
 ];
 
+const normalizeRequiredId = (value, fieldLabel) => {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    throw new ApiError(400, `${fieldLabel} is required`);
+  }
+
+  const id = Number(value);
+  if (!Number.isFinite(id)) {
+    throw new ApiError(400, `${fieldLabel} must be valid`);
+  }
+
+  return id;
+};
+
+const normalizeDesignationPayload = (payload = {}) => {
+  const normalized = { ...payload };
+  const name = String(normalized.name || "").trim();
+
+  if (!name) {
+    throw new ApiError(400, "Designation Name is required");
+  }
+
+  normalized.departmentId = normalizeRequiredId(
+    normalized.departmentId,
+    "Department",
+  );
+  normalized.name = name;
+  if (normalized.code !== undefined) {
+    normalized.code = String(normalized.code || "").trim() || null;
+  }
+  if (normalized.description !== undefined) {
+    normalized.description = String(normalized.description || "").trim() || null;
+  }
+
+  return normalized;
+};
+
 const insertIntoDB = async (data, user) => {
-  const result = await Designation.create(applyCreateWorkflow(data, user));
+  const normalized = normalizeDesignationPayload(data);
+  const result = await Designation.create(applyCreateWorkflow(normalized, user));
   return Designation.findOne({
     where: { Id: result.Id },
     include: designationInclude,
@@ -100,7 +137,9 @@ const updateOneFromDB = async (id, payload, user) => {
     throw new ApiError(404, "Designation not found");
   }
 
-  await Designation.update(applyUpdateWorkflow(payload, user), {
+  const normalized = normalizeDesignationPayload(payload);
+
+  await Designation.update(applyUpdateWorkflow(normalized, user), {
     where: { Id: id },
   });
 

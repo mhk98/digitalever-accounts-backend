@@ -183,6 +183,10 @@ db.adsCampaignKPI =
     db.sequelize,
     DataTypes,
   );
+db.adsAccount = require("../app/modules/adsCampaignKPI/adsAccount.model")(
+  db.sequelize,
+  DataTypes,
+);
 
 db.category = require("../app/modules/category/category.model")(
   db.sequelize,
@@ -280,6 +284,8 @@ db.designation = require("../app/modules/designation/designation.model")(
   DataTypes,
 );
 
+db.team = require("../app/modules/team/team.model")(db.sequelize, DataTypes);
+
 db.shift = require("../app/modules/shift/shift.model")(db.sequelize, DataTypes);
 
 db.holiday = require("../app/modules/holiday/holiday.model")(
@@ -344,6 +350,15 @@ db.notice = require("../app/modules/notice/notice.model")(
   db.sequelize,
   DataTypes,
 );
+db.codCharge = require("../app/modules/chargeSetting/codCharge.model")(
+  db.sequelize,
+  DataTypes,
+);
+db.deliveryCharge =
+  require("../app/modules/chargeSetting/deliveryCharge.model")(
+    db.sequelize,
+    DataTypes,
+  );
 db.task = require("../app/modules/task/task.model")(db.sequelize, DataTypes);
 db.chatConversation = require("../app/modules/chat/chatConversation.model")(
   db.sequelize,
@@ -735,6 +750,15 @@ db.designation.belongsTo(db.department, {
   as: "department",
 });
 
+db.department.hasMany(db.team, {
+  foreignKey: "departmentId",
+  as: "teams",
+});
+db.team.belongsTo(db.department, {
+  foreignKey: "departmentId",
+  as: "department",
+});
+
 db.department.hasMany(db.employeeList, {
   foreignKey: "departmentId",
   as: "employees",
@@ -778,6 +802,14 @@ db.employeeList.hasMany(db.employee, {
 db.employee.belongsTo(db.employeeList, {
   foreignKey: "employeeListId",
   as: "employeeProfile",
+});
+db.department.hasMany(db.employee, {
+  foreignKey: "departmentId",
+  as: "payrolls",
+});
+db.employee.belongsTo(db.department, {
+  foreignKey: "departmentId",
+  as: "department",
 });
 
 db.employeeList.hasMany(db.attendanceEnrollment, {
@@ -1256,6 +1288,10 @@ const ensureEmployeeColumns = async () => {
     type: DataTypes.INTEGER(10),
     allowNull: true,
   });
+  await maybeAddColumn("departmentId", {
+    type: DataTypes.INTEGER(10),
+    allowNull: true,
+  });
 };
 
 const ensureDailyWorkReportColumns = async () => {
@@ -1492,6 +1528,61 @@ const ensureStatusAndNoteColumns = async (modelKey) => {
       type: DataTypes.STRING(32),
       allowNull: true,
       defaultValue: "Active",
+    });
+  }
+};
+
+const ensureBatchIdColumn = async (modelKey) => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db[modelKey].getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!tableDefinition.batchId) {
+    await queryInterface.addColumn(tableName, "batchId", {
+      type: DataTypes.STRING,
+      allowNull: true,
+    });
+  }
+};
+
+const ensureReceivedProductItemsColumn = async () => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db.receivedProduct.getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!tableDefinition.items) {
+    await queryInterface.addColumn(tableName, "items", {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: [],
+    });
+  }
+};
+
+const ensurePurchaseRequisitionItemsColumn = async () => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db.purchaseRequisition.getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!tableDefinition.items) {
+    await queryInterface.addColumn(tableName, "items", {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: [],
+    });
+  }
+};
+
+const ensurePurchaseReturnProductItemsColumn = async () => {
+  const queryInterface = db.sequelize.getQueryInterface();
+  const tableName = db.purchaseReturnProduct.getTableName();
+  const tableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!tableDefinition.items) {
+    await queryInterface.addColumn(tableName, "items", {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: [],
     });
   }
 };
@@ -1906,7 +1997,7 @@ const syncDamageStockPriceData = async () => {
   }
 };
 
-const ensureAdsCampaignKPIDateColumn = async () => {
+const ensureAdsCampaignKPIColumns = async () => {
   const queryInterface = db.sequelize.getQueryInterface();
   const tableName = db.adsCampaignKPI.getTableName();
   const tableDefinition = await queryInterface.describeTable(tableName);
@@ -1918,7 +2009,51 @@ const ensureAdsCampaignKPIDateColumn = async () => {
     });
   }
 
-  const refreshedTableDefinition = await queryInterface.describeTable(tableName);
+  let refreshedTableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!refreshedTableDefinition.result) {
+    await queryInterface.addColumn(tableName, "result", {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    });
+  }
+
+  refreshedTableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!refreshedTableDefinition.confirm) {
+    await queryInterface.addColumn(tableName, "confirm", {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    });
+  }
+
+  refreshedTableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!refreshedTableDefinition.adsAccountId) {
+    await queryInterface.addColumn(tableName, "adsAccountId", {
+      type: DataTypes.INTEGER(10),
+      allowNull: true,
+    });
+  }
+
+  refreshedTableDefinition = await queryInterface.describeTable(tableName);
+
+  if (!refreshedTableDefinition.adsAccountName) {
+    await queryInterface.addColumn(tableName, "adsAccountName", {
+      type: DataTypes.STRING,
+      allowNull: true,
+    });
+  }
+
+  refreshedTableDefinition = await queryInterface.describeTable(tableName);
+
+  if (refreshedTableDefinition.conversions) {
+    await db.sequelize.query(
+      `UPDATE \`${tableName}\` SET \`result\` = \`conversions\` WHERE (\`result\` IS NULL OR \`result\` = 0) AND \`conversions\` IS NOT NULL`,
+    );
+  }
 
   if (refreshedTableDefinition.startDate) {
     await db.sequelize.query(
@@ -1939,6 +2074,7 @@ const ensureAdsCampaignKPIDateColumn = async () => {
     "reach",
     "clicks",
     "leads",
+    "conversions",
   ];
 
   await Promise.all(
@@ -1961,11 +2097,12 @@ db.sequelize
     await ensureDailyWorkReportColumns();
     await ensureDailyWorkReportTaskColumns();
     await ensureKPIColumns();
-    await ensureAdsCampaignKPIDateColumn();
+    await ensureAdsCampaignKPIColumns();
     await ensureUserStatusColumn();
     await ensureUserDocumentColumns();
     await ensureApprovalColumns("department");
     await ensureApprovalColumns("designation");
+    await ensureApprovalColumns("team");
     await ensureKPIDesignations();
     await ensureApprovalColumns("shift");
     await ensureApprovalColumns("holiday");
@@ -1974,6 +2111,12 @@ db.sequelize
         (modelKey) => ensureStatusAndNoteColumns(modelKey),
       ),
     );
+    await Promise.all(
+      ["receivedProduct", "inTransitProduct"].map((modelKey) =>
+        ensureBatchIdColumn(modelKey),
+      ),
+    );
+    await ensureReceivedProductItemsColumn();
     await ensureProfitLossModeColumn();
     await Promise.all(
       ["assetsPurchase", "assetsSale", "assetsDamage"].map((modelKey) =>
@@ -1982,6 +2125,8 @@ db.sequelize
     );
     await ensureAssetIdColumn("assetsRequisition");
     await ensurePurchaseRequisitionAssetColumns();
+    await ensurePurchaseRequisitionItemsColumn();
+    await ensurePurchaseReturnProductItemsColumn();
     await Promise.all(
       ["pettyCash", "pettyCashRequisition"].map((modelKey) =>
         ensurePettyCashColumns(modelKey),

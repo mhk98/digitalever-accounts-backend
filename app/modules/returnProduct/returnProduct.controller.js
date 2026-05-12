@@ -1,6 +1,7 @@
 const catchAsync = require("../../../shared/catchAsync");
 const sendResponse = require("../../../shared/sendResponse");
 const pick = require("../../../shared/pick");
+const { insertBulkOrSingle } = require("../../../shared/bulkItems");
 const ReturnProductService = require("./returnProduct.service");
 const { ReturnProductFilterAbleFileds } = require("./returnProduct.constants");
 
@@ -9,7 +10,7 @@ const { ReturnProductFilterAbleFileds } = require("./returnProduct.constants");
 
 
 const insertIntoDB = catchAsync(async (req, res) => {
-  const result = await ReturnProductService.insertIntoDB(req.body);
+  const result = await insertBulkOrSingle(req.body, ReturnProductService.insertIntoDB);
  
   sendResponse(res, {
       statusCode: 200,

@@ -50,6 +50,7 @@ const insertIntoDB = async (data) => {
   const {
     quantity,
     sale_price,
+    purchase_price,
     receivedId,
     variants,
     date,
@@ -58,6 +59,7 @@ const insertIntoDB = async (data) => {
     userId,
     supplierId,
     warehouseId,
+    batchId,
   } = data;
 
   console.log("InTransit", data);
@@ -74,7 +76,10 @@ const insertIntoDB = async (data) => {
   if (!returnQty || returnQty <= 0) {
     throw new ApiError(400, "Quantity must be greater than 0");
   }
-  if (customSalePrice !== null && (!Number.isFinite(customSalePrice) || customSalePrice < 0)) {
+  if (
+    customSalePrice !== null &&
+    (!Number.isFinite(customSalePrice) || customSalePrice < 0)
+  ) {
     throw new ApiError(400, "Sales price must be a positive number");
   }
 
@@ -111,11 +116,10 @@ const insertIntoDB = async (data) => {
         quantity: returnQty,
         variants: incomingVariants,
         source: "In Transit Product",
-        purchase_price: Number(inventory.purchase_price * returnQty),
+        batchId: batchId || null,
+        purchase_price: Number(purchase_price),
         sale_price:
-          customSalePrice !== null
-            ? customSalePrice
-            : Number(inventory.sale_price * returnQty),
+          customSalePrice !== null ? customSalePrice : Number(sale_price),
         productId: inventoryId,
         status: finalStatus || "---",
         note: finalStatus === "Approved" ? null : note || null,
@@ -501,6 +505,7 @@ const deleteIdFromDB = async (id) => {
 const updateOneFromDB = async (id, payload) => {
   const {
     quantity,
+    purchase_price,
     sale_price,
     receivedId,
     variants,
@@ -521,7 +526,10 @@ const updateOneFromDB = async (id, payload) => {
     sale_price === undefined || sale_price === null || sale_price === ""
       ? null
       : Number(sale_price);
-  if (customSalePrice !== null && (!Number.isFinite(customSalePrice) || customSalePrice < 0)) {
+  if (
+    customSalePrice !== null &&
+    (!Number.isFinite(customSalePrice) || customSalePrice < 0)
+  ) {
     throw new ApiError(400, "Sales price must be a positive number");
   }
 
@@ -620,11 +628,9 @@ const updateOneFromDB = async (id, payload) => {
       name: targetInv.name,
       quantity: nextQty,
       variants: incomingVariants,
-      purchase_price: Number(targetInv.purchase_price || 0) * nextQty,
+      purchase_price: Number(purchase_price || 0),
       sale_price:
-        customSalePrice !== null
-          ? customSalePrice
-          : Number(existing.sale_price || 0),
+        customSalePrice !== null ? customSalePrice : Number(sale_price || 0),
       supplierId,
       warehouseId,
       productId: targetInv.Id,

@@ -66,6 +66,34 @@ const normalizePaymentDetails = ({ paymentMode, bankName, bankAccount }) => {
   };
 };
 
+const parseItems = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const getBulkItems = (data = {}) => {
+  const items = parseItems(data.items);
+  if (!items.length) return [];
+
+  const { items: _items, ...commonFields } = data;
+  return items.map((item) => ({
+    ...commonFields,
+    ...item,
+  }));
+};
+
+const summarizeRequisitionItems = (items = []) => ({
+  quantity: items.reduce((total, item) => total + Number(item.quantity || 0), 0),
+  amount: items.reduce((total, item) => total + Number(item.amount || 0), 0),
+});
+
 const resolveRequisitionItem = async (
   { productId, assetId, assetName, existing = null },
   options = {},
@@ -134,6 +162,11 @@ const resolveRequisitionItem = async (
 };
 
 const insertIntoDB = async (data = {}) => {
+  const bulkItems = getBulkItems(data);
+  if (bulkItems.length > 1) {
+    return insertBulkIntoDB(data, bulkItems);
+  }
+
   const {
     quantity,
     amount,
@@ -196,6 +229,116 @@ const insertIntoDB = async (data = {}) => {
     const result = await PurchaseRequisition.create(payload, {
       transaction: t,
     });
+
+    const users = await User.findAll({
+      attributes: ["Id", "role"],
+      where: {
+        Id: { [Op.ne]: userId },
+        role: { [Op.in]: ["superAdmin", "admin", "inventor"] },
+      },
+      transaction: t,
+    });
+
+    if (users.length) {
+      const message = resolveApprovalNotificationMessage({
+        status: finalStatus,
+        note,
+        date,
+        approvedMessage: "Product purchase requision request approved",
+        fallbackMessage: "Product purchase requisition request",
+      });
+
+      await Promise.all(
+        users.map((u) =>
+          Notification.create(
+            {
+              userId: u.Id,
+              message,
+              url: `/${process.env.APP_BASE_URL}/purchase-requisition`,
+            },
+            { transaction: t },
+          ),
+        ),
+      );
+    }
+
+    return result;
+  });
+};
+
+const insertBulkIntoDB = async (data = {}, preparedItems = null) => {
+  const items = preparedItems || getBulkItems(data);
+  if (!items.length) return insertIntoDB(data);
+
+  const firstItem = items[0] || {};
+  const userId = data.userId ?? firstItem.userId;
+  const bookId = data.bookId ?? firstItem.bookId;
+  const note = data.note ?? firstItem.note;
+  const date = data.date ?? firstItem.date;
+  const file = data.file ?? firstItem.file;
+  const procurement = data.procurement ?? firstItem.procurement;
+  const supplierId = data.supplierId ?? firstItem.supplierId;
+  const warehouseId = data.warehouseId ?? firstItem.warehouseId;
+  const paymentMode = data.paymentMode ?? firstItem.paymentMode;
+  const bankName = data.bankName ?? firstItem.bankName;
+  const bankAccount = data.bankAccount ?? firstItem.bankAccount;
+
+  const paymentDetails = normalizePaymentDetails({
+    paymentMode,
+    bankName,
+    bankAccount,
+  });
+  const finalStatus = "Pending";
+
+  return db.sequelize.transaction(async (t) => {
+    const normalizedItems = [];
+
+    for (const item of items) {
+      const resolvedItem = await resolveRequisitionItem(
+        {
+          productId: item.productId,
+          assetId: item.assetId,
+          assetName: item.assetName || item.newAssetName || item.name,
+        },
+        { transaction: t },
+      );
+      const quantity = Number(item.quantity || 0);
+      if (quantity <= 0) {
+        throw new ApiError(400, "Quantity must be greater than 0 for every item");
+      }
+
+      normalizedItems.push({
+        name: resolvedItem.name,
+        productId: resolvedItem.productId,
+        assetId: resolvedItem.assetId,
+        quantity,
+        amount: Number(item.amount || 0),
+        variants: parseVariants(item.variants),
+      });
+    }
+
+    const summary = summarizeRequisitionItems(normalizedItems);
+    const result = await PurchaseRequisition.create(
+      {
+        name: normalizedItems.map((item) => item.name).join(", "),
+        procurement: procurement || null,
+        quantity: summary.quantity,
+        amount: summary.amount,
+        bookId: bookId || null,
+        ...paymentDetails,
+        status: finalStatus,
+        note: finalStatus === "Approved" ? null : note || null,
+        date,
+        variants: [],
+        items: normalizedItems,
+        supplierId,
+        warehouseId,
+        productId: normalizedItems[0]?.productId || null,
+        assetId: normalizedItems[0]?.assetId || null,
+        file: file || null,
+      },
+      { transaction: t },
+    );
 
     const users = await User.findAll({
       attributes: ["Id", "role"],
@@ -363,7 +506,213 @@ const deleteIdFromDB = async (id) => {
   return result;
 };
 
+const updateBulkOneFromDB = async (id, payload, preparedItems = []) => {
+  const {
+    note,
+    date,
+    status,
+    file,
+    procurement,
+    userId,
+    supplierId,
+    warehouseId,
+    bookId,
+    paymentMode,
+    bankName,
+    bankAccount,
+    actorRole,
+  } = payload;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const inputDateStr = String(date || "").slice(0, 10);
+
+  const existing = await PurchaseRequisition.findOne({
+    where: { Id: id },
+    attributes: [
+      "Id",
+      "note",
+      "status",
+      "name",
+      "productId",
+      "assetId",
+      "bookId",
+      "paymentMode",
+      "bankName",
+      "bankAccount",
+      "quantity",
+      "amount",
+      "date",
+      "supplierId",
+      "warehouseId",
+      "items",
+    ],
+  });
+
+  if (!existing) return 0;
+
+  const finalBookId = normalizeOptionalId(bookId) || existing.bookId || null;
+  const finalSupplierId =
+    normalizeOptionalId(supplierId) || existing.supplierId || null;
+  const finalWarehouseId =
+    normalizeOptionalId(warehouseId) || existing.warehouseId || null;
+  const finalDate = inputDateStr || existing.date || undefined;
+  const paymentDetails = normalizePaymentDetails({
+    paymentMode: paymentMode === undefined ? existing.paymentMode : paymentMode,
+    bankName: bankName === undefined ? existing.bankName : bankName,
+    bankAccount: bankAccount === undefined ? existing.bankAccount : bankAccount,
+  });
+
+  const oldNote = String(existing.note || "").trim();
+  const newNote = String(note || "").trim();
+  const noteTriggersPending = Boolean(newNote) && newNote !== oldNote;
+  const dateTriggersPending =
+    Boolean(inputDateStr) && inputDateStr !== todayStr;
+  const inputStatus = String(status || "").trim();
+
+  let finalStatus = existing.status || "Pending";
+  const isPrivileged = actorRole === "superAdmin" || actorRole === "admin";
+  if (isPrivileged) {
+    finalStatus = inputStatus || finalStatus;
+  } else if (dateTriggersPending || noteTriggersPending) {
+    finalStatus = "Pending";
+  } else {
+    finalStatus = inputStatus || finalStatus;
+  }
+
+  let normalizedItems = parseItems(existing.items);
+
+  if (preparedItems.length > 0) {
+    normalizedItems = [];
+    for (const item of preparedItems) {
+      const resolvedItem = await resolveRequisitionItem({
+        productId: item.productId,
+        assetId: item.assetId,
+        assetName: item.assetName || item.newAssetName || item.name,
+      });
+      const quantity = Number(item.quantity || 0);
+      if (quantity <= 0) {
+        throw new ApiError(400, "Quantity must be greater than 0 for every item");
+      }
+      normalizedItems.push({
+        name: resolvedItem.name,
+        productId: resolvedItem.productId,
+        assetId: resolvedItem.assetId,
+        quantity,
+        amount: Number(item.amount || 0),
+        variants: parseVariants(item.variants),
+      });
+    }
+  }
+
+  const summary = summarizeRequisitionItems(normalizedItems);
+  const data = {
+    name: normalizedItems.map((item) => item.name).join(", "),
+    quantity: summary.quantity,
+    amount: summary.amount,
+    bookId: finalBookId,
+    ...paymentDetails,
+    variants: [],
+    items: normalizedItems,
+    note: finalStatus === "Approved" ? null : newNote || null,
+    status: finalStatus,
+    date: finalDate,
+    procurement,
+    file: file || null,
+    supplierId: finalSupplierId,
+    warehouseId: finalWarehouseId,
+    productId: normalizedItems[0]?.productId || existing.productId,
+    assetId: normalizedItems[0]?.assetId || existing.assetId,
+  };
+
+  return db.sequelize.transaction(async (t) => {
+    if (finalStatus === "Completed" && existing.status !== "Completed") {
+      const resolvedSupplierId = finalSupplierId;
+      const resolvedAmount = summary.amount;
+      const resolvedDate = finalDate || new Date().toISOString().slice(0, 10);
+      const itemName = data.name || existing.name;
+
+      if (resolvedSupplierId && resolvedAmount > 0) {
+        await SupplierHistory.create(
+          {
+            supplierId: resolvedSupplierId,
+            bookId: finalBookId,
+            amount: resolvedAmount,
+            status: "Paid",
+            date: resolvedDate,
+            note: `Purchase requisition completed: ${itemName}`,
+            file: file || null,
+          },
+          { transaction: t },
+        );
+
+        await CashInOut.create(
+          {
+            supplierId: resolvedSupplierId,
+            bookId: finalBookId,
+            ...paymentDetails,
+            paymentStatus: "CashOut",
+            amount: resolvedAmount,
+            paymentMode,
+            bankName,
+            bankAccount,
+            status: "Active",
+            category: "Purchase Product",
+            date: resolvedDate,
+            note: `Purchase requisition completed: ${itemName}`,
+            file: file || null,
+          },
+          { transaction: t },
+        );
+      }
+    }
+
+    const [updatedCount] = await PurchaseRequisition.update(data, {
+      where: { Id: id },
+      transaction: t,
+    });
+
+    const users = await User.findAll({
+      attributes: ["Id", "role"],
+      where: {
+        Id: { [Op.ne]: userId },
+        role: { [Op.in]: ["superAdmin", "admin"] },
+      },
+      transaction: t,
+    });
+
+    if (!users.length) return updatedCount;
+
+    const message = resolveApprovalNotificationMessage({
+      status: finalStatus,
+      note: newNote,
+      date: inputDateStr,
+      approvedMessage: "Product purchase requision request approved",
+      fallbackMessage: "Product purchase requisition request",
+    });
+
+    await Promise.all(
+      users.map((u) =>
+        Notification.create(
+          {
+            userId: u.Id,
+            message,
+            url: `/${process.env.APP_BASE_URL}/purchase-product`,
+          },
+          { transaction: t },
+        ),
+      ),
+    );
+
+    return updatedCount;
+  });
+};
+
 const updateOneFromDB = async (id, payload) => {
+  const incomingBulkItems = getBulkItems(payload);
+  if (incomingBulkItems.length > 1) {
+    return updateBulkOneFromDB(id, payload, incomingBulkItems);
+  }
+
   const {
     quantity,
     productId,
@@ -412,10 +761,15 @@ const updateOneFromDB = async (id, payload) => {
       "date",
       "supplierId",
       "warehouseId",
+      "items",
     ],
   });
 
   if (!existing) return 0;
+
+  if (parseItems(existing.items).length > 0) {
+    return updateBulkOneFromDB(id, payload, incomingBulkItems);
+  }
 
   const finalBookId = normalizeOptionalId(bookId) || existing.bookId || null;
   const finalQuantity =

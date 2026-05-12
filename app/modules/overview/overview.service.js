@@ -19,6 +19,10 @@ const CashInOut = db.cashInOut;
 const InventoryMaster = db.inventoryMaster;
 const ConfirmOrder = db.confirmOrder;
 const MarketingExpense = db.marketingExpense;
+const IntransitProduct = db.inTransitProduct;
+const ReturnProduct = db.returnProduct;
+const CodCharge = db.codCharge;
+const DeliveryCharge = db.deliveryCharge;
 
 // ✅ helper: safe number
 const n = (v) => Number(v || 0);
@@ -176,6 +180,33 @@ const sumField = async (Model, field, where = {}) => {
   return n(total);
 };
 
+const sumExcludedCashOutAmount = async (where = {}) => {
+  const excludedCategories = [
+    "loan",
+    "advance",
+    "purchase product",
+    "product purchase",
+  ];
+
+  const total = await CashInOut.sum("amount", {
+    where: {
+      ...where,
+      paymentStatus: "CashOut",
+      [Op.and]: [
+        db.Sequelize.where(
+          db.Sequelize.fn("LOWER", db.Sequelize.col("category")),
+          {
+            [Op.in]: excludedCategories,
+          },
+        ),
+      ],
+    },
+    paranoid: true,
+  });
+
+  return n(total);
+};
+
 const countWhere = async (Model, where = {}) => {
   if (!Model) return 0;
   return n(
@@ -215,6 +246,66 @@ const sumQuantityValue = async (
   return n(result?.totalValue);
 };
 
+const getProductKey = (row) =>
+  String(row?.productId ?? row?.receivedId ?? row?.name ?? row?.Id ?? "");
+
+const calculateNetPurchaseFromProductRows = async (where = {}) => {
+  const [inTransitRows, returnRows] = await Promise.all([
+    IntransitProduct.findAll({
+      where,
+      attributes: ["Id", "name", "productId", "quantity", "purchase_price"],
+      paranoid: true,
+      raw: true,
+    }),
+    ReturnProduct.findAll({
+      where,
+      attributes: ["Id", "name", "productId", "quantity"],
+      paranoid: true,
+      raw: true,
+    }),
+  ]);
+
+  const productMap = new Map();
+
+  inTransitRows.forEach((row) => {
+    const key = getProductKey(row);
+    if (!key) return;
+
+    const current = productMap.get(key) || {
+      inTransitQty: 0,
+      inTransitPurchase: 0,
+      returnQty: 0,
+    };
+
+    current.inTransitQty += n(row.quantity);
+    current.inTransitPurchase += n(row.purchase_price);
+    productMap.set(key, current);
+  });
+
+  returnRows.forEach((row) => {
+    const key = getProductKey(row);
+    if (!key) return;
+
+    const current = productMap.get(key) || {
+      inTransitQty: 0,
+      inTransitPurchase: 0,
+      returnQty: 0,
+    };
+
+    current.returnQty += n(row.quantity);
+    productMap.set(key, current);
+  });
+
+  return Array.from(productMap.values()).reduce((total, item) => {
+    if (item.inTransitQty <= 0) return total;
+
+    const remainingQty = Math.max(item.inTransitQty - item.returnQty, 0);
+    const purchasePricePerUnit = item.inTransitPurchase / item.inTransitQty;
+
+    return total + remainingQty * purchasePricePerUnit;
+  }, 0);
+};
+
 const countLowStockProducts = async (where = {}) => {
   const rows = await InventoryMaster.findAll({
     where,
@@ -243,7 +334,14 @@ const getOverviewSummaryFromDB = async (filters = {}) => {
     totalRepairingStockPrice,
     totalCashInAmount,
     totalCashOutAmount,
+    excludedCashOutAmount,
     grossSalesAmount,
+    inTransitSalesAmount,
+    salesReturnSalesAmount,
+    inTransitPurchaseAmount,
+    netPurchase,
+    totalCodCharge,
+    totalDeliveryCharge,
     lowStockCount,
     pendingPurchaseRequisitionCount,
     pendingPettyCashRequisitionCount,
@@ -268,7 +366,14 @@ const getOverviewSummaryFromDB = async (filters = {}) => {
       ...transactionDateWhere,
       paymentStatus: "CashOut",
     }),
+    sumExcludedCashOutAmount(transactionDateWhere),
     sumField(ConfirmOrder, "sale_price", transactionDateWhere),
+    sumField(IntransitProduct, "sale_price", transactionDateWhere),
+    sumField(ReturnProduct, "sale_price", transactionDateWhere),
+    sumField(IntransitProduct, "purchase_price", transactionDateWhere),
+    calculateNetPurchaseFromProductRows(transactionDateWhere),
+    sumField(CodCharge, "amount", transactionDateWhere),
+    sumField(DeliveryCharge, "amount", transactionDateWhere),
     countLowStockProducts(snapshotWhere),
     countWhere(PurchaseRequisition, {
       ...transactionDateWhere,
@@ -285,6 +390,17 @@ const getOverviewSummaryFromDB = async (filters = {}) => {
   ]);
 
   const netCashPosition = n(totalCashInAmount - totalCashOutAmount);
+  const netSalesBeforeCharges = n(
+    inTransitSalesAmount - salesReturnSalesAmount,
+  );
+  const codAndDeliveryCharge = n(totalCodCharge + totalDeliveryCharge);
+  const othersExpense = Math.max(
+    n(totalCashOutAmount - excludedCashOutAmount),
+    0,
+  );
+  const netRevenue = n(netSalesBeforeCharges - codAndDeliveryCharge);
+  const grossProfit = n(netRevenue - netPurchase);
+  const netProfitLoss = n(grossProfit - othersExpense);
   const totalPendingApprovalCount = n(
     pendingPurchaseRequisitionCount +
       pendingPettyCashRequisitionCount +
@@ -304,6 +420,17 @@ const getOverviewSummaryFromDB = async (filters = {}) => {
     totalDamageStockPrice,
     totalRepairingStockPrice,
     grossSalesAmount,
+    inTransitSalesAmount,
+    salesReturnSalesAmount,
+    inTransitPurchaseAmount,
+    totalCodCharge,
+    totalDeliveryCharge,
+    netSalesBeforeCharges,
+    netRevenue,
+    netPurchase,
+    grossProfit,
+    othersExpense,
+    netProfitLoss,
     totalCashInAmount,
     totalCashOutAmount,
     netCashPosition,

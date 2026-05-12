@@ -19,11 +19,35 @@ router.post(
   applyApprovalWorkflow({ modelKey: "cashInOut", entityLabel: "Cash In Out" }),
   CashInOutController.insertIntoDB,
 );
-router.get("/", auth(), requireMenuPermission("book"), CashInOutController.getAllFromDB);
-router.get("/all", auth(), requireMenuPermission("book"), CashInOutController.getAllFromDBWithoutQuery);
-router.get("/loans", auth(), requireMenuPermission("loan"), CashInOutController.getLoanSummaries);
-router.get("/loans/:lender", auth(), requireMenuPermission("loan"), CashInOutController.getLoanHistory);
-router.get("/:id", auth(), requireMenuPermission("book"), CashInOutController.getDataById);
+router.get(
+  "/",
+  auth(),
+  requireMenuPermission("book"),
+  CashInOutController.getAllFromDB,
+);
+router.get(
+  "/all",
+  // auth(), requireMenuPermission("book"),
+  CashInOutController.getAllFromDBWithoutQuery,
+);
+router.get(
+  "/loans",
+  auth(),
+  requireMenuPermission("loan"),
+  CashInOutController.getLoanSummaries,
+);
+router.get(
+  "/loans/:lender",
+  auth(),
+  requireMenuPermission("loan"),
+  CashInOutController.getLoanHistory,
+);
+router.get(
+  "/:id",
+  auth(),
+  requireMenuPermission("book"),
+  CashInOutController.getDataById,
+);
 router.delete(
   "/:id",
   auth(),

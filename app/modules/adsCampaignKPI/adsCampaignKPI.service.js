@@ -7,8 +7,10 @@ const {
 } = require("./adsCampaignKPI.constants");
 
 const AdsCampaignKPI = db.adsCampaignKPI;
+const AdsAccount = db.adsAccount;
 
-const numberFields = ["spend", "conversions", "revenue"];
+const platformOptions = ["Facebook", "Google", "Tiktok", "SEO"];
+const numberFields = ["spend", "result", "confirm", "revenue"];
 
 const toNumber = (value) => {
   if (value === undefined || value === null || value === "") return 0;
@@ -40,18 +42,26 @@ const safeDivide = (numerator, denominator, multiplier = 1) => {
 const normalizePayload = (payload = {}) => {
   const campaignName = String(payload.campaignName || "").trim();
   const platform = String(payload.platform || "").trim();
-
-  if (!campaignName) {
-    throw new ApiError(400, "Campaign name is required");
-  }
+  const adsAccountName = String(payload.adsAccountName || "").trim();
+  const adsAccountId = payload.adsAccountId ? Number(payload.adsAccountId) : null;
 
   if (!platform) {
     throw new ApiError(400, "Platform is required");
   }
 
+  if (!platformOptions.includes(platform)) {
+    throw new ApiError(400, "Invalid platform");
+  }
+
   const data = {
-    campaignName,
+    campaignName:
+      campaignName ||
+      [platform, adsAccountName, payload.date || payload.startDate || getTodayDate()]
+        .filter(Boolean)
+        .join(" - "),
     platform,
+    adsAccountId: Number.isFinite(adsAccountId) ? adsAccountId : null,
+    adsAccountName: adsAccountName || null,
     date: payload.date || payload.startDate || getTodayDate(),
     note: payload.note || null,
     status: payload.status || "Active",
@@ -73,7 +83,7 @@ const addCalculatedMetrics = (campaign = {}) => {
     typeof campaign.get === "function" ? campaign.get({ plain: true }) : campaign;
   const spend = toNumber(plain.spend);
   const revenue = toNumber(plain.revenue);
-  const conversions = toNumber(plain.conversions);
+  const result = toNumber(plain.result ?? plain.conversions);
   const profit = round2(revenue - spend);
   const roas = safeDivide(revenue, spend);
   const roi = safeDivide(profit, spend, 100);
@@ -86,8 +96,8 @@ const addCalculatedMetrics = (campaign = {}) => {
   return {
     ...plain,
     date: plain.date,
-    result: conversions,
-    cpr: safeDivide(spend, conversions),
+    result,
+    cpr: safeDivide(spend, result),
     roas,
     roi,
     profit,
@@ -168,13 +178,15 @@ const getSummaryFromRows = (rows = []) => {
   const totals = rows.reduce(
     (acc, row) => {
       acc.spend += toNumber(row.spend);
-      acc.conversions += toNumber(row.conversions);
+      acc.result += toNumber(row.result ?? row.conversions);
+      acc.confirm += toNumber(row.confirm);
       acc.revenue += toNumber(row.revenue);
       return acc;
     },
     {
       spend: 0,
-      conversions: 0,
+      result: 0,
+      confirm: 0,
       revenue: 0,
     },
   );
@@ -273,7 +285,8 @@ const getPerformanceGraph = async (filters) => {
       "date",
       [fn("SUM", col("spend")), "spend"],
       [fn("SUM", col("revenue")), "revenue"],
-      [fn("SUM", col("conversions")), "conversions"],
+      [fn("SUM", col("result")), "result"],
+      [fn("SUM", col("confirm")), "confirm"],
     ],
     group: ["date"],
     order: [["date", "ASC"]],
@@ -298,6 +311,52 @@ const getPerformanceGraph = async (filters) => {
   });
 };
 
+const normalizeAdsAccountPayload = (payload = {}) => {
+  const platform = String(payload.platform || "").trim();
+  const accountName = String(payload.accountName || payload.name || "").trim();
+
+  if (!platformOptions.includes(platform)) {
+    throw new ApiError(400, "Invalid platform");
+  }
+
+  if (!accountName) {
+    throw new ApiError(400, "Ads account name is required");
+  }
+
+  return {
+    platform,
+    accountName,
+    status: payload.status || "Active",
+  };
+};
+
+const createAdsAccount = async (payload) => {
+  const data = normalizeAdsAccountPayload(payload);
+  const [account] = await AdsAccount.findOrCreate({
+    where: {
+      platform: data.platform,
+      accountName: data.accountName,
+    },
+    defaults: data,
+  });
+
+  return account;
+};
+
+const getAdsAccounts = async (filters = {}) => {
+  const where = {};
+  if (filters.platform) where.platform = filters.platform;
+
+  return AdsAccount.findAll({
+    where,
+    paranoid: true,
+    order: [
+      ["platform", "ASC"],
+      ["accountName", "ASC"],
+    ],
+  });
+};
+
 module.exports = {
   insertIntoDB,
   getAllFromDB,
@@ -307,4 +366,6 @@ module.exports = {
   getAllFromDBWithoutQuery,
   getSummary,
   getPerformanceGraph,
+  createAdsAccount,
+  getAdsAccounts,
 };

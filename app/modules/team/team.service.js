@@ -2,7 +2,7 @@ const { Op } = require("sequelize");
 const paginationHelpers = require("../../../helpers/paginationHelper");
 const db = require("../../../models");
 const ApiError = require("../../../error/ApiError");
-const { DepartmentSearchableFields } = require("./department.constants");
+const { TeamSearchableFields } = require("./team.constants");
 const {
   applyCreateWorkflow,
   applyUpdateWorkflow,
@@ -10,16 +10,43 @@ const {
   isPrivilegedRole,
 } = require("../../../shared/approvalWorkflow");
 
+const Team = db.team;
 const Department = db.department;
 
-const normalizeDepartmentPayload = (payload = {}) => {
+const teamInclude = [
+  {
+    model: Department,
+    as: "department",
+    attributes: ["Id", "name", "code", "status"],
+    required: false,
+  },
+];
+
+const normalizeRequiredId = (value, fieldLabel) => {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    throw new ApiError(400, `${fieldLabel} is required`);
+  }
+
+  const id = Number(value);
+  if (!Number.isFinite(id)) {
+    throw new ApiError(400, `${fieldLabel} must be valid`);
+  }
+
+  return id;
+};
+
+const normalizeTeamPayload = (payload = {}) => {
   const normalized = { ...payload };
   const name = String(normalized.name || "").trim();
 
   if (!name) {
-    throw new ApiError(400, "Department Name is required");
+    throw new ApiError(400, "Team Name is required");
   }
 
+  normalized.departmentId = normalizeRequiredId(
+    normalized.departmentId,
+    "Department",
+  );
   normalized.name = name;
   if (normalized.code !== undefined) {
     normalized.code = String(normalized.code || "").trim() || null;
@@ -32,14 +59,15 @@ const normalizeDepartmentPayload = (payload = {}) => {
 };
 
 const getDataById = async (id) => {
-  return Department.findOne({
+  return Team.findOne({
     where: { Id: id },
+    include: teamInclude,
   });
 };
 
 const insertIntoDB = async (data, user) => {
-  const normalized = normalizeDepartmentPayload(data);
-  const result = await Department.create(applyCreateWorkflow(normalized, user));
+  const normalized = normalizeTeamPayload(data);
+  const result = await Team.create(applyCreateWorkflow(normalized, user));
   return getDataById(result.Id);
 };
 
@@ -50,7 +78,7 @@ const getAllFromDB = async (filters, options) => {
 
   if (searchTerm && searchTerm.trim()) {
     andConditions.push({
-      [Op.or]: DepartmentSearchableFields.map((field) => ({
+      [Op.or]: TeamSearchableFields.map((field) => ({
         [field]: { [Op.like]: `%${searchTerm.trim()}%` },
       })),
     });
@@ -72,8 +100,9 @@ const getAllFromDB = async (filters, options) => {
 
   const whereConditions = andConditions.length ? { [Op.and]: andConditions } : {};
 
-  const data = await Department.findAll({
+  const data = await Team.findAll({
     where: whereConditions,
+    include: teamInclude,
     offset: skip,
     limit,
     paranoid: true,
@@ -83,7 +112,7 @@ const getAllFromDB = async (filters, options) => {
         : [["createdAt", "DESC"]],
   });
 
-  const count = await Department.count({ where: whereConditions });
+  const count = await Team.count({ where: whereConditions });
 
   return {
     meta: { count, page, limit },
@@ -92,7 +121,8 @@ const getAllFromDB = async (filters, options) => {
 };
 
 const getAllFromDBWithoutQuery = async () => {
-  return Department.findAll({
+  return Team.findAll({
+    include: teamInclude,
     paranoid: true,
     order: [["createdAt", "DESC"]],
   });
@@ -101,12 +131,12 @@ const getAllFromDBWithoutQuery = async () => {
 const updateOneFromDB = async (id, payload, user) => {
   const existing = await getDataById(id);
   if (!existing) {
-    throw new ApiError(404, "Department not found");
+    throw new ApiError(404, "Team not found");
   }
 
-  const normalized = normalizeDepartmentPayload(payload);
+  const normalized = normalizeTeamPayload(payload);
 
-  await Department.update(applyUpdateWorkflow(normalized, user), {
+  await Team.update(applyUpdateWorkflow(normalized, user), {
     where: { Id: id },
   });
 
@@ -116,18 +146,18 @@ const updateOneFromDB = async (id, payload, user) => {
 const deleteIdFromDB = async (id, user, note) => {
   const existing = await getDataById(id);
   if (!existing) {
-    throw new ApiError(404, "Department not found");
+    throw new ApiError(404, "Team not found");
   }
 
   if (isPrivilegedRole(user.role)) {
-    await Department.destroy({
+    await Team.destroy({
       where: { Id: id },
     });
 
     return { deleted: true, workflowAction: "deleted" };
   }
 
-  await Department.update(buildDeleteWorkflowPayload(note, user), {
+  await Team.update(buildDeleteWorkflowPayload(note, user), {
     where: { Id: id },
   });
 
@@ -140,15 +170,15 @@ const deleteIdFromDB = async (id, user, note) => {
 const approveOneFromDB = async (id) => {
   const existing = await getDataById(id);
   if (!existing) {
-    throw new ApiError(404, "Department not found");
+    throw new ApiError(404, "Team not found");
   }
 
   if (existing.pendingAction === "Delete") {
-    await Department.destroy({ where: { Id: id } });
+    await Team.destroy({ where: { Id: id } });
     return { deleted: true, workflowAction: "deleted" };
   }
 
-  await Department.update(
+  await Team.update(
     {
       status: "Active",
       pendingAction: null,

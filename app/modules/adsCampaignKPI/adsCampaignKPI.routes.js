@@ -41,6 +41,18 @@ router.get(
   AdsCampaignKPIController.getPerformanceGraph,
 );
 router.get(
+  "/ads-accounts",
+  auth(),
+  requireAnyPermission(permissions),
+  AdsCampaignKPIController.getAdsAccounts,
+);
+router.post(
+  "/ads-accounts/create",
+  auth(),
+  requireAnyPermission(permissions),
+  AdsCampaignKPIController.createAdsAccount,
+);
+router.get(
   "/all",
   auth(),
   requireAnyPermission(permissions),
